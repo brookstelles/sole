@@ -34,6 +34,13 @@ Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`). T
 - Square's "net sales" is the service price before Square's processing fee, without tips. Kelli's P&L "Square" column matches it; tips and fees are separate.
 - Square knows money and card customers (most without names). Schedule, notes and intake answers live in MassageBook: reach them through MassageBook's Google Calendar sync and its client CSV export.
 
+## Digital forms
+
+- Every form can be filled in on the phone ("Fill in now"): fields come from `FIELDSETS` (`massage` is Kelli's intake form question for question, `tattoo`, `waiver`) or are built from a template's `sections` by `fieldsFor()`. Finger signature on a canvas, saved as a PNG.
+- A filled-in form updates its person (`applyResponse`): intake done, health flags into their notes, pressure and reason for massage.
+- Private edition saves responses to the `forms` collection (read and write `interact`); accounts made in setup keep them with the account; the built-in demos keep them for the visit.
+- "Text a link" for clients to fill in on their own phone needs Sole hosted outside claude.ai (clients aren't claude.ai users).
+
 ## Open questions
 
 - Kelli's Breakdown values each massage at $110; her P&L records about $85 (2024) and $100 (2025) per massage.

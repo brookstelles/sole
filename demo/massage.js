@@ -46,7 +46,7 @@
     license:{short:'Aug 2027', next:'August 2027', tile:'next renewal, massage license', title:'Massage therapist license',
       text:'Sample. Your license, its renewal date and your continuing education hours live here, with a reminder three months ahead.'},
     forms:[
-      {name:'Client intake form', kind:'Template', intake:true, send:true, about:'Health history, pressure and signature. Every new client fills it in before the first massage.',
+      {name:'Client intake form', kind:'Template', intake:true, send:true, fields:'massage', about:'Health history, pressure and signature. Every new client fills it in before the first massage.',
        sections:['Contact details and emergency contact','Medications and allergies','Health conditions checklist','Pressure and areas to focus on or avoid','Consent and signature']},
       {name:'Cancellation policy', kind:'Template', about:'Late arrivals, late cancellations and no-shows.',
        sections:['Late arrivals','Cancelling within 24 hours','No-shows']},

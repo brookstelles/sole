@@ -90,6 +90,28 @@ check(await p.locator('.getstarted').count() === 1, 'clearing sample data goes b
 for (const t of ['schedule','money','forms','today']) { await p.click(`.tab[data-v=${t}]`); check(!(await wide(p)), 'day one ' + t + ' fits'); }
 console.log('ok setup and day one -', await p.textContent('.biz-name'));
 
+// digital forms: a new client fills in the massage intake form on the phone, with a signature
+await p.click('[data-act=trade]'); await p.click('[data-act=pick][data-v=massage]');
+await p.click('.tab[data-v=forms]'); await p.click('[data-act=fill] >> nth=0');
+await p.click('.fill-form [type=submit]');
+check(/Please fill in: Full name/.test(await p.textContent('.toast')), 'forms: required fields are checked');
+await p.fill('#ff-name', 'Riley Test'); await p.fill('#ff-phone', '(555) 010-2020');
+await p.click('label.pick:has(input[name="ff-allergies"][value="yes"])'); await p.fill('#ff-allergies-more', 'Lavender oil');
+await p.click('label.pick:has(input[value="Headaches"])'); await p.click('label.pick:has(input[value="Sciatica"])');
+await p.click('label.pick:has(input[name="ff-pressure"][value="Firm"])');
+await p.check('#ff-consent');
+await p.locator('#sig').scrollIntoViewIfNeeded(); const box = await p.locator('#sig').boundingBox();
+await p.mouse.move(box.x + 20, box.y + 40); await p.mouse.down(); await p.mouse.move(box.x + 120, box.y + 90, {steps:8}); await p.mouse.move(box.x + 220, box.y + 50, {steps:8}); await p.mouse.up();
+await p.click('.fill-form [type=submit]');
+check(/Thank you, Riley/.test(await p.textContent('.sheet')), 'forms: thank-you screen after submitting');
+await p.click('.sheet [data-act=resp]');
+const ans = await p.textContent('.sheet');
+check(/Lavender oil/.test(ans) && /Headaches, Sciatica/.test(ans) && await p.locator('.sheet .sig-img').count() === 1, 'forms: answers and signature are saved');
+await p.click('.sheet .close');
+await p.click('[data-act=resps] >> nth=0'); check(/Riley Test/.test(await p.textContent('.sheet')), 'forms: response listed under the form'); await p.click('.sheet .close');
+await p.click('.tab[data-v=money]'); await p.click('[data-act=snapgo][data-sec=y-proj] >> nth=0'); await p.click('.tab[data-v=today]');
+console.log('ok digital forms');
+
 await b.close();
 if (errs.length) { console.error('FAILED\n - ' + errs.join('\n - ')); process.exit(1); }
 console.log('all passed');

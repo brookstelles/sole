@@ -295,6 +295,32 @@ html[data-look="sole"][data-theme="dark"]{
 .tradepick button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .form-img{max-width:100%;border-radius:12px;box-shadow:var(--shadow)}
 
+/* filling in forms */
+.sheet.fill{max-height:100%;height:100%;border-radius:0;gap:16px}
+.fill-top{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+.fill-top b{display:block;font-weight:600}
+.fill-top span span,.fill-top div span{color:var(--muted);font-size:14px}
+.fill-form{display:flex;flex-direction:column;gap:16px;padding-bottom:12px}
+.fill-h{font-size:22px;font-weight:400;margin-top:8px;padding-top:12px;border-top:1px solid var(--line)}
+.fld{display:flex;flex-direction:column;gap:8px}
+.fld > span:first-child{font-weight:600;font-size:16px}
+.fld .req{color:var(--bad)}
+.fld.missing > span:first-child,.consent.missing span{color:var(--bad)}
+.fld.missing .text-in,.fld.missing .sig{border-color:var(--bad)}
+.chip.pick{display:inline-flex;align-items:center;cursor:pointer;user-select:none}
+.chip.pick input{position:absolute;opacity:0;width:1px;height:1px}
+.chip.pick:has(input:checked){background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip.pick:has(input:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
+.consent{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;background:var(--surface);border-radius:14px;padding:14px;box-shadow:var(--shadow);font-size:15px}
+.consent input{width:22px;height:22px;accent-color:var(--accent);margin-top:2px}
+.sig{width:100%;height:170px;border:2px dashed var(--line);border-radius:14px;background:#FFFFFF;touch-action:none;display:block}
+.sig-img{max-width:100%;height:auto;max-height:120px;background:#FFFFFF;border-radius:8px;border:1px solid var(--line)}
+.thanks{display:flex;flex-direction:column;gap:12px;align-items:flex-start;padding-block:24px}
+.thanks .brand svg{width:48px;height:48px;color:var(--gold)}
+.thanks h2{font-size:30px;font-weight:300}
+.thanks p{font-size:18px}
+.notes.resp .fill-h{font-size:17px;margin:4px 0 0;padding-top:12px}
+
 /* getting started */
 .getstarted{gap:12px}
 .gs-bar{height:6px;border-radius:3px;background:var(--sunk);overflow:hidden}
@@ -501,7 +527,7 @@ const PROFILES = {
     license:{short:'Aug 2027', next:'August 2027', tile:'next renewal, massage license', title:'Massage therapist license',
       text:'Sample. Your license, its renewal date and your continuing education hours live here, with a reminder three months ahead.'},
     forms:[
-      {name:'Client intake form', kind:'Template', intake:true, send:true, about:'Health history, pressure and signature. Every new client fills it in before the first massage.',
+      {name:'Client intake form', kind:'Template', intake:true, send:true, fields:'massage', about:'Health history, pressure and signature. Every new client fills it in before the first massage.',
        sections:['Contact details and emergency contact','Medications and allergies','Health conditions checklist','Pressure and areas to focus on or avoid','Consent and signature']},
       {name:'Cancellation policy', kind:'Template', about:'Late arrivals, late cancellations and no-shows.',
        sections:['Late arrivals','Cancelling within 24 hours','No-shows']},
@@ -647,7 +673,7 @@ const PROFILES = {
       text:'Sample. Your license, its renewal date and your bloodborne pathogens certificate live here, with a reminder three months ahead.'},
     forms:[
       {name:'Consent and release', kind:'Template', intake:true, send:true, about:'ID and age, health questions, allergies, and consent to the design and placement.',
-       sections:['Photo ID and date of birth','Health and allergies','Design and placement approval','Release and signature']},
+       sections:['Photo ID and date of birth','Health and allergies','Design and placement approval','Release and signature'], fields:'tattoo'},
       {name:'Aftercare instructions', kind:'Template', send:true, about:'Sent home with every client, and again by text the next morning.',
        sections:['First 24 hours','Washing and ointment','What to avoid for two weeks','When to call']},
       {name:'Deposit and booking policy', kind:'Template', about:'Deposits, rescheduling and what happens with no-shows.',
@@ -744,7 +770,7 @@ const PROFILES = {
       text:'Sample. Your coaching certification, background check and CPR card live here, with reminders before each one expires.'},
     forms:[
       {name:'Liability waiver', kind:'Template', intake:true, send:true, about:'Signed once by every student, or by a parent for juniors.',
-       sections:['Student details','Health and injuries','Assumption of risk','Signature (parent for under 18)']},
+       sections:['Student details','Health and injuries','Assumption of risk','Signature (parent for under 18)'], fields:'waiver'},
       {name:'Junior consent and photo release', kind:'Template', send:true, about:'Pickup, emergency contact and photo permission for kids.',
        sections:['Parent and emergency contact','Who can pick up','Photo permission','Signature']},
       {name:'Packages and cancellations', kind:'Template', about:'Lesson packages, rain policy and late cancellations.',
@@ -783,6 +809,53 @@ const TRADES = [
 /* words the owner can pick when nothing in the list fits */
 const WHO_WORDS = [['clients','client'],['customers','customer'],['students','student'],['members','member'],['patients','patient']];
 const UNIT_WORDS = [['appointments','appointment'],['jobs','job'],['lessons','lesson'],['sessions','session'],['visits','visit'],['classes','class']];
+/* ---------- fillable forms: the questions each form asks ---------- */
+const CONDITIONS = ['Areas of swelling','Diabetes','Osteoporosis','Autoimmune disorder','Fibromyalgia','Phlebitis','Back or neck problems','Headaches','Sciatica','Bleeding disorders','Heart condition','Seizures','Blood clots','Hypertension','Stroke','Bruise easily','Kidney disease','Tendinitis','Bursitis','Multiple sclerosis','TMJ disorder','Cancer','Neurological condition','Varicose veins','Contagious condition','Neuropathy','Vertigo or dizziness','Decreased sensation','Osteoarthritis'];
+const ABOUT = [{h:'About you'}, {id:'name', t:'text', l:'Full name', req:true}, {id:'phone', t:'tel', l:'Cell phone', req:true}, {id:'email', t:'email', l:'Email'}];
+const SIGN = consent => [{h:'Signature'}, {id:'consent', t:'consent', l:consent, req:true}, {id:'sig', t:'sign', l:'Sign with your finger', req:true}];
+const FIELDSETS = {
+  massage:[...ABOUT,
+    {id:'dob', t:'date', l:'Date of birth'}, {id:'address', t:'text', l:'Address, city and zip'}, {id:'occupation', t:'text', l:'Occupation'},
+    {id:'referred', t:'text', l:'Who referred you?'}, {id:'emergency', t:'text', l:'Emergency contact: name, phone and relationship'},
+    {h:'Your health'},
+    {id:'meds', t:'yesno', l:'Are you taking any medications?', follow:'Which ones?', flag:'Medications'},
+    {id:'allergies', t:'yesno', l:'Any allergies (oils, lotions, nuts, fruits, skin)?', follow:'What are you allergic to?', flag:'Allergies'},
+    {id:'conditions', t:'multi', l:'Do you have any of these?', o:CONDITIONS, flag:'Conditions'},
+    {id:'skin', t:'yesno', l:'Any areas of broken skin, like a rash or a wound?', follow:'Where?', flag:'Broken skin'},
+    {id:'joint', t:'yesno', l:'Have you had joint replacement surgery?', follow:'Which joint?', flag:'Joint replacement'},
+    {id:'injury', t:'yesno', l:'Any injuries or medical procedures in the past 2 years?', follow:'What happened, and how recently?', flag:'Recent injury'},
+    {id:'medical', t:'yesno', l:'Are you under medical supervision or getting other treatment?', follow:'Please describe.', flag:'Under medical care'},
+    {id:'pregnant', t:'yesno', l:'Are you pregnant?', follow:'How many months, and your due date?', flag:'Pregnant'},
+    {id:'other', t:'long', l:'Anything else about your health we should know?'},
+    {h:'Your massage'},
+    {id:'before', t:'yesno', l:'Have you had a professional massage before?'},
+    {id:'reason', t:'choice', l:'What brings you in?', o:['Relaxation','A specific problem']},
+    {id:'pressure', t:'choice', l:'How much pressure do you like?', o:['Light','Medium','Firm']},
+    {id:'areas', t:'long', l:'Any areas of discomfort?'},
+    ...SIGN('I am aware of the benefits and risks of massage therapy and have completed this form to the best of my knowledge. I will tell my massage therapist about any health or medical changes.')],
+  tattoo:[...ABOUT,
+    {id:'dob', t:'date', l:'Date of birth (you must be 18 or older)', req:true},
+    {h:'Your health'},
+    {id:'allergies', t:'yesno', l:'Any allergies (latex, ointments, pigments)?', follow:'What are you allergic to?', flag:'Allergies'},
+    {id:'conditions', t:'multi', l:'Do any of these apply to you?', o:['Diabetes','Heart condition','Bleeding disorder','Blood thinners','Skin condition where the tattoo goes','Keloid scarring','Pregnant or nursing','Epilepsy'], flag:'Conditions'},
+    {id:'meds', t:'yesno', l:'Are you taking any medications?', follow:'Which ones?', flag:'Medications'},
+    {h:'Your tattoo'},
+    {id:'design', t:'long', l:'The design, in your words'}, {id:'placement', t:'text', l:'Where it goes'},
+    ...SIGN('I am 18 or older and not under the influence of alcohol or drugs. I approve the design and placement, and I have been given aftercare instructions.')],
+  waiver:[...ABOUT,
+    {id:'dob', t:'date', l:'Date of birth'}, {id:'parent', t:'text', l:'Parent or guardian, if under 18'},
+    {id:'emergency', t:'text', l:'Emergency contact: name and phone'},
+    {h:'Your health'},
+    {id:'injury', t:'yesno', l:'Any injuries or health conditions we should know about?', follow:'Please describe.', flag:'Health'},
+    ...SIGN('I understand that taking part involves physical activity and a risk of injury, and I choose to take part. A parent or guardian signs for anyone under 18.')],
+};
+function fieldsFor(f){
+  if (f.fields && FIELDSETS[f.fields]) return FIELDSETS[f.fields];
+  const secs = (f.sections || []).filter(x => !/contact details|signature|photo id/i.test(x));
+  const out = [...ABOUT, ...(secs.length ? [{h:f.name}] : []), ...secs.map((x, i) => ({id:'s' + i, t:'long', l:x}))];
+  return [...out, ...SIGN(`I have read this ${f.name.toLowerCase()} and agree to it.`)];
+}
+
 /* accounts made in setup (kept in this browser for the mockup) */
 let ACCOUNTS = {};
 try { ACCOUNTS = JSON.parse(localStorage.getItem('sole-accounts') || '{}') || {}; } catch (_) { ACCOUNTS = {}; }
@@ -844,7 +917,7 @@ function makeProfile(id){
   const who = a.who || [T.who, T.whoOne], unit = a.unit || [T.unit, T.unitOne];
   const newK = Object.keys(svc), mapS = x => newK[Math.max(0, oldK.indexOf(x)) % newK.length];
   const genericIntake = {name:T.intake.charAt(0).toUpperCase() + T.intake.slice(1), kind:'Template', intake:true, send:true, about:'Contact details, health and allergies, what they want, and a signature.',
-    sections:['Contact details','Health and allergies','What they want from the visit','Consent and signature']};
+    sections:['Contact details','Health and allergies','What they want from the visit','Consent and signature'], fields:['massage','skin'].includes(T.id) ? 'massage' : ['fit','tennis','music','tutor'].includes(T.id) ? 'waiver' : undefined};
   const uploads = (a.docs || []).map((d, i) => ({name:d.name, kind:d.kind, upload:true, send:true, doc:i, about:'Uploaded during setup.'}));
   const common = {
     trade:a.what || T.label, short:T.label, biz:a.biz, who:who[0], whoOne:who[1], owner:a.owner, team:a.mate ? [a.owner, a.mate] : [a.owner], teamSplit:[0.6, 0.4],
@@ -875,6 +948,7 @@ function makeProfile(id){
 }
 const isoDay = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 let OB = null;   // setup in progress
+let FILL = null; // a form being filled in
 
 let CTL;
 let SQ = null;     // Square payments and card customers, written into this page's database by the daily refresh
@@ -884,9 +958,10 @@ async function loadSquare(key){
     if (window.__SOLE_SQUARE) { SQ = window.__SOLE_SQUARE; boot(key); return; }   // test hook: tests/fixtures/square-sample.json
     if (!window.claude || !window.claude.use) return;
     const db = await window.claude.use('db'); if (!db) return;
-    const [a, b] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get()]);
-    if (!a.exists) return;
-    SQ = {summary:JSON.parse(JSON.stringify(a.data())), customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : []};
+    const [a, b, fr] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]}))]);
+    const responses = fr.docs.filter(d => d.exists).map(d => JSON.parse(JSON.stringify(d.data())));
+    if (!a.exists && !responses.length) return;
+    SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses};
     if (!document.querySelector('.sheet')) boot(key);
   } catch (_) {}
 }
@@ -947,12 +1022,14 @@ if (ACC && ACC.state) {
   (ACC.state.blocks || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number); BL.push({id:seq++, off:Math.round((new Date(y, m-1, d) - T0) / 864e5), start:x.start, min:x.min, label:x.label, w:x.w || ME, mine:true}); });
 }
 const DONE_STEPS = ACC ? (ACC.steps = ACC.steps || {}) : {};
+const RESP = [...((ACC && ACC.state && ACC.state.responses) || []), ...(P.real && SQ && SQ.responses ? SQ.responses : [])];   // filled-in forms
 function saveState(){
   if (!ACC) return;
   ACC.state = {
     clients:Object.fromEntries(Object.entries(CL).filter(([, c]) => c.mine)),
     appts:AP.filter(a => a.mine).map(a => ({c:a.c, s:a.s, date:isoDay(dateOf(a.off)), start:a.start, paid:a.paid, tip:a.tip, w:a.w})),
     blocks:BL.filter(b => b.mine).map(b => ({date:isoDay(dateOf(b.off)), start:b.start, min:b.min, label:b.label, w:b.w})),
+    responses:RESP,
   };
   saveAccounts();
 }
@@ -1058,7 +1135,7 @@ const BOOKS = P.fresh ? {} : P.books ? JSON.parse(JSON.stringify(P.books)) : Obj
   return [y, {take, rent:COSTS[0].v, other, kept:take - COSTS[0].v - other}]; }));
 const BY = Object.keys(BOOKS).map(Number), Y1 = BY[0], Y2 = BY[1];
 const LICENSE = P.license;
-const SQX = P.real && SQ ? (() => {
+const SQX = P.real && SQ && SQ.summary ? (() => {
   const mo = SQ.summary.months || {}, fees = SQ.summary.fees || {};
   const yr = y => Object.entries(mo).filter(([k]) => k.startsWith(y + '-')).reduce((t, [, v]) => ({net:t.net + v.net, tips:t.tips + v.tips, collected:t.collected + v.collected, orders:t.orders + v.orders}), {net:0, tips:0, collected:0, orders:0});
   const years = {}; [...new Set(Object.keys(mo).map(k => k.slice(0,4)))].forEach(y => { const t = yr(y); years[y] = {...t, fees:fees[y] || 0, deposited:t.collected - (fees[y] || 0)}; });
@@ -1134,7 +1211,7 @@ function viewToday(){
   if (REQ.open) needs.push(`<div class="need req"><div><p>${CL[REQ.c].name} asked for ${cap(dayName(REQ.off))} at ${clock(REQ.start)}</p><p class="small muted">${svLabel(REQ.s)} · booked online</p></div>
     <div class="btn-row"><button class="btn primary" data-act="req-ok">Accept</button><button class="btn" data-act="req-other">Offer another time</button></div></div>`);
   unpaid().forEach(a => needs.push(`<div class="need"><div><p>${CL[a.c].name} hasn’t paid</p><p class="small muted">${cap(dayName(a.off))} · ${svLabel(a.s)} · ${money(SV[a.s].price)}</p></div><button class="btn" data-act="charge" data-id="${a.id}">Charge ${money(SV[a.s].price)}</button></div>`));
-  ap.filter(a => !CL[a.c].intake && a.start >= NOW).forEach(a => needs.push(`<div class="need"><div><p>${first(a.c)}’s ${P.intakeName} is missing</p><p class="small muted">First visit today at ${clock(a.start)}</p></div><button class="btn" data-act="intake" data-c="${a.c}">Send it</button></div>`));
+  ap.filter(a => !CL[a.c].intake && a.start >= NOW).forEach(a => needs.push(`<div class="need"><div><p>${first(a.c)}’s ${P.intakeName} is missing</p><p class="small muted">First visit today at ${clock(a.start)}</p></div><button class="btn" data-act="fillfor" data-c="${a.c}">Fill in now</button></div>`));
   const c = next && CL[next.c];
   const mins = next ? next.start - NOW : 0;
   const wk = sumOf('week'), td = sumOf('today');
@@ -1385,14 +1462,16 @@ function viewForms(){
   const waiting = AP.filter(a => !CL[a.c].intake && (a.off > 0 || (a.off === 0 && a.start >= NOW))).sort((x,y) => x.off - y.off || x.start - y.start);
   return `
   <p class="lede">Everything ${WN} fill in and everything you keep on file, in one place.</p>
-  ${waiting.length ? `<section class="sec"><div class="sec-h"><h2>Waiting on</h2></div>${waiting.map(a => `<div class="need"><div><p>${CL[a.c].name}</p><p class="small muted">${cap(P.intakeName)} · first visit ${dayName(a.off)} at ${clock(a.start)}</p></div><button class="btn" data-act="intake" data-c="${a.c}">Send it</button></div>`).join('')}</section>` : ''}
+  ${waiting.length ? `<section class="sec"><div class="sec-h"><h2>Waiting on</h2></div>${waiting.map(a => `<div class="need"><div><p>${CL[a.c].name}</p><p class="small muted">${cap(P.intakeName)} · first visit ${dayName(a.off)} at ${clock(a.start)}</p></div><button class="btn" data-act="fillfor" data-c="${a.c}">Fill in now</button></div>`).join('')}</section>` : ''}
   <section class="sec"><div class="sec-h"><h2>Your forms</h2><span class="aside">${FORMS.length}</span></div>
   ${FORMS.map((f,i) => `<article class="form">
     <div class="form-h"><span class="doc">${I.forms}</span><div><h3>${f.name}</h3><p>${f.kind} · ${f.about}</p></div></div>
     ${f.lines ? `<div class="callout">${f.lines.map(l => `<span>${l}</span>`).join('')}</div>` : ''}
+    ${RESP.filter(r => r.form === f.name).length ? `<button class="linkbtn" data-act="resps" data-i="${i}">${RESP.filter(r => r.form === f.name).length} filled in · see them</button>` : ''}
     <div class="btns3">
       ${f.url ? `<a class="btn primary" href="${f.url}" target="_blank" rel="noopener">Open to print or share</a>` : `<button class="btn primary" data-act="formview" data-i="${i}">${f.upload ? 'Open' : 'Preview'}</button>`}
-      ${f.send ? `<button class="btn" data-act="formsend" data-i="${i}">Text to a ${W1}</button>` : ''}
+      <button class="btn" data-act="fill" data-i="${i}">Fill in now</button>
+      ${f.send ? `<button class="btn" data-act="formsend" data-i="${i}">Text a link</button>` : ''}
       <button class="btn" data-act="copylink" data-i="${i}" ${f.send ? '' : 'style="grid-column:1 / -1"'}>Copy link</button>
     </div>
   </article>`).join('')}
@@ -1564,8 +1643,8 @@ function ask(q){
 }
 
 /* ---------- sheets ---------- */
-function sheet(html){
-  $('#layer').innerHTML = `<div class="scrim" data-act="close"></div><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
+function sheet(html, cls){
+  $('#layer').innerHTML = `<div class="scrim" data-act="close"></div><div class="sheet ${cls || ''}" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
   const f = $('.sheet .close'); if (f) f.focus({preventScroll:true});
 }
 const closeSheet = () => { $('#layer').innerHTML = ''; };
@@ -1592,7 +1671,7 @@ function openAppt(id){
     <div class="btn-row">
       ${!a.paid ? `<button class="btn primary" data-act="charge" data-id="${a.id}">Charge ${money(SV[a.s].price)}</button>` : ''}
       ${future && a.off === 0 ? `<button class="btn" data-act="late" data-id="${a.id}">Running late</button>` : ''}
-      ${!c.intake ? `<button class="btn" data-act="intake" data-c="${a.c}">Send ${P.intakeName}</button>` : ''}
+      ${!c.intake ? `<button class="btn" data-act="fillfor" data-c="${a.c}">Fill in ${P.intakeName}</button><button class="btn" data-act="intake" data-c="${a.c}">Text the form</button>` : ''}
       ${future ? `<button class="btn" data-act="move" data-id="${a.id}">Move</button>` : ''}
       <button class="btn" data-act="rebook" data-id="${a.id}">Rebook in ${Math.max(1, Math.round((c.every||28)/7))} wk</button>
       ${future ? `<button class="btn danger" data-act="cancel" data-id="${a.id}">Cancel</button>` : ''}
@@ -1610,6 +1689,9 @@ function openClient(k){
       ${sp.a.v ? `<p class="small muted">About ${money(sp.price)} a visit, plus about ${money(sp.tipsY)} in tips this year.</p>` : ''}</div>`; })()}
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><span class="label">Next visit</span><p style="font-weight:600;margin-top:2px">${n ? `${whenText(n)} · ${svLabel(n.s)}` : 'Nothing booked'}</p></div>${n?`<button class="close" data-act="appt" data-id="${n.id}">Open</button>`:''}</div>
     <div class="field"><span class="label">Notes</span>${notesHTML(k)}</div>
+    ${(() => { const rs = RESP.filter(r => r.client === k); const intakeI = FORMS.findIndex(x => x.intake);
+      return `<div class="field"><span class="label">Forms</span>${rs.map(r => `<button class="li" data-act="resp" data-v="${r.id}" style="background:var(--surface);border-radius:14px;box-shadow:var(--shadow)"><span class="t">${I.check.replace('<svg', '<svg width="20" height="20" style="color:var(--accent)"')}</span><span class="who"><b>${esc(r.form)}</b><span>Filled in ${MON[+r.date.slice(5,7)-1].slice(0,3)} ${+r.date.slice(8,10)}</span></span>${I.chev}</button>`).join('')}
+        ${intakeI >= 0 && !rs.some(r => r.form === FORMS[intakeI].name) ? `<button class="btn line" data-act="fillfor" data-c="${k}">Fill in ${esc(FORMS[intakeI].name.toLowerCase())} now</button>` : ''}</div>`; })()}
     <div class="btn-row"><button class="btn primary" data-act="book" data-c="${k}">Book ${first(k)}</button><button class="btn" data-act="reach" data-c="${k}" data-kind="hello">Write a text</button></div>`);
 }
 function msgSheet(title, text){
@@ -1761,6 +1843,104 @@ function obDocs(files){
   obRender();
 }
 
+/* ---------- filling in a form on this phone ---------- */
+function fieldHTML(fl, c){
+  if (fl.h) return `<h3 class="fill-h">${esc(fl.h)}</h3>`;
+  const lab = `${esc(fl.l)}${fl.req ? ' <span class="req">*</span>' : ''}`;
+  const pre = c ? (fl.id === 'name' ? c.name.trim() : fl.id === 'phone' && !/not added/i.test(c.phone) ? c.phone : '') : '';
+  if (['text','tel','email','date'].includes(fl.t)) return `<label class="fld" id="fw-${fl.id}"><span>${lab}</span><input class="text-in" id="ff-${fl.id}" type="${fl.t}" value="${esc(pre)}" ${fl.t === 'tel' ? 'inputmode="tel"' : ''} autocomplete="off"></label>`;
+  if (fl.t === 'long') return `<label class="fld" id="fw-${fl.id}"><span>${lab}</span><textarea class="text-in" id="ff-${fl.id}" rows="3"></textarea></label>`;
+  if (fl.t === 'yesno') return `<div class="fld" id="fw-${fl.id}"><span>${lab}</span><div class="chips">${['Yes','No'].map(v => `<label class="chip pick"><input type="radio" name="ff-${fl.id}" value="${v.toLowerCase()}" data-yn="${fl.id}">${v}</label>`).join('')}</div>${fl.follow ? `<textarea class="text-in" id="ff-${fl.id}-more" rows="2" placeholder="${esc(fl.follow)}" hidden></textarea>` : ''}</div>`;
+  if (fl.t === 'choice') return `<div class="fld" id="fw-${fl.id}"><span>${lab}</span><div class="chips">${fl.o.map(v => `<label class="chip pick"><input type="radio" name="ff-${fl.id}" value="${esc(v)}">${esc(v)}</label>`).join('')}</div></div>`;
+  if (fl.t === 'multi') return `<div class="fld" id="fw-${fl.id}"><span>${lab}</span><span class="small muted">Tap all that apply.</span><div class="chips">${fl.o.map(v => `<label class="chip pick"><input type="checkbox" name="ff-${fl.id}" value="${esc(v)}">${esc(v)}</label>`).join('')}</div></div>`;
+  if (fl.t === 'consent') return `<label class="consent" id="fw-${fl.id}"><input type="checkbox" id="ff-${fl.id}"><span>${esc(fl.l)}</span></label>`;
+  if (fl.t === 'sign') return `<div class="fld" id="fw-${fl.id}"><span>${lab}</span><canvas class="sig" id="sig" aria-label="Signature pad"></canvas><button type="button" class="linkbtn" data-act="sig-clear">Clear signature</button></div>`;
+  return '';
+}
+function openFill(i, k){
+  const f = FORMS[i], c = k && CL[k];
+  FILL = {i, k};
+  sheet(`<div class="fill-top"><span class="biz-mark">${BIZMARK}</span><div style="min-width:0"><b>${esc(P.biz)}</b><span>${esc(f.name)}</span></div><button class="close" data-act="close">Close</button></div>
+    <p class="muted">${c ? `Hi ${esc(first(k))}! ` : ''}Please fill this in before your ${esc(P.firstVisit)}. It takes about two minutes, and only ${esc(P.owner)} sees it.</p>
+    <form id="fill-form" class="fill-form" novalidate>${fieldsFor(f).map(x => fieldHTML(x, c)).join('')}
+      <button class="btn primary" type="submit" style="width:100%">Submit</button></form>`, 'fill');
+  setTimeout(sigPad, 40);
+}
+function sigPad(){
+  const cv = $('#sig'); if (!cv) return;
+  const b = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(b.width * dpr); cv.height = Math.round(b.height * dpr);
+  const g = cv.getContext('2d'); g.scale(dpr, dpr); g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, b.width, b.height);
+  g.lineWidth = 2.4; g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = '#1A1A1A';
+  let down = false, last = null; cv.dataset.drawn = '';
+  const pt = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  cv.onpointerdown = e => { down = true; last = pt(e); try { cv.setPointerCapture(e.pointerId); } catch (_) {} };
+  cv.onpointermove = e => { if (!down) return; const p = pt(e); g.beginPath(); g.moveTo(last[0], last[1]); g.lineTo(p[0], p[1]); g.stroke(); last = p; cv.dataset.drawn = '1'; };
+  cv.onpointerup = cv.onpointercancel = () => { down = false; };
+}
+function submitFill(){
+  const f = FORMS[FILL.i], fs = fieldsFor(f).filter(x => x.id), ans = {}, missing = [];
+  let sig = null;
+  fs.forEach(fl => {
+    let v;
+    if (['text','tel','email','date','long'].includes(fl.t)) v = ($('#ff-' + fl.id).value || '').trim();
+    else if (fl.t === 'yesno') { const r = document.querySelector(`input[name="ff-${fl.id}"]:checked`); v = r ? r.value : ''; const m = $('#ff-' + fl.id + '-more'); if (v === 'yes' && m && m.value.trim()) ans[fl.id + '_more'] = m.value.trim(); }
+    else if (fl.t === 'choice') { const r = document.querySelector(`input[name="ff-${fl.id}"]:checked`); v = r ? r.value : ''; }
+    else if (fl.t === 'multi') v = [...document.querySelectorAll(`input[name="ff-${fl.id}"]:checked`)].map(x => x.value);
+    else if (fl.t === 'consent') v = $('#ff-' + fl.id).checked;
+    else if (fl.t === 'sign') { const cv = $('#sig'); v = cv && cv.dataset.drawn ? 'signed' : ''; if (v) sig = cv.toDataURL('image/png'); }
+    if (fl.req && (!v || (Array.isArray(v) && !v.length))) missing.push(fl);
+    ans[fl.id] = v;
+  });
+  document.querySelectorAll('.fld.missing, .consent.missing').forEach(x => x.classList.remove('missing'));
+  if (missing.length) { missing.forEach(fl => { const w = $('#fw-' + fl.id); w && w.classList.add('missing'); }); const w = $('#fw-' + missing[0].id); w && w.scrollIntoView({block:'center'});
+    toast(missing[0].t === 'sign' ? 'Please sign at the bottom.' : missing[0].t === 'consent' ? 'Please tick the box to agree.' : `Please fill in: ${missing[0].l}.`); return; }
+  const r = {id:'r' + Date.now().toString(36), form:f.name, formIndex:FILL.i, client:FILL.k || null, name:ans.name, date:isoDay(T0), at:new Date().toISOString(), answers:ans, sig, mine:true};
+  RESP.push(r); applyResponse(r);
+  if (P.real) saveResponse(r);
+  const nm = first(r.client);
+  FILL = null; render();
+  sheet(`<div class="thanks"><div class="brand">${SUNMARK}</div><h2>Thank you, ${esc(nm)}.</h2><p>Your ${esc(f.name.toLowerCase())} is saved. Please hand the phone back to ${esc(P.owner)}.</p></div>
+    <button class="btn primary" data-act="resp" data-v="${r.id}">${esc(P.owner)}: see the answers</button>`, 'fill');
+}
+/* a filled-in form updates the person it belongs to: their notes, and that their form is done */
+function applyResponse(r, quiet){
+  let k = r.client && CL[r.client] ? r.client : Object.keys(CL).find(x => CL[x].name.trim().toLowerCase() === (r.name || '').trim().toLowerCase());
+  if (!k) { k = 'f' + r.id; CL[k] = {name:(r.name || 'New client').includes(' ') ? r.name : (r.name || 'New client') + ' ', phone:r.answers.phone || 'Not added yet', since:+r.date.slice(0,4), visits:0, last:null, isNew:true, intake:true, rows:[], note:'', mine:true}; }
+  r.client = k;
+  const c = CL[k], f = FORMS[r.formIndex] || FORMS.find(x => x.name === r.form) || {}, a = r.answers || {};
+  if (f.intake) c.intake = true;
+  if (a.phone && /not added/i.test(c.phone)) c.phone = a.phone;
+  const flags = [];
+  fieldsFor(f).filter(x => x.flag).forEach(x => {
+    const v = a[x.id];
+    if (x.t === 'multi' && v && v.length) flags.push(v.join(', '));
+    if (x.t === 'yesno' && v === 'yes') flags.push(a[x.id + '_more'] ? `${x.flag}: ${a[x.id + '_more']}` : x.flag);
+  });
+  if (c.rows) { c.rows = c.rows.filter(row => row[0] !== 'Health' && row[0] !== 'Pressure'); if (flags.length) c.rows.push(['Health', flags.join(' · ')]); if (a.pressure) c.rows.push(['Pressure', a.pressure]); }
+  else { if (flags.length) c.health = flags.join(' · '); if (a.pressure) c.pressure = {Light:1, Medium:3, Firm:4}[a.pressure] || c.pressure; if (a.reason) c.reason = a.reason === 'Relaxation' ? 'Relaxation' : 'Specific problem'; if (a.areas) c.focus = a.areas; }
+  if (!quiet) toast(`${c.name.trim()}’s ${(f.name || 'form').toLowerCase()} is saved.`);
+}
+async function saveResponse(r){
+  try { const db = window.claude && window.claude.use ? await window.claude.use('db') : null; if (!db) return;
+    await db.collection('forms').doc(r.id).set(JSON.parse(JSON.stringify({...r, mine:undefined})));
+  } catch (_) { toast('Saved on this phone. It couldn’t reach your account just now.'); }
+}
+function respHTML(r){
+  const f = FORMS[r.formIndex] || FORMS.find(x => x.name === r.form) || {name:r.form}, a = r.answers || {}, d = new Date(r.at);
+  const rows = fieldsFor(f).map(fl => {
+    if (fl.h) return `<h3 class="fill-h">${esc(fl.h)}</h3>`;
+    if (fl.t === 'sign') return r.sig ? `<div class="note"><dt>Signed</dt><dd><img class="sig-img" src="${r.sig}" alt="Signature"></dd></div>` : '';
+    let v = a[fl.id]; if (v === undefined || v === '' || (Array.isArray(v) && !v.length)) return '';
+    if (fl.t === 'consent') v = v ? 'Agreed' : 'Not agreed';
+    if (Array.isArray(v)) v = v.join(', ');
+    if (fl.t === 'yesno') v = v === 'yes' ? `Yes${a[fl.id + '_more'] ? ': ' + a[fl.id + '_more'] : ''}` : 'No';
+    const flagged = fl.flag && (fl.t === 'multi' || a[fl.id] === 'yes');
+    return `<div class="note ${flagged ? 'avoid' : ''}"><dt>${esc(fl.l.replace(/\?$/, ''))}</dt><dd>${esc(v)}</dd></div>`;
+  }).join('');
+  return `${top(esc(f.name), `${esc(CL[r.client] ? CL[r.client].name : r.name)} · ${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`)}<dl class="notes resp" style="margin:0">${rows}</dl>`;
+}
+
 /* ---------- toast ---------- */
 let tt;
 function toast(m){ clearTimeout(tt); let el = $('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role','status'); document.body.appendChild(el); } el.textContent = m; tt = setTimeout(() => el.remove(), 3600); }
@@ -1774,7 +1954,7 @@ on('click', e => {
     case 'money': closeSheet(); S.tab = 'money'; if (v === 'year') S.money = 'year'; else { S.money = 'day'; S.range = v; } render(); window.scrollTo(0,0); break;
     case 'snap': S.money = 'home'; render(); window.scrollTo(0,0); break;
     case 'clients': closeSheet(); S.tab = 'money'; S.money = 'clients'; S.search = ''; render(); window.scrollTo(0,0); break;
-    case 'formsend': msgSheet(`Text a ${W1}`, `Hi! Before your ${P.firstVisit}, please fill in this ${FORMS[+el.dataset.i].name.toLowerCase()}: ${FORMS[+el.dataset.i].url || '[form link]'}`); break;
+    case 'formsend': msgSheet(`Text a ${W1}`, `Hi! Before your ${P.firstVisit}, please fill in this ${FORMS[+el.dataset.i].name.toLowerCase()} on your phone: ${FORMS[+el.dataset.i].url || '[form link]'}`); break;
     case 'copylink': { const u = FORMS[+el.dataset.i].url || 'Sole gives every form its own link once it’s set up.'; try { navigator.clipboard.writeText(u).then(() => toast('Link copied.'), () => toast(u)); } catch (_) { toast(u); } break; }
     case 'addform': sheet(`${top('Add a form', 'Gift certificates, policies, anything you hand out or keep on file.')}
       <div class="card facts2"><p>In the real app you’d pick a PDF, a Google Doc, or take a photo of a paper form, and it shows up here ready to print or send.</p></div>`); break;
@@ -1788,7 +1968,7 @@ on('click', e => {
     case 'ask': ask(el.dataset.q); break;
     case 'appt': openAppt(id); break;
     case 'client': openClient(el.dataset.c); break;
-    case 'close': closeSheet(); OB = null; break;
+    case 'close': closeSheet(); OB = null; FILL = null; break;
     case 'late': { const a = AP.find(x => x.id === id); msgSheet(`Text to ${first(a.c)}`, `Hi ${first(a.c)}, I’m running about 10 minutes behind. So sorry! I’ll see you at ${clock(a.start + 10)}.`); break; }
     case 'intake': msgSheet(`Text to ${first(el.dataset.c)}`, messageFor(el.dataset.c, 'intake')); break;
     case 'reach': msgSheet(`Text to ${first(el.dataset.c)}`, messageFor(el.dataset.c, el.dataset.kind)); break;
@@ -1840,6 +2020,12 @@ on('click', e => {
     case 'ob-color': OB.color = v; obRender(); break;
     case 'ob-nocolor': OB.color = null; OB.logo = null; OB.colors = []; obRender(); break;
     case 'ob-done': obFinish(); break;
+    case 'fill': openFill(+el.dataset.i, null); break;
+    case 'fillfor': { const i = FORMS.findIndex(x => x.intake); if (i >= 0) openFill(i, el.dataset.c); break; }
+    case 'sig-clear': sigPad(); break;
+    case 'resp': { const r = RESP.find(x => x.id === v); if (r) sheet(respHTML(r)); break; }
+    case 'resps': { const f = FORMS[+el.dataset.i], rs = RESP.filter(r => r.form === f.name).slice().reverse();
+      sheet(`${top(esc(f.name), `${rs.length} filled in`)}<div class="list">${rs.map(r => `<button class="li" data-act="resp" data-v="${r.id}"><span class="t">${MON[+r.date.slice(5,7)-1].slice(0,3)}<small>${+r.date.slice(8,10)}</small></span><span class="who"><b>${esc(CL[r.client] ? CL[r.client].name : r.name)}</b><span>${r.sig ? 'Signed' : 'Not signed'}</span></span>${I.chev}</button>`).join('')}</div>`); break; }
     case 'sqclient': { const c = SQX.customers.find(x => x.id === v); if (!c) break; const ld = new Date(c.last + 'T12:00:00');
       sheet(`${top(esc(sqName(c)), `Last paid ${MON[ld.getMonth()]} ${ld.getDate()}, ${ld.getFullYear()} · from Square`)}
       <div class="field"><span class="label">Spent with you</span><div class="spend">
@@ -1897,6 +2083,7 @@ on('click', e => {
   }
 });
 on('change', e => {
+  if (e.target.dataset && e.target.dataset.yn) { const m = $('#ff-' + e.target.dataset.yn + '-more'); if (m) { m.hidden = e.target.value !== 'yes'; if (!m.hidden) m.focus(); } }
   if (e.target.id === 'ob-logo' && OB) obLogo(e.target.files[0]);
   if (e.target.id === 'ob-docs' && OB) obDocs(e.target.files);
 });
@@ -1912,10 +2099,12 @@ on('input', e => {
   if (e.target.id === 'new-name' && B) { B.newName = e.target.value; const g = $('#book-go'); g.disabled = !bookReady(); g.textContent = bookLabel(); }
 });
 on('submit', e => {
+  if (e.target.id === 'fill-form') { e.preventDefault(); if (FILL) submitFill(); return; }
   if (e.target.id === 'ask-form') { e.preventDefault(); const q = $('#ask-in').value.trim(); if (q) ask(q); }
 });
 on('keydown', e => { if (e.key === 'Escape' && $('#layer').innerHTML) closeSheet(); });
 
+RESP.forEach(r => applyResponse(r, true));
 render();
 if (P.real && !SQ) loadSquare(KEY);
 if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.getItem('sole-seen'); } catch (_) {}
