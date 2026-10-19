@@ -458,7 +458,7 @@ const PROFILES = {
     trade:'Massage therapist', short:'Massage', biz:'Heart and Soul Massage', look:'seaglass', owner:'Kelli', team:['Kelli'], now:640,
     unit:'massages', unitOne:'massage', firstVisit:'first massage', treat:'birthday massage', intakeName:'intake form',
     reviewOn:'MassageBook', booking:'MassageBook and Square', real:true,
-    source:'Year numbers come from your Heart and Soul spreadsheets. Today’s numbers are sample data until Square is connected.',
+    source:'Massage counts come from your Heart and Soul spreadsheets and card payments from Square. Today’s schedule and the sample clients are placeholders until MassageBook is connected.',
     hours:{open:540, close:1080, turn:15, closed:[0,6]},
     services:{
       sw60:{name:'Swedish', min:60, price:95}, dt60:{name:'Deep tissue', min:60, price:110},
@@ -890,6 +890,19 @@ const isoDay = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')
 let OB = null;   // setup in progress
 
 let CTL;
+let SQ = null;     // Square payments and card customers, written into this page's database by the daily refresh
+let KEEP = null;   // the tab to return to when the page rebuilds itself
+async function loadSquare(key){
+  try {
+    if (window.__SOLE_SQUARE) { SQ = window.__SOLE_SQUARE; boot(key); return; }   // test hook: tests/fixtures/square-sample.json
+    if (!window.claude || !window.claude.use) return;
+    const db = await window.claude.use('db'); if (!db) return;
+    const [a, b] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get()]);
+    if (!a.exists) return;
+    SQ = {summary:JSON.parse(JSON.stringify(a.data())), customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : []};
+    if (!document.querySelector('.sheet')) boot(key);
+  } catch (_) {}
+}
 function boot(KEY){
 CTL && CTL.abort(); CTL = new AbortController();
 const on = (t, f) => document.addEventListener(t, f, {signal:CTL.signal});
@@ -1054,10 +1067,27 @@ const COSTS = P.costs;
 const COST_TOTAL = sum(COSTS.map(c => c.v));
 const costRows = () => `<div class="costs">${COSTS.map(c => `<div class="cost"><span>${c.n}</span><span class="tr"><i style="width:${Math.max(2, c.v/COSTS[0].v*100)}%"></i></span><b>${money(c.v)}</b></div>`).join('')}</div>`;
 // what came in and what was kept: from the business's books when it has them, otherwise worked out from its numbers
-const BOOKS = P.fresh ? {} : P.books || Object.fromEntries(FULL.slice(-2).map(y => { const take = yearTotal(y) * RATE, other = sum(COSTS.slice(1).map(c => c.v)) * (y === P.costsYear ? 1 : 0.93);
+const BOOKS = P.fresh ? {} : P.books ? JSON.parse(JSON.stringify(P.books)) : Object.fromEntries(FULL.slice(-2).map(y => { const take = yearTotal(y) * RATE, other = sum(COSTS.slice(1).map(c => c.v)) * (y === P.costsYear ? 1 : 0.93);
   return [y, {take, rent:COSTS[0].v, other, kept:take - COSTS[0].v - other}]; }));
 const BY = Object.keys(BOOKS).map(Number), Y1 = BY[0], Y2 = BY[1];
 const LICENSE = P.license;
+const SQX = P.real && SQ ? (() => {
+  const mo = SQ.summary.months || {}, fees = SQ.summary.fees || {};
+  const yr = y => Object.entries(mo).filter(([k]) => k.startsWith(y + '-')).reduce((t, [, v]) => ({net:t.net + v.net, tips:t.tips + v.tips, collected:t.collected + v.collected, orders:t.orders + v.orders}), {net:0, tips:0, collected:0, orders:0});
+  const years = {}; [...new Set(Object.keys(mo).map(k => k.slice(0,4)))].forEach(y => { const t = yr(y); years[y] = {...t, fees:fees[y] || 0, deposited:t.collected - (fees[y] || 0)}; });
+  const mk = `${T0.getFullYear()}-${String(T0.getMonth()+1).padStart(2,'0')}`;
+  const updated = new Date(SQ.summary.updated);
+  return {years, month:mo[mk] || {net:0, tips:0, orders:0}, months:mo, customers:SQ.customers, updated,
+    updatedText:`${MON[updated.getMonth()].slice(0,3)} ${updated.getDate()}, ${clock(updated.getHours() * 60 + updated.getMinutes())}`};
+})() : null;
+// a business whose 2025 books are missing Square for September to December gets them filled in from Square itself
+let BOOKS_NOTE = P.booksNote;
+if (SQX && BOOKS[2025] && P.booksNote) {
+  const add = ['09','10','11','12'].reduce((t, m) => t + ((SQX.months['2025-' + m] || {}).net || 0), 0);
+  BOOKS[2025] = {...BOOKS[2025], take:BOOKS[2025].take + add, kept:BOOKS[2025].kept + add};
+  BOOKS_NOTE = `Includes ${money(add)} of Square payments from September to December 2025 that weren’t in the sheet. Card tips aren’t counted here: ${money(SQX.years['2024'].tips)} in 2024 and ${money(SQX.years['2025'].tips)} in 2025.`;
+}
+const sqName = c => c.name || `Card customer ${c.id.slice(-4)}`;
 const unitCap = cap(P.unit);
 
 /* ---------- icons ---------- */
@@ -1094,7 +1124,8 @@ const SUNMARK = `<svg viewBox="-32 -32 64 64" aria-hidden="true"><g fill="none" 
   Array.from({length:8}, (_,i) => `<path transform="rotate(${i*45})" d="M0 -16V-25"/>`).join('')}</g></svg>`;
 
 /* ---------- state ---------- */
-const S = {tab:'today', week:0, day:0, range:'week', bar:0, answer:null, search:'', yr:2026, wiC:0, wiP:0, money:'home', who:ME};
+const S = {tab:'today', week:0, day:0, range:'week', bar:0, answer:null, search:'', yr:2026, wiC:0, wiP:0, money:'home', who:ME, ...(KEEP || {})};
+KEEP = null;
 const TABS = [['today','Today'],['schedule','Schedule'],['money','Snapshot'],['forms','Forms']];
 const TITLES = {today:`Good ${NOW < 720 ? 'morning' : NOW < 1020 ? 'afternoon' : 'evening'}, ${P.owner}`, schedule:'Schedule', money:'Snapshot', forms:'Forms'};
 
@@ -1294,7 +1325,7 @@ function viewSnap(){
   const tiles = [
     {go:'data-act="money" data-v="today"', h:`<span class="k">${I.money}Today</span><span class="big">${money(td.net)}</span><span class="s">so far · ${left} still to come</span>`},
     {go:'data-act="snapgo" data-sec="y-proj"', h:`<span class="k">${I.trend}On pace</span><span class="big">~${PROJ}</span><span class="s">${P.unit} by December</span>`},
-    {go:'data-act="snapgo" data-sec="y-kept"', h:`<span class="k">${I.wallet}You kept</span><span class="big">${money(kept)}</span><span class="s">in ${Y2}, ${P.booksNote ? 'at least ' : ''}${Math.abs(keptUp).toFixed(0)}% ${keptUp >= 0 ? 'more' : 'less'} than ${Y1}</span>`},
+    {go:'data-act="snapgo" data-sec="y-kept"', h:`<span class="k">${I.wallet}You kept</span><span class="big">${money(kept)}</span><span class="s">in ${Y2}, ${BOOKS_NOTE ? 'at least ' : ''}${Math.abs(keptUp).toFixed(0)}% ${keptUp >= 0 ? 'more' : 'less'} than ${Y1}</span>`},
     {go:'data-act="snapgo" data-sec="y-whatif"', h:`<span class="k">${I.bulb}What if</span><span class="big">+${money(50*RATE)}</span><span class="s">a year from one more ${W1} a week</span>`},
     {go:'data-act="clients"', h:`<span class="k">${I.clients}Reach out</span><span class="big">${reachList().length}</span><span class="s">people likely to book if you say hi</span>`},
     {go:'data-act="license"', h:`<span class="k">${I.badge}License</span><span class="big">${LICENSE.short}</span><span class="s">${LICENSE.tile}</span>`},
@@ -1322,12 +1353,33 @@ function viewSnap(){
       <button data-act="snapgo" data-sec="y-proj"><b>${(SO_FAR/(DONE*52/12)).toFixed(1)}</b><small>a week, on average</small></button>
     </div>
   </section>
+  ${SQX ? squareCard() : ''}
   ${clientsCard()}
   <p class="eyebrow" style="margin:0">Dig in</p>
   <section class="bento">${tiles.map(t => `<button class="tile ${t.wide?'wide':''} ${t.cls||''}" ${t.go}>${t.h}</button>`).join('')}</section>
   <p class="small muted">${P.source}</p>`;
 }
+function squareCard(){
+  const y = SQX.years[String(CUR)] || {net:0, tips:0, fees:0, deposited:0, orders:0}, m = SQX.month;
+  return `<section class="card sec"><div class="sec-h"><h2>Card payments</h2><span class="aside">Square · ${SQX.updatedText}</span></div>
+    <div class="stat3"><button data-act="snapgo" data-sec="y-square"><b>${money(y.net)}</b><span>services in ${CUR}</span></button><button data-act="snapgo" data-sec="y-square"><b>${money(y.tips)}</b><span>tips</span></button><button data-act="snapgo" data-sec="y-square"><b>${money(y.deposited)}</b><span>in your bank</span></button></div>
+    <p class="muted small">${y.orders} card payments this year. Square’s cut was ${money(y.fees)}. ${MON[T0.getMonth()]} so far: ${money(m.net)} plus ${money(m.tips)} in tips.</p></section>`;
+}
+function sqClientRows(list){
+  return list.map(c => `<button class="topc" data-act="sqclient" data-v="${c.id}"><span class="n">${c.rank}</span><span class="nm"><b>${esc(sqName(c))}</b><i style="width:${Math.max(6, c.bar)}%"></i></span><span class="v">${money(c.val)}</span></button>`).join('');
+}
 function clientsCard(){
+  if (SQX && SQX.customers.length) {
+    const cs = SQX.customers, active = cs.filter(c => c.year.n > 0), top = [...active].sort((a,b) => b.year.net - a.year.net).slice(0,5), mx = (top[0] || {year:{net:1}}).year.net || 1;
+    return `<section class="card sec" id="s-clients">
+      <div class="sec-h"><h2>Your ${WN}</h2><button class="chip" data-act="sqall">See all</button></div>
+      <div class="stat3"><button data-act="sqall"><b>${cs.length}</b><span>card customers</span></button><button data-act="sqall"><b>${active.length}</b><span>this year</span></button><button data-act="sqall"><b>${cs.filter(c => c.all.n > 1 && c.year.n > 0).length}</b><span>came back</span></button></div>
+      <span class="label">Top ${WN} this year</span>
+      <div class="tops">${sqClientRows(top.map((c,i) => ({...c, rank:i+1, val:c.year.net, bar:c.year.net/mx*100})))}</div>
+      <p class="small muted">From Square. Only ${cs.filter(c => c.name).length} of ${cs.length} card customers have a name there; names, notes and schedules come in from MassageBook.</p>
+    </section>`;
+  }
+
   const ks = Object.keys(CL), top5 = ks.map(k => ({k, v:spend(k).y.$})).sort((a,b) => b.v - a.v).slice(0,5), mx = (top5[0] || {}).v || 1;
   const fresh = ks.filter(k => CL[k].since === CUR).length, reg = ks.filter(regular).length;
   return `<section class="card sec" id="s-clients">
@@ -1390,14 +1442,19 @@ function viewYear(){
   </section>
   <section class="card" id="y-costs"><div class="sec-h"><h2>Where it goes</h2><span class="aside">${P.costsYear} costs</span></div>${costRows()}
     <p class="small muted" style="margin-top:8px">${COSTS[0].n} is ${Math.round(COSTS[0].v/COST_TOTAL*100)}% of what you spend. Everything else together is ${money(COST_TOTAL-COSTS[0].v)} a year.</p></section>
+  ${SQX ? `<section class="card" id="y-square"><div class="sec-h"><h2>Card payments by year</h2><span class="aside">Square</span></div>
+    <table class="kept"><thead><tr><th></th><th>Services</th><th>Tips</th><th>Bank</th></tr></thead><tbody>
+    ${Object.keys(SQX.years).sort().map(y => `<tr><td>${y}${+y === CUR ? ' so far' : ''}</td><td>${money(SQX.years[y].net)}</td><td>${money(SQX.years[y].tips)}</td><td>${money(SQX.years[y].deposited)}</td></tr>`).join('')}
+    </tbody></table>
+    <p class="small muted" style="margin-top:8px">“Bank” is what Square paid out after its cut, tips included. Zelle and cash aren’t in Square.</p></section>` : ''}
   <section class="card" id="y-kept"><div class="sec-h"><h2>What you kept</h2><span class="aside">${P.real ? 'from your P&amp;L' : 'sample'}</span></div>
     <table class="kept"><thead><tr><th></th><th>${Y1}</th><th>${Y2}</th></tr></thead><tbody>
-      <tr><td>Brought in</td><td>${money(BOOKS[Y1].take)}</td><td>${money(BOOKS[Y2].take)}${P.booksNote ? '*' : ''}</td></tr>
+      <tr><td>Brought in</td><td>${money(BOOKS[Y1].take)}</td><td>${money(BOOKS[Y2].take)}${BOOKS_NOTE ? '*' : ''}</td></tr>
       <tr><td>${COSTS[0].n}</td><td>−${money(BOOKS[Y1].rent)}</td><td>−${money(BOOKS[Y2].rent)}</td></tr>
       <tr><td>Everything else</td><td>−${money(BOOKS[Y1].other)}</td><td>−${money(BOOKS[Y2].other)}</td></tr>
-      <tr><td>You kept</td><td>${money(BOOKS[Y1].kept)}</td><td>${money(BOOKS[Y2].kept)}${P.booksNote ? '*' : ''}</td></tr>
+      <tr><td>You kept</td><td>${money(BOOKS[Y1].kept)}</td><td>${money(BOOKS[Y2].kept)}${BOOKS_NOTE ? '*' : ''}</td></tr>
     </tbody></table>
-    ${P.booksNote ? `<p class="small muted" style="margin-top:8px">*${P.booksNote}</p>` : ''}
+    ${BOOKS_NOTE ? `<p class="small muted" style="margin-top:8px">*${BOOKS_NOTE}</p>` : ''}
   </section>
   <p class="small muted">Dollar amounts on this page use $${RATE} a ${P.unitOne}, ${P.rateNote}.</p>`;
 }
@@ -1796,6 +1853,17 @@ on('click', e => {
     case 'ob-color': OB.color = v; obRender(); break;
     case 'ob-nocolor': OB.color = null; OB.logo = null; OB.colors = []; obRender(); break;
     case 'ob-done': obFinish(); break;
+    case 'sqclient': { const c = SQX.customers.find(x => x.id === v); if (!c) break; const ld = new Date(c.last + 'T12:00:00');
+      sheet(`${top(esc(sqName(c)), `Last paid ${MON[ld.getMonth()]} ${ld.getDate()}, ${ld.getFullYear()} · from Square`)}
+      <div class="field"><span class="label">Spent with you</span><div class="spend">
+        <div><span>This month</span><b>${money(c.month.net)}</b><span>${c.month.n} visit${c.month.n===1?'':'s'}</span></div>
+        <div><span>This year</span><b>${money(c.year.net)}</b><span>${c.year.n} visit${c.year.n===1?'':'s'}</span></div>
+        <div><span>All time</span><b>${money(c.all.net)}</b><span>${c.all.n} visit${c.all.n===1?'':'s'}</span></div></div>
+        <p class="small muted">Plus ${money(c.all.tips)} in card tips all time${c.all.n ? `, about ${money(c.all.net / c.all.n)} a visit` : ''}.</p></div>
+      <div class="card facts2"><p class="muted">${c.name ? 'Notes, intake answers and upcoming visits come in when MassageBook is connected.' : 'Square has this card but no name. The name comes in when MassageBook is connected and the visits are matched.'}</p></div>`); break; }
+    case 'sqall': { const cs = [...SQX.customers].sort((a,b) => b.year.net - a.year.net || b.all.net - a.all.net), mx = (cs[0] || {all:{net:1}}).all.net || 1;
+      sheet(`${top(`All card customers`, `${cs.length} people who’ve paid by card · this year, then all time`)}
+      <div class="tops">${sqClientRows(cs.map((c,i) => ({...c, rank:i+1, val:c.year.net || c.all.net, bar:(c.year.net || c.all.net)/mx*100})))}</div>`); break; }
     case 'addc': sheet(`${top(`Add a ${W1}`, 'Just a name gets you started.')}
       <div class="field"><span class="label">Name</span><input class="text-in" id="ac-name" autocomplete="off" placeholder="First and last name"></div>
       <div class="field"><span class="label">Phone</span><input class="text-in" id="ac-phone" inputmode="tel" autocomplete="off" placeholder="(555) 555-0123"></div>
@@ -1862,6 +1930,7 @@ on('submit', e => {
 on('keydown', e => { if (e.key === 'Escape' && $('#layer').innerHTML) closeSheet(); });
 
 render();
+if (P.real && !SQ) loadSquare(KEY);
 if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.getItem('sole-seen'); } catch (_) {}
   if (!seen) sheet(`<div class="welcome"><div class="brand">${SUNMARK}<b>Sole</b></div>
     <p>The app for the one-person business. Your schedule, your customers, your money and your paperwork, in one place made for yours.</p></div>

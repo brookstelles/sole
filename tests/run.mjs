@@ -8,10 +8,11 @@ const b = await chromium.launch(process.env.CHROMIUM ? {executablePath: process.
 const errs = [];
 const check = (ok, what) => { if (!ok) errs.push(what); };
 
-async function open(file){
+async function open(file, init){
   const html = '<!doctype html><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1">' + fs.readFileSync(root + file, 'utf8');
   const p = await (await b.newContext({viewport:{width:390, height:844}})).newPage();
   p.on('pageerror', e => errs.push(file + ': ' + e.message));
+  if (init) await p.addInitScript(init);
   await p.route('http://sole.test/', r => r.fulfill({contentType:'text/html; charset=utf-8', body:html}));
   await p.goto('http://sole.test/', {waitUntil:'networkidle'});
   return p;
@@ -33,9 +34,21 @@ async function tour(p, label){
   }
 }
 
-// private edition
-let p = await open('index.html');
+// private edition, with made-up Square data injected the way the page's database would supply it
+const sq = fs.readFileSync(fx + 'square-sample.json', 'utf8');
+let p = await open('index.html', `window.__SOLE_SQUARE = ${sq};`);
 check((await p.textContent('.biz-name')) === 'Heart and Soul Massage', 'private edition opens on Heart and Soul Massage');
+await p.click('.tab[data-v=money]');
+check(/Card payments/.test(await p.textContent('main')), 'private: Square card payments show in Snapshot');
+check(/card customers/.test(await p.textContent('#s-clients')), 'private: Square customers show in Snapshot');
+await p.click('[data-act=sqall] >> nth=0'); await p.click('.sheet [data-act=sqclient] >> nth=0');
+check(/Spent with you/.test(await p.textContent('.sheet')), 'private: a Square customer opens with their spending');
+await p.click('.sheet .close');
+await p.click('[data-act=snapgo][data-sec=y-square] >> nth=0');
+check(/Card payments by year/.test(await p.textContent('main')), 'private: Square by year in the year view');
+check(/weren’t in the sheet/.test(await p.textContent('#y-kept')), 'private: missing 2025 Square months are filled in');
+await p.click('.tab[data-v=today]');
+console.log('ok private Square views');
 await tour(p, 'private');
 
 // public demo: welcome first, no private business anywhere

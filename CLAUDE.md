@@ -27,6 +27,13 @@ Sole (spelled S-O-L-E, as in sole proprietor; never "Soleil") is a phone app for
 
 Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`). The plan is the Google Doc *Sole: Product Plan* (id `1SlNHcJMCPG62BhRMYFlwJBEBfTX0bgCNOZ0OWURUXUg`); keep its "Next steps" current. Kelli's source data is in Business / Heart and Soul / Taxes (Heart and Soul Breakdown, Heart and Soul 2024, Heart and Soul 2025).
 
+## Square (private edition only)
+
+- The private artifact's database holds `square/summary` (months, fees by year, last 60 days) and `square/customers` (per customer: all time, this year, this month, last paid; id and name only). Rules: `square` read `view`, write `admin`.
+- Written once a day by the scheduled task "Sole: daily Square refresh" (`trig_01F99bDVej3nNA496pg6DVLo`, 5:48 am Eastern, read only on Square). The page reads it in `loadSquare()`; tests inject `tests/fixtures/square-sample.json` (made up) through `window.__SOLE_SQUARE`. Never commit real Square data.
+- Square's "net sales" is the service price before Square's processing fee, without tips. Kelli's P&L "Square" column matches it; tips and fees are separate.
+- Square knows money and card customers (most without names). Schedule, notes and intake answers live in MassageBook: reach them through MassageBook's Google Calendar sync and its client CSV export.
+
 ## Open questions
 
 - Kelli's Breakdown values each massage at $110; her P&L records about $85 (2024) and $100 (2025) per massage.
