@@ -953,15 +953,34 @@ let FILL = null; // a form being filled in
 let CTL;
 let SQ = null;     // Square payments and card customers, written into this page's database by the daily refresh
 let KEEP = null;   // the tab to return to when the page rebuilds itself
+function mergeCards(list, merges){
+  const groups = (merges && merges.groups) || [], byId = Object.fromEntries(list.map(c => [c.id, c])), used = new Set(), out = [];
+  groups.forEach(g => {
+    const cs = g.ids.map(i => byId[i]).filter(Boolean); if (!cs.length) return;
+    cs.forEach(c => used.add(c.id));
+    const add = (k, f) => cs.reduce((t, c) => t + ((c[k] || {})[f] || 0), 0);
+    out.push({id:cs[0].id, ids:cs.map(c => c.id), name:g.name || (cs.find(c => c.name) || {}).name || null,
+      all:{n:add('all','n'), net:add('all','net'), tips:add('all','tips')}, year:{n:add('year','n'), net:add('year','net'), tips:add('year','tips')},
+      month:{n:add('month','n'), net:add('month','net')}, last:cs.map(c => c.last).sort().pop()});
+  });
+  list.forEach(c => { if (!used.has(c.id)) out.push(c); });
+  return out.sort((a, b) => b.all.net - a.all.net);
+}
+async function saveMerges(groups, key){
+  SQ.merges = {groups};
+  KEEP = {tab:'money', money:'home'}; boot(key);
+  try { const db = window.claude && window.claude.use ? await window.claude.use('db') : null;
+    if (db) await db.doc('people/merges').set({groups, updated:new Date().toISOString()}); } catch (_) {}
+}
 async function loadSquare(key){
   try {
     if (window.__SOLE_SQUARE) { SQ = window.__SOLE_SQUARE; boot(key); return; }   // test hook: tests/fixtures/square-sample.json
     if (!window.claude || !window.claude.use) return;
     const db = await window.claude.use('db'); if (!db) return;
-    const [a, b, fr] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]}))]);
+    const [a, b, fr, mg] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false}))]);
     const responses = fr.docs.filter(d => d.exists).map(d => JSON.parse(JSON.stringify(d.data())));
     if (!a.exists && !responses.length) return;
-    SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses};
+    SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses, merges:mg.exists ? JSON.parse(JSON.stringify(mg.data())) : null};
     if (!document.querySelector('.sheet')) boot(key);
   } catch (_) {}
 }
@@ -1141,7 +1160,7 @@ const SQX = P.real && SQ && SQ.summary ? (() => {
   const years = {}; [...new Set(Object.keys(mo).map(k => k.slice(0,4)))].forEach(y => { const t = yr(y); years[y] = {...t, fees:fees[y] || 0, deposited:t.collected - (fees[y] || 0)}; });
   const mk = `${T0.getFullYear()}-${String(T0.getMonth()+1).padStart(2,'0')}`;
   const updated = new Date(SQ.summary.updated);
-  return {years, month:mo[mk] || {net:0, tips:0, orders:0}, months:mo, customers:SQ.customers, updated,
+  return {years, month:mo[mk] || {net:0, tips:0, orders:0}, months:mo, customers:mergeCards(SQ.customers, SQ.merges), updated,
     updatedText:`${MON[updated.getMonth()].slice(0,3)} ${updated.getDate()}, ${clock(updated.getHours() * 60 + updated.getMinutes())}`};
 })() : null;
 // a business whose 2025 books are missing Square for September to December gets them filled in from Square itself
@@ -1440,6 +1459,8 @@ function clientsCard(){
       <div class="stat3"><button data-act="sqall"><b>${cs.length}</b><span>card customers</span></button><button data-act="sqall"><b>${active.length}</b><span>this year</span></button><button data-act="sqall"><b>${cs.filter(c => c.all.n > 1 && c.year.n > 0).length}</b><span>came back</span></button></div>
       <span class="label">Top ${WN} this year</span>
       <div class="tops">${sqClientRows(top.map((c,i) => ({...c, rank:i+1, val:c.year.net, bar:c.year.net/mx*100})))}</div>
+      ${(() => { const cut = isoDay(dateOf(-60)), gone = cs.filter(c => c.all.n >= 4 && c.last < cut).sort((a, b) => b.all.n - a.all.n).slice(0, 3);
+        return gone.length ? `<span class="label">Regulars who haven’t been back</span><div class="tops">${gone.map(c => `<button class="topc" data-act="sqclient" data-v="${c.id}"><span class="n">${I.clients.replace('<svg', '<svg width="16" height="16"')}</span><span class="nm"><b>${esc(sqName(c))}</b><span class="small muted">${c.all.n} visits · last paid ${MON[+c.last.slice(5,7)-1].slice(0,3)} ${c.last.slice(0,4)}</span></span>${I.chev}</button>`).join('')}</div>` : ''; })()}
       <p class="small muted">From Square. Only ${cs.filter(c => c.name).length} of ${cs.length} card customers have a name there; names, notes and schedules come in from MassageBook.</p>
     </section>`;
   }
@@ -2033,7 +2054,18 @@ on('click', e => {
         <div><span>This year</span><b>${money(c.year.net)}</b><span>${c.year.n} visit${c.year.n===1?'':'s'}</span></div>
         <div><span>All time</span><b>${money(c.all.net)}</b><span>${c.all.n} visit${c.all.n===1?'':'s'}</span></div></div>
         <p class="small muted">Plus ${money(c.all.tips)} in card tips all time${c.all.n ? `, about ${money(c.all.net / c.all.n)} a visit` : ''}.</p></div>
-      <div class="card facts2"><p class="muted">${c.name ? 'Notes, intake answers and upcoming visits come in when MassageBook is connected.' : 'Square has this card but no name. The name comes in when MassageBook is connected and the visits are matched.'}</p></div>`); break; }
+      <div class="card facts2"><p class="muted">${c.name ? 'Notes, intake answers and upcoming visits come in when MassageBook is connected.' : 'Square has this card but no name. The name comes in when MassageBook is connected and the visits are matched.'}</p></div>
+      <div class="field"><span class="label">Same person?</span>${c.ids && c.ids.length > 1
+        ? `<p class="small muted">Combines ${c.ids.length} card profiles from Square.</p><button class="btn line" data-act="sqsplit" data-v="${c.id}">Separate them again</button>`
+        : `<button class="btn line" data-act="sqmerge" data-v="${c.id}">This is the same person as another card</button>`}</div>`); break; }
+    case 'sqmerge': { const c = SQX.customers.find(x => x.id === v), others = SQX.customers.filter(x => x.id !== v).sort((a, b) => (b.name ? 1 : 0) - (a.name ? 1 : 0) || b.all.net - a.all.net);
+      sheet(`${top(`Same person as ${esc(sqName(c))}?`, 'Pick the other card. Their visits and spending are added together. Last paid on the left.')}
+        <div class="list">${others.map(o => `<button class="li" data-act="sqmerge-go" data-v="${c.id}" data-o="${o.id}"><span class="t">${MON[+o.last.slice(5,7)-1].slice(0,3)} ${+o.last.slice(8,10)}<small>${o.last.slice(0,4)}</small></span><span class="who"><b>${esc(sqName(o))}</b><span>${o.all.n} visit${o.all.n === 1 ? '' : 's'} · ${money(o.all.net)} all time</span></span>${I.chev}</button>`).join('')}</div>`); break; }
+    case 'sqmerge-go': { const a = SQX.customers.find(x => x.id === v), b = SQX.customers.find(x => x.id === el.dataset.o); if (!a || !b) break;
+      const ids = [...new Set([...(a.ids || [a.id]), ...(b.ids || [b.id])])], groups = ((SQ.merges && SQ.merges.groups) || []).filter(g => !g.ids.some(i => ids.includes(i)));
+      const names = [a.name, b.name].filter(Boolean), name = names.find(n => !/^dr\b/i.test(n)) || names[0] || null;
+      closeSheet(); saveMerges([...groups, {ids, name}], KEY); setTimeout(() => toast(`Combined into ${name || 'one person'}.`), 60); break; }
+    case 'sqsplit': { const groups = ((SQ.merges && SQ.merges.groups) || []).filter(g => !g.ids.includes(v)); closeSheet(); saveMerges(groups, KEY); setTimeout(() => toast('Separated.'), 60); break; }
     case 'sqall': { const cs = [...SQX.customers].sort((a,b) => b.year.net - a.year.net || b.all.net - a.all.net), mx = (cs[0] || {all:{net:1}}).all.net || 1;
       sheet(`${top(`All card customers`, `${cs.length} people who’ve paid by card · this year, then all time`)}
       <div class="tops">${sqClientRows(cs.map((c,i) => ({...c, rank:i+1, val:c.year.net || c.all.net, bar:(c.year.net || c.all.net)/mx*100})))}</div>`); break; }

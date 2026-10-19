@@ -44,6 +44,22 @@ check(/card customers/.test(await p.textContent('#s-clients')), 'private: Square
 await p.click('[data-act=sqall] >> nth=0'); await p.click('.sheet [data-act=sqclient] >> nth=0');
 check(/Spent with you/.test(await p.textContent('.sheet')), 'private: a Square customer opens with their spending');
 await p.click('.sheet .close');
+// combining two cards that belong to one person, then separating them again
+const cardCount = async () => { await p.click('[data-act=sqall] >> nth=0'); const n = await p.locator('.sheet [data-act=sqclient]').count(); await p.click('.sheet .close'); return n; };
+const openCard = async (i) => { await p.click('[data-act=sqall] >> nth=0'); await p.click(`.sheet [data-act=sqclient] >> nth=${i}`); };
+const n0 = await cardCount();
+check(/Test Person 1/.test(await (async () => { await p.click('[data-act=sqall] >> nth=0'); const t = await p.textContent('.sheet'); await p.click('.sheet .close'); return t; })()), 'private: saved combined cards show as one person');
+let mi = -1;
+for (let i = 0; i < Math.min(n0, 6) && mi < 0; i++) { await openCard(i); if (await p.locator('.sheet [data-act=sqmerge]').count()) mi = i; else await p.click('.sheet .close'); }
+check(mi >= 0, 'private: a card customer offers "same person"');
+await p.click('.sheet [data-act=sqmerge]'); await p.click('.sheet [data-act=sqmerge-go] >> nth=0'); await p.waitForTimeout(150);
+check(await cardCount() === n0 - 1, 'private: combining two cards leaves one person');
+let si = -1;
+for (let i = 0; i < n0 && si < 0; i++) { await openCard(i); if (await p.locator('.sheet [data-act=sqsplit]').count()) si = i; else await p.click('.sheet .close'); }
+check(si >= 0, 'private: a combined card offers to separate');
+await p.click('.sheet [data-act=sqsplit]'); await p.waitForTimeout(150);
+check(await cardCount() > n0 - 1, 'private: separating cards adds them back');
+await p.click('.tab[data-v=money]');
 await p.click('[data-act=snapgo][data-sec=y-square] >> nth=0');
 check(/Card payments by year/.test(await p.textContent('main')), 'private: Square by year in the year view');
 check(/weren’t in the sheet/.test(await p.textContent('#y-kept')), 'private: missing 2025 Square months are filled in');
