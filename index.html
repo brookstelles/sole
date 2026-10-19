@@ -32,6 +32,7 @@
   color-scheme:dark}
 
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.45;-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
@@ -221,7 +222,7 @@ main{display:flex;flex-direction:column;gap:22px}
 .cost .tr i{display:block;height:100%;background:var(--accent);border-radius:4px}
 .cost b{text-align:right;font-weight:600}
 
-/* Sole's own look (every business except Kelli's, which keeps her card colors): dusk indigo and sun gold */
+/* Sole's own look for businesses without their own colors: dusk indigo and sun gold */
 html[data-look="sole"]{
   --bg:#F3F2F7; --surface:#FFFFFF; --sunk:#E7E5EF; --ink:#1E1B2E; --muted:#5D5972; --line:#D8D5E3; --art:#E2AE45;
   --accent:#3A3576; --accent-ink:#FFFFFF; --accent-soft:#E2E0F1;
@@ -293,6 +294,22 @@ html[data-look="sole"][data-theme="dark"]{
 .tradepick button{border:1.5px solid var(--line);background:var(--surface);border-radius:14px;padding:12px;text-align:left;font-weight:600;min-height:52px}
 .tradepick button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .form-img{max-width:100%;border-radius:12px;box-shadow:var(--shadow)}
+
+/* getting started */
+.getstarted{gap:12px}
+.gs-bar{height:6px;border-radius:3px;background:var(--sunk);overflow:hidden}
+.gs-bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.gs-list{display:flex;flex-direction:column}
+.gs{display:grid;grid-template-columns:30px 1fr auto;gap:12px;align-items:center;border:0;background:transparent;text-align:left;padding:10px 0;min-height:56px;width:100%}
+.gs + .gs{border-top:1px solid var(--line)}
+.gs b{font-weight:600;display:block}
+.gs span span{color:var(--muted);font-size:14px}
+.gs-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:var(--accent-ink)}
+.gs-dot svg{width:16px;height:16px}
+.gs.done{opacity:.6;cursor:default}
+.gs.done .gs-dot{background:var(--accent);border-color:var(--accent)}
+.gs.done b{text-decoration:line-through;text-decoration-color:var(--muted)}
+.linkbtn{border:0;background:transparent;color:var(--accent);font-weight:600;font-size:15px;padding:6px 0;text-align:left;min-height:40px}
 
 /* clients in snapshot */
 .stat3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-block:4px 6px}
@@ -425,7 +442,9 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
 <script>
 /* ---------- Sole: business profiles ----------
    One engine, one profile per trade: services, client notes, forms, hours, words and numbers.
-   massage is Kelli's practice (her real year numbers); the others are sample businesses. */
+   The private edition's massage profile is a real business; the others are sample businesses.
+   build_demo.py swaps that block for demo/massage.js to make the public demo. */
+const EDITION = 'private';
 function genHist(y0, base, growth, seed){
   const SEAS = [.86,.9,1.02,1.04,1.02,.98,.9,.92,.94,1.02,1.04,1.12];
   let s = seed; const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
@@ -434,8 +453,9 @@ function genHist(y0, base, growth, seed){
   return h;
 }
 const PROFILES = {
+  /* PRIVATE:START */
   massage: {
-    trade:'Massage therapist', short:'Massage', biz:'Heart and Soul Massage', look:'kelli', owner:'Kelli', team:['Kelli'], now:640,
+    trade:'Massage therapist', short:'Massage', biz:'Heart and Soul Massage', look:'seaglass', owner:'Kelli', team:['Kelli'], now:640,
     unit:'massages', unitOne:'massage', firstVisit:'first massage', treat:'birthday massage', intakeName:'intake form',
     reviewOn:'MassageBook', booking:'MassageBook and Square', real:true,
     source:'Year numbers come from your Heart and Soul spreadsheets. Today’s numbers are sample data until Square is connected.',
@@ -500,6 +520,7 @@ const PROFILES = {
     ],
     formsNote:'Forms open in Google Drive, where you can print them or share them.',
   },
+  /* PRIVATE:END */
 
   hair: {
     trade:'Hair stylist', short:'Hair', biz:'Willow Hair Studio', look:'sole', owner:'Jess', team:['Jess'], now:650,
@@ -665,7 +686,7 @@ const PROFILES = {
       morgan:{name:'Ellen Morgan', phone:'(555) 052-1195', since:2026, visits:0, last:null, usual:'estimate', isNew:true, intake:false, rows:[['Address','5 Lantana Ln'],['Wants','Weekly mow and a new mulch bed']], note:'Found us on Google.'},
       patel:{name:'Raj Patel', phone:'(555) 052-7741', since:2023, visits:140, last:7, every:7, usual:'mow', rows:[['Address','62 Sabal Rd'],['Lawn','Bahia, big backyard']], note:''},
       ward:{name:'Kim Ward', phone:'(555) 052-5508', since:2022, visits:160, last:7, every:7, usual:'mow', rows:[['Address','19 Coral Way'],['Gate','Code 0918']], note:'Sprinkler head broken by the mailbox.', bdow:6},
-      kim:{name:'Sun Kim', phone:'(555) 052-9963', since:2025, visits:6, last:90, every:180, usual:'mulch', rows:[['Address','140 Juno Isles Blvd'],['Mulch','Red cypress, 12 bags']], note:''},
+      kim:{name:'Sun Kim', phone:'(555) 052-9963', since:2025, visits:6, last:90, every:180, usual:'mulch', rows:[['Address','140 Harbor Isles Blvd'],['Mulch','Red cypress, 12 bags']], note:''},
       hughes:{name:'Pat Hughes', phone:'(555) 052-2047', since:2021, visits:40, last:60, every:60, usual:'irrig', rows:[['Address','9 Marlin St'],['Irrigation','6 zones, controller in garage']], note:''},
       grant:{name:'Owen Grant', phone:'(555) 052-3384', since:2024, visits:20, last:2, every:14, usual:'cleanup', rows:[['Address','44 Bay Colony']], note:'Invoice from Saturday not paid.'},
       lopez:{name:'Maria Lopez', phone:'(555) 052-6129', since:2023, visits:30, last:120, every:60, usual:'hedge', rows:[['Address','7 Seagrape Ln']], note:'Wants a quote for new sod.'},
@@ -828,36 +849,44 @@ function logoColors(img){
   return out;
 }
 /* an account from setup -> a full profile built on its trade's template */
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 function makeProfile(id){
   const a = ACCOUNTS[id], T = TRADES.find(t => t.id === a.trade), base = PROFILES[T.base];
-  const P = JSON.parse(JSON.stringify(base));
   const oldK = Object.keys(base.services), svc = {};
   T.services.forEach(([k, name, min, price]) => svc[k] = {name:(a.names && a.names[k] || '').trim() || name, min, price: a.prices && a.prices[k] != null && a.prices[k] !== '' ? +a.prices[k] : price});
   const who = a.who || [T.who, T.whoOne], unit = a.unit || [T.unit, T.unitOne];
   const newK = Object.keys(svc), mapS = x => newK[Math.max(0, oldK.indexOf(x)) % newK.length];
-  const fixX = x => { if (!x) return x; const y = {...x}; if (y.w) { if (a.mate) y.w = a.mate; else delete y.w; } return y; };
-  const fix = arr => arr.map(([c, sv, t, x]) => [c, mapS(sv), t, fixX(x)]);
-  Object.values(P.clients).forEach(c => { c.rows = []; c.note = ''; delete c.avoid; c.usual = mapS(c.usual); });
   const genericIntake = {name:T.intake.charAt(0).toUpperCase() + T.intake.slice(1), kind:'Template', intake:true, send:true, about:'Contact details, health and allergies, what they want, and a signature.',
     sections:['Contact details','Health and allergies','What they want from the visit','Consent and signature']};
   const uploads = (a.docs || []).map((d, i) => ({name:d.name, kind:d.kind, upload:true, send:true, doc:i, about:'Uploaded during setup.'}));
-  Object.assign(P, {
+  const common = {
     trade:a.what || T.label, short:T.label, biz:a.biz, who:who[0], whoOne:who[1], owner:a.owner, team:a.mate ? [a.owner, a.mate] : [a.owner], teamSplit:[0.6, 0.4],
     look:a.color ? 'custom' : 'sole', color:a.color, logo:a.logo, real:false, custom:true,
     unit:unit[0], unitOne:unit[1], firstVisit:'first ' + unit[1], treat:'birthday ' + unit[1], intakeName:T.intake, reviewOn:'Google', booking:'your booking app and Square',
-    source:'Clients and numbers are samples until you connect your booking app and Square.',
-    services:svc, today:fix(P.today), last:fix(P.last), tpl:P.tpl.map(fix),
-    req:{...fixX(P.req), s:mapS(P.req.s)}, askName:P.clients[Object.keys(P.clients)[0]].name.split(' ')[0],
-    hist:genHist(2022, T.vol, 0.07, 3 + T.vol),
+    services:svc, hours:base.hours,
     rate:Math.max(20, Math.round(Object.values(svc).reduce((x, v) => x + v.price, 0) / newK.length)), rateNote:'your average price',
-    books:undefined, booksNote:undefined,
-    costs:T.base === 'massage' ? [{n:'Rent', v:9000}, {n:'Supplies', v:1600}, {n:'Insurance', v:480}, {n:'Booking app', v:360}] : base.costs.filter(c => a.mate || !/pay/i.test(c.n)).map(c => /pay/i.test(c.n) ? {...c, n:`${a.mate}’s pay`} : c).sort((x, y) => y.v - x.v),
-    license:{short:'Add', next:'Not added yet', tile:'your license and renewal date', title:'Your license', text:'Add your license and its renewal date, and Sole reminds you three months ahead.'},
+    license:a.license ? {short:a.license.short, next:a.license.next, tile:`next renewal${a.license.name ? ', ' + a.license.name : ''}`, title:a.license.name || 'Your license', text:`Renews ${a.license.next}. Sole reminds you three months ahead.`}
+      : {short:'Add', next:'Not added yet', tile:'your license and renewal date', title:'Your license', text:'Add your license and its renewal date, and Sole reminds you three months ahead.'},
     forms:[...uploads, ...(T.id === T.base && T.base !== 'massage' ? base.forms : [genericIntake])],
     formsNote:'Your uploads and Sole templates live here. Print them, or send them as a link.',
+  };
+  // day one: no customers, no bookings, no history until the owner adds them or connects Square
+  if (!a.sample) return {...common, fresh:true, now:nowMin(), clients:{}, today:[], blocks:[], last:[], tpl:[], req:null, askName:'',
+    hist:{2025:Array(12).fill(0), 2026:Array(9).fill(0)}, costs:[], costsYear:2026, source:'Your numbers fill in as you book and get paid, or when you connect Square.'};
+  // "fill with sample data": the trade's sample business, wearing this business's name, words and colors
+  const P = JSON.parse(JSON.stringify(base));
+  const fixX = x => { if (!x) return x; const y = {...x}; if (y.w) { if (a.mate) y.w = a.mate; else delete y.w; } return y; };
+  const fix = arr => arr.map(([c, sv, t, x]) => [c, mapS(sv), t, fixX(x)]);
+  Object.values(P.clients).forEach(c => { c.rows = []; c.note = ''; delete c.avoid; c.usual = mapS(c.usual); });
+  return Object.assign(P, common, {
+    sample:true, source:'Sample customers and numbers. Clear them from the business menu when you’re ready to start for real.',
+    today:fix(P.today), last:fix(P.last), tpl:P.tpl.map(fix),
+    req:{...fixX(P.req), s:mapS(P.req.s)}, askName:P.clients[Object.keys(P.clients)[0]].name.split(' ')[0],
+    hist:genHist(2022, T.vol, 0.07, 3 + T.vol), books:undefined, booksNote:undefined,
+    costs:T.base === 'massage' ? [{n:'Rent', v:9000}, {n:'Supplies', v:1600}, {n:'Insurance', v:480}, {n:'Booking app', v:360}] : base.costs.filter(c => a.mate || !/pay/i.test(c.n)).map(c => /pay/i.test(c.n) ? {...c, n:`${a.mate}’s pay`} : c).sort((x, y) => y.v - x.v),
   });
-  return P;
 }
+const isoDay = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 let OB = null;   // setup in progress
 
 let CTL;
@@ -907,8 +936,26 @@ const add = (c, s, off, start, x = {}) => { const a = {id:seq++, c, s, off, star
 P.today.forEach(([c,s,t,x]) => add(c, s, 0, t, x));
 P.blocks.forEach(([t,m,l]) => BL.push({id:seq++, off:0, start:t, min:m, label:l, w:ME}));
 P.last.forEach(([c,s,t,x]) => add(c, s, LAST, t, x));
-for (let off = 1, w = 0; off <= 34; off++) { if (isOff(off)) continue; P.tpl[w++ % P.tpl.length].forEach(([c,s,t,x]) => add(c, s, off, t, x)); }
-const REQ = {...P.req, off:nextOffWith(1, P.req.dow), w:P.req.w || ME, open:true};
+if (P.tpl.length) for (let off = 1, w = 0; off <= 34; off++) { if (isOff(off)) continue; P.tpl[w++ % P.tpl.length].forEach(([c,s,t,x]) => add(c, s, off, t, x)); }
+const REQ = P.req ? {...P.req, off:nextOffWith(1, P.req.dow), w:P.req.w || ME, open:true} : {open:false, off:1};
+// what the owner added themselves (customers, bookings, time off, setup steps) is kept with the account
+const ACC = ACCOUNTS[KEY];
+if (ACC && ACC.state) {
+  Object.assign(CL, JSON.parse(JSON.stringify(ACC.state.clients || {})));
+  (ACC.state.appts || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number), off = Math.round((new Date(y, m-1, d) - T0) / 864e5);
+    if (off >= -400 && CL[x.c] && SV[x.s]) add(x.c, x.s, off, x.start, {paid:x.paid, tip:x.tip || 0, w:x.w || ME, mine:true}); });
+  (ACC.state.blocks || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number); BL.push({id:seq++, off:Math.round((new Date(y, m-1, d) - T0) / 864e5), start:x.start, min:x.min, label:x.label, w:x.w || ME, mine:true}); });
+}
+const DONE_STEPS = ACC ? (ACC.steps = ACC.steps || {}) : {};
+function saveState(){
+  if (!ACC) return;
+  ACC.state = {
+    clients:Object.fromEntries(Object.entries(CL).filter(([, c]) => c.mine)),
+    appts:AP.filter(a => a.mine).map(a => ({c:a.c, s:a.s, date:isoDay(dateOf(a.off)), start:a.start, paid:a.paid, tip:a.tip, w:a.w})),
+    blocks:BL.filter(b => b.mine).map(b => ({date:isoDay(dateOf(b.off)), start:b.start, min:b.min, label:b.label, w:b.w})),
+  };
+  saveAccounts();
+}
 
 /* ---------- schedule logic ---------- */
 const endOf = a => a.start + SV[a.s].min;
@@ -965,7 +1012,8 @@ const regular = k => { const c = CL[k]; return c.every && c.every <= 28 && c.las
 /* ---------- money (made-up history) ---------- */
 function take(off){
   if (off === 0) { const p = apptsOn(0).filter(a => a.paid); return {net:p.reduce((s,a)=>s+SV[a.s].price,0), tips:p.reduce((s,a)=>s+a.tip,0), n:p.length}; }
-  if ([0,6].includes(dateOf(off).getDay())) return {net:0, tips:0, n:0};
+  if (P.fresh) { const p = apptsOn(off).filter(a => a.paid); return {net:p.reduce((s,a)=>s+SV[a.s].price,0), tips:p.reduce((s,a)=>s+a.tip,0), n:p.length}; }
+  if (P.hours.closed.includes(dateOf(off).getDay())) return {net:0, tips:0, n:0};
   const x = Math.abs(Math.sin(off * 12.9898 + 4.1) * 43758.5453) % 1;
   const n = 3 + Math.floor(x * 4);
   const net = Math.round(n * (102 + x * 28) / 5) * 5;
@@ -979,7 +1027,7 @@ const RANGES = {
 const sumOf = r => RANGES[r].offs().map(take).reduce((s,t) => ({net:s.net+t.net, tips:s.tips+t.tips, n:s.n+t.n}), {net:0,tips:0,n:0});
 const unpaid = () => AP.filter(a => !a.paid && (a.off < 0 || (a.off === 0 && endOf(a) <= NOW)));
 
-/* ---------- year numbers (Kelli's from her spreadsheets; sample for the others) ---------- */
+/* ---------- year numbers (from the business's records, or samples) ---------- */
 const HIST = P.hist;
 const YEARS = Object.keys(HIST).map(Number), CUR = 2026, DONE = HIST[CUR].length;
 const RATE = P.rate;
@@ -1005,8 +1053,8 @@ const nextSlow = (() => { for (let i = 1; i <= 12; i++) { const m = (T0.getMonth
 const COSTS = P.costs;
 const COST_TOTAL = sum(COSTS.map(c => c.v));
 const costRows = () => `<div class="costs">${COSTS.map(c => `<div class="cost"><span>${c.n}</span><span class="tr"><i style="width:${Math.max(2, c.v/COSTS[0].v*100)}%"></i></span><b>${money(c.v)}</b></div>`).join('')}</div>`;
-// what came in and what was kept: Kelli's from her P&L sheets, the others worked out from sample numbers
-const BOOKS = P.books || Object.fromEntries(FULL.slice(-2).map(y => { const take = yearTotal(y) * RATE, other = sum(COSTS.slice(1).map(c => c.v)) * (y === P.costsYear ? 1 : 0.93);
+// what came in and what was kept: from the business's books when it has them, otherwise worked out from its numbers
+const BOOKS = P.fresh ? {} : P.books || Object.fromEntries(FULL.slice(-2).map(y => { const take = yearTotal(y) * RATE, other = sum(COSTS.slice(1).map(c => c.v)) * (y === P.costsYear ? 1 : 0.93);
   return [y, {take, rent:COSTS[0].v, other, kept:take - COSTS[0].v - other}]; }));
 const BY = Object.keys(BOOKS).map(Number), Y1 = BY[0], Y2 = BY[1];
 const LICENSE = P.license;
@@ -1029,6 +1077,7 @@ const I = {
   bulb:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>',
   badge:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5.5"/><path d="M8.5 13.5L7 21l5-2.5 5 2.5-1.5-7.5"/></svg>',
   down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
 };
 
@@ -1039,27 +1088,28 @@ const LILY = `<svg class="lily" viewBox="-64 -64 128 128" aria-hidden="true"><g 
 
 const SUN = `<svg class="lily" viewBox="-64 -64 128 128" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle r="20"/>${
   Array.from({length:12}, (_,i) => `<path transform="rotate(${i*30})" d="M0 -30V${i % 2 ? -42 : -52}"/>`).join('')}</g></svg>`;
-const MOTIF = P.look === 'kelli' ? LILY : SUN;
-const BIZMARK = P.logo ? `<img src="${P.logo}" alt="">` : P.look === 'kelli' ? LILY.replace('class="lily"', 'class="mark"') : esc(P.biz.split(/\s+/).filter(w => /^[A-Za-z]/.test(w)).slice(0,2).map(w => w[0].toUpperCase()).join(''));
+const MOTIF = P.look === 'seaglass' ? LILY : SUN;
+const BIZMARK = P.logo ? `<img src="${P.logo}" alt="">` : P.look === 'seaglass' ? LILY.replace('class="lily"', 'class="mark"') : esc(P.biz.split(/\s+/).filter(w => /^[A-Za-z]/.test(w)).slice(0,2).map(w => w[0].toUpperCase()).join(''));
 const SUNMARK = `<svg viewBox="-32 -32 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle r="10" fill="currentColor"/>${
   Array.from({length:8}, (_,i) => `<path transform="rotate(${i*45})" d="M0 -16V-25"/>`).join('')}</g></svg>`;
 
 /* ---------- state ---------- */
 const S = {tab:'today', week:0, day:0, range:'week', bar:0, answer:null, search:'', yr:2026, wiC:0, wiP:0, money:'home', who:ME};
 const TABS = [['today','Today'],['schedule','Schedule'],['money','Snapshot'],['forms','Forms']];
-const TITLES = {today:`Good morning, ${P.owner}`, schedule:'Schedule', money:'Snapshot', forms:'Forms'};
+const TITLES = {today:`Good ${NOW < 720 ? 'morning' : NOW < 1020 ? 'afternoon' : 'evening'}, ${P.owner}`, schedule:'Schedule', money:'Snapshot', forms:'Forms'};
 
 function render(){
   $('#hdr').innerHTML = `${MOTIF}<div><div class="hdr-top"><button class="biz" data-act="trade" aria-label="Switch business"><span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span>${I.down.replace('<svg', '<svg class="chev"')}</button><span class="hdr-date">${dayShort(0).slice(0,3)}, ${MON[T0.getMonth()].slice(0,3)} ${T0.getDate()}</span></div><h1>${TITLES[S.tab]}</h1></div>`;
   $('#main').innerHTML = ({today:viewToday, schedule:viewSchedule, money:viewMoney, forms:viewForms})[S.tab]();
   const owes = unpaid().length > 0;
+  saveState();
   $('#tabs').innerHTML = TABS.map(([k,l]) => `<button class="tab" data-act="tab" data-v="${k}" aria-current="${S.tab===k?'page':'false'}"><span class="${k==='money'&&owes?'badge':''}">${I[k]}</span>${l}</button>`).join('');
 }
 
 /* ---------- Today ---------- */
 function viewToday(){
   const ap = apptsOn(0);
-  const end = Math.max(...ap.map(endOf));
+  const end = ap.length ? Math.max(...ap.map(endOf)) : 0;
   const next = ap.find(a => a.start >= NOW);
   const left = ap.filter(a => a.start >= NOW).length;
   const needs = [];
@@ -1071,7 +1121,7 @@ function viewToday(){
   const mins = next ? next.start - NOW : 0;
   const wk = sumOf('week'), td = sumOf('today');
   return `
-  <section class="sec"><p class="lede"><b>${ap.length} ${ap.length === 1 ? W1 : WN} today.</b> ${left} still to come. Your last one ends at ${clock(end)}.</p></section>
+  ${P.fresh ? setupCard() : ''}<section class="sec"><p class="lede">${ap.length ? `<b>${ap.length} ${ap.length === 1 ? W1 : WN} today.</b> ${left ? `${left} still to come. Your last one ends at ${clock(end)}.` : 'All done for the day.'}` : `<b>Nothing booked today.</b> ${Object.keys(CL).length ? 'Book someone, or block time for yourself.' : `Add your first ${W1} to get going.`}`}</p></section>
   <section class="sec">
     <form class="ask" id="ask-form"><input id="ask-in" placeholder="Ask anything about your day…" autocomplete="off" aria-label="Ask a question"><button aria-label="Ask">${I.send}</button></form>
     <div class="chips">${askChips().map(q => `<button class="chip" data-act="ask" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
@@ -1087,15 +1137,35 @@ function viewToday(){
     <div class="btns"><button class="btn" data-act="appt" data-id="${next.id}">All notes</button><button class="btn" data-act="late" data-id="${next.id}">Running late</button></div>
   </section>` : ''}
   ${needs.length ? `<section class="sec"><div class="sec-h"><h2>Needs you</h2><span class="aside">${needs.length}</span></div>${needs.join('')}</section>` : ''}
-  <section class="sec"><div class="sec-h"><h2>Today’s ${WN}</h2><button class="chip" data-act="tab" data-v="schedule">Full schedule</button></div>
+  <section class="sec" ${ap.length ? '' : 'hidden'}><div class="sec-h"><h2>Today’s ${WN}</h2><button class="chip" data-act="tab" data-v="schedule">Full schedule</button></div>
     <div class="list">${dayRows(0)}</div></section>
   <section class="glance">
     <button data-act="money" data-v="today"><span class="small muted">Today so far</span><span class="big">${money(td.net)}</span><span class="small muted">+ ${money(td.tips)} tips</span></button>
-    <button data-act="money" data-v="year"><span class="small muted">This year</span><span class="big">${SO_FAR}</span><span class="small muted">${P.unit} · on pace for ${PROJ}</span></button>
+    ${P.fresh ? `<button data-act="money" data-v="month"><span class="small muted">This month</span><span class="big">${money(sumOf('month').net)}</span><span class="small muted">${sumOf('month').n} ${sumOf('month').n === 1 ? P.unitOne : P.unit} paid</span></button>`
+      : `<button data-act="money" data-v="year"><span class="small muted">This year</span><span class="big">${SO_FAR}</span><span class="small muted">${P.unit} · on pace for ${PROJ}</span></button>`}
   </section>`;
 }
 const pressureWord = p => ['Not known','Light','Light','Medium','Firm','Firm'][p];   // her intake form: Light, Medium, Firm
 const pressureLvl = p => [0,1,1,2,3,3][p];
+/* the getting-started list a new business sees until it's done */
+function setupSteps(){
+  return [
+    {done:Object.keys(CL).length > 0, t:`Add your first ${W1}`, s:'Name and phone. Notes can come later.', act:'addc'},
+    {done:AP.length > 0, t:`Book your first ${P.unitOne}`, s:'Pick who, what and when.', act:'book'},
+    {done:!!DONE_STEPS.square, t:'Get paid with Square', s:'Payments and tips show up here by themselves.', act:'connect', v:'square'},
+    {done:!!DONE_STEPS.cal, t:'Bring in your calendar', s:'From the booking app you use now, or book everything in Sole.', act:'connect', v:'cal'},
+    {done:!!DONE_STEPS.forms, t:`Check your ${P.intakeName}`, s:'Make sure it says what you need before you send it.', act:'checkforms'},
+    {done:!!(ACC && ACC.license), t:'Add your license', s:'Sole reminds you before it renews.', act:'addlicense'},
+  ];
+}
+function setupCard(){
+  const st = setupSteps(), n = st.filter(x => x.done).length;
+  if (n === st.length) return '';
+  return `<section class="card sec getstarted"><div class="sec-h"><h2>Get set up</h2><span class="aside">${n} of ${st.length} done</span></div>
+    <div class="gs-bar"><i style="width:${n / st.length * 100}%"></i></div>
+    <div class="gs-list">${st.map(x => `<button class="gs ${x.done ? 'done' : ''}" data-act="${x.act}" ${x.v ? `data-v="${x.v}"` : ''} ${x.done ? 'disabled' : ''}><span class="gs-dot">${x.done ? I.check : ''}</span><span><b>${x.t}</b><span>${x.s}</span></span>${x.done ? '' : I.chev}</button>`).join('')}</div>
+    <button class="linkbtn" data-act="fillsample">Or fill ${esc(P.biz)} with sample data to look around</button></section>`;
+}
 function rowsOf(c){
   if (c.rows) return [...c.rows.map(([l,v]) => ({l, v})), ...(c.avoid ? [{l:'Avoid', v:c.avoid, bad:true}] : [])];
   const r = [{l:'Pressure', v:c.pressure, meter:true}, {l:'Focus', v:c.focus}];
@@ -1105,7 +1175,7 @@ function rowsOf(c){
   if (c.setup) r.push({l:'Table', v:c.setup});
   return r;
 }
-const askChips = () => ['How’s my year going?', 'Who hasn’t paid?', `What’s open ${dayName(REQ.off)}?`, `How much has ${P.askName} spent?`];
+const askChips = () => P.fresh ? ['How’s my year going?', 'What’s open tomorrow?', 'Who hasn’t paid?'] : ['How’s my year going?', 'Who hasn’t paid?', `What’s open ${dayName(REQ.off)}?`, `How much has ${P.askName} spent?`];
 
 /* ---------- rows shared by Today and Schedule ---------- */
 function dayRows(off){
@@ -1182,7 +1252,37 @@ function dayMoney(){
   <section class="sec"><div class="sec-h"><h2>Recent payments</h2><span class="aside">from Square</span></div>
     <div class="list">${paid.map(a => `<button class="li" data-act="appt" data-id="${a.id}"><span class="t">${cap(dayName(a.off)).slice(0,3)}<small>${clockS(a.start)}</small></span><span class="who"><b>${CL[a.c].name}</b><span>${svLabel(a.s)}</span></span><span class="num" style="text-align:right"><b>${money(SV[a.s].price)}</b><br><span class="small muted">${a.tip?'+ '+money(a.tip)+' tip':'no tip'}</span></span></button>`).join('')}</div></section>`;
 }
+function viewSnapFresh(){
+  const m = sumOf('month'), w = sumOf('week'), ahead = AP.filter(a => a.off > 0 || (a.off === 0 && a.start >= NOW)).length, owe = unpaid();
+  const ks = Object.keys(CL);
+  return `
+  <p class="lede"><b>Your numbers start with your first ${P.unitOne}.</b> Everything you book and get paid for adds up here.</p>
+  <section class="snap-hero">${MOTIF}
+    <div class="snap-go"><span class="snap-k">${I.trend}${MON[T0.getMonth()]} so far</span>
+      <span class="snap-big">${money(m.net)}</span><span>${m.n} ${m.n === 1 ? P.unitOne : P.unit} paid${m.tips ? ` · ${money(m.tips)} in tips` : ''}</span></div>
+    <div class="pills">
+      <button data-act="money" data-v="today"><b>${money(sumOf('today').net)}</b><small>today</small></button>
+      <button data-act="money" data-v="week"><b>${money(w.net)}</b><small>last 7 days</small></button>
+      <button data-act="tab" data-v="schedule"><b>${ahead}</b><small>booked ahead</small></button>
+    </div>
+  </section>
+  <section class="card sec" id="s-clients"><div class="sec-h"><h2>Your ${WN}</h2><span class="aside">${ks.length}</span></div>
+    ${ks.length ? `<div class="list" style="box-shadow:none">${clientRows()}</div>` : `<p class="muted">No ${WN} yet. Each one you add keeps their notes, their visits and what they’ve spent.</p>`}
+    <button class="btn ${ks.length ? 'line' : 'primary'}" data-act="addc">${I.plus}Add ${ks.length ? `a ${W1}` : `your first ${W1}`}</button>
+  </section>
+  <section class="card sec"><div class="sec-h"><h2>Bring in your history</h2></div>
+    <p class="muted">Connect Square, or upload a spreadsheet of past sales, and Sole fills in your year, your busy and slow months, and what you kept.</p>
+    <div class="btn-row"><button class="btn primary" data-act="connect" data-v="square" ${DONE_STEPS.square ? 'disabled' : ''}>${DONE_STEPS.square ? 'Square connected' : 'Connect Square'}</button><button class="btn" data-act="fillsample">See it with sample data</button></div>
+  </section>
+  <section class="bento">
+    ${owe.length ? `<button class="tile attn" data-act="money" data-v="today"><span class="k">${I.money}Not paid</span><span class="big">${money(owe.reduce((s,a)=>s+SV[a.s].price,0))}</span><span class="s">${owe.map(a => first(a.c)).join(', ')}</span></button>` : ''}
+    <button class="tile" data-act="addcost"><span class="k">${I.wallet}Costs</span><span class="big">Add</span><span class="s">snap a receipt for rent, supplies or fuel</span></button>
+    <button class="tile ${owe.length ? 'wide' : ''}" data-act="${ACC && ACC.license ? 'license' : 'addlicense'}"><span class="k">${I.badge}License</span><span class="big">${LICENSE.short}</span><span class="s">${LICENSE.tile}</span></button>
+  </section>
+  <p class="small muted">${P.source}</p>`;
+}
 function viewSnap(){
+  if (P.fresh) return viewSnapFresh();
   const lastY = sum(HIST[CUR-1].slice(0, DONE)), up = (SO_FAR - lastY) / lastY * 100;
   const mo = DONE - 1, moN = HIST[CUR][mo], moP = HIST[CUR-1][mo];
   const q3 = sum(HIST[CUR].slice(DONE-3, DONE)), q3p = sum(HIST[CUR-1].slice(DONE-3, DONE));
@@ -1228,7 +1328,7 @@ function viewSnap(){
   <p class="small muted">${P.source}</p>`;
 }
 function clientsCard(){
-  const ks = Object.keys(CL), top5 = ks.map(k => ({k, v:spend(k).y.$})).sort((a,b) => b.v - a.v).slice(0,5), mx = top5[0].v || 1;
+  const ks = Object.keys(CL), top5 = ks.map(k => ({k, v:spend(k).y.$})).sort((a,b) => b.v - a.v).slice(0,5), mx = (top5[0] || {}).v || 1;
   const fresh = ks.filter(k => CL[k].since === CUR).length, reg = ks.filter(regular).length;
   return `<section class="card sec" id="s-clients">
     <div class="sec-h"><h2>Your ${WN}</h2><button class="chip" data-act="clients">See all</button></div>
@@ -1369,7 +1469,7 @@ function viewClients(){
     <p class="muted small">People likely to book if you say hi. The text is written for you.</p>
     <div class="reach">${r.map(x => `<div class="rc"><span class="av">${initials(x.k)}</span><div style="min-width:0"><b>${CL[x.k].name}</b><p class="why">${x.why}</p></div><button class="btn primary" data-act="reach" data-c="${x.k}" data-kind="${x.kind}">Text</button></div>`).join('')}</div>
   </section>
-  <section class="sec"><div class="sec-h"><h2>All ${WN}</h2><span class="aside">${Object.keys(CL).length}</span></div>
+  <section class="sec"><div class="sec-h"><h2>All ${WN}</h2><button class="chip" data-act="addc">${I.plus.replace('<svg', '<svg width="14" height="14"')} Add</button></div>
     <input class="search" id="cl-search" type="search" placeholder="Find a ${W1}" value="${esc(S.search)}" autocomplete="off" aria-label="Find a ${W1}">
     <div class="list" id="cl-list">${clientRows()}</div>
   </section>`;
@@ -1398,7 +1498,7 @@ function ask(q){
     a = `<b>${c.name}</b> was last in ${lastText(hit).toLowerCase()}. ${sp.a.v ? `Spent <b>${money(sp.y.$)}</b> this year and ${money(sp.a.$)} all time. ` : ''}${n ? `Next visit: <b>${whenText(n)}</b>, ${svLabel(n.s)}.` : 'Nothing booked yet.'}
       <div class="btn-row" style="margin-top:10px"><button class="btn" data-act="client" data-c="${hit}">Open notes</button><button class="btn primary" data-act="book" data-c="${hit}">Book</button></div>`;
   } else if (/(year|pace|forecast|project|on track|going)/.test(s)) {
-    a = `You’ve done <b>${SO_FAR} massages</b> this year through ${MON[DONE-1]}, worth about <b>${money(SO_FAR*RATE)}</b>. You’re on pace for about <b>${PROJ}</b>, which would beat your best year (${BEST_PAST_Y}, with ${BEST_PAST}).
+    a = P.fresh ? `Your first year on Sole started this month. So far you’ve brought in <b>${money(sumOf('month').net)}</b> from ${sumOf('month').n} ${P.unit}. Connect Square or upload past sales and Sole fills in the rest of your year.` : `You’ve done <b>${SO_FAR} ${P.unit}</b> this year through ${MON[DONE-1]}, worth about <b>${money(SO_FAR*RATE)}</b>. You’re on pace for about <b>${PROJ}</b>, which would beat your best year (${BEST_PAST_Y}, with ${BEST_PAST}).
       <div class="btn-row" style="margin-top:10px"><button class="btn primary" data-act="money" data-v="year">See your year</button></div>`;
   } else if (/(paid|owe|unpaid|charge)/.test(s)) {
     const u = unpaid();
@@ -1487,7 +1587,7 @@ function messageFor(k, kind){
 
 /* ---------- booking ---------- */
 let B = null;
-const RECENT = Object.keys(P.clients).filter(k => P.clients[k].visits > 0);
+const recent = () => Object.keys(CL).filter(k => CL[k].visits > 0 || CL[k].mine);
 function openBook(o){
   B = Object.assign({kind:'client', mode:'new', c:null, newName:'', s:Object.keys(SV)[0], off:S.tab==='schedule'?S.day:1, start:null, label:'Lunch', len:30, w:S.tab==='schedule'?S.who:ME}, o);
   if (o.c && !o.s && CL[o.c] && CL[o.c].usual) B.s = CL[o.c].usual;
@@ -1512,7 +1612,7 @@ function bookHTML(){
     : B.mode === 'move' ? top(`Move ${first(B.c)}`, `${svLabel(B.s)}, now ${whenText(AP.find(a=>a.id===B.id))}`)
     : top(`Book a ${W1}`, B.fromReq ? `${CL[B.c].name} asked for ${dayName(REQ.off)} at ${clock(REQ.start)}` : TURN ? `${TURN} minutes to reset is added after each ${P.unitOne}.` : 'Booked back to back.');
   const who = B.kind === 'client' && B.mode === 'new' ? `<div class="field"><span class="label">Who</span>
-      <div class="chips">${RECENT.map(k => `<button class="chip" data-act="b-c" data-v="${k}" aria-pressed="${B.c===k}">${first(k)} ${CL[k].name.split(' ')[1][0]}.</button>`).join('')}<button class="chip" data-act="b-c" data-v="new" aria-pressed="${B.c==='new'}">+ Someone new</button></div>
+      <div class="chips">${recent().map(k => `<button class="chip" data-act="b-c" data-v="${k}" aria-pressed="${B.c===k}">${first(k)} ${CL[k].name.split(' ')[1][0]}.</button>`).join('')}<button class="chip" data-act="b-c" data-v="new" aria-pressed="${B.c==='new'}">+ Someone new</button></div>
       ${B.c === 'new' ? `<input class="text-in" id="new-name" placeholder="Their name" value="${esc(B.newName)}" autocomplete="off" aria-label="New ${W1} name">` : ''}</div>` : '';
   const what = B.kind === 'client' ? (B.mode === 'new' ? `<div class="field"><span class="label">What</span><div class="svc">${Object.entries(SV).map(([k,v]) => `<button data-act="b-s" data-v="${k}" aria-pressed="${B.s===k}"><b>${v.name}</b><span>${v.min} min · ${money(v.price)}</span></button>`).join('')}</div></div>` : '')
     : `<div class="field"><span class="label">What</span><div class="chips">${['Lunch','Personal','Errand','Day off'].map(l => `<button class="chip" data-act="b-l" data-v="${l}" aria-pressed="${B.label===l}">${l}</button>`).join('')}</div>
@@ -1527,12 +1627,12 @@ function rerenderBook(){ const sc = $('.sheet').scrollTop; $('.sheet').innerHTML
 function bookGo(){
   if (!bookReady()) return;
   let msg;
-  if (B.kind === 'block') { BL.push({id:seq++, off:B.off, start:B.start, min:B.len, label:B.label, w:B.w}); msg = `Blocked ${dayName(B.off)} ${clock(B.start)} for ${dur(B.len)}.`; }
+  if (B.kind === 'block') { BL.push({id:seq++, off:B.off, start:B.start, min:B.len, label:B.label, w:B.w, mine:true}); msg = `Blocked ${dayName(B.off)} ${clock(B.start)} for ${dur(B.len)}.`; }
   else if (B.mode === 'move') { const a = AP.find(x => x.id === B.id); a.off = B.off; a.start = B.start; a.w = B.w; msg = `Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}. In the real app, ${first(a.c)} gets a text.`; }
   else {
     let k = B.c;
-    if (k === 'new') { k = 'n' + seq; CL[k] = {name:B.newName.trim(), phone:'Not added yet', since:T0.getFullYear(), visits:0, last:null, isNew:true, intake:false, pressure:0, focus:'Not known yet', setup:'', note:'New client.', ...(P.look === 'kelli' ? {} : {rows:[]})}; if (!CL[k].name.includes(' ')) CL[k].name += ' '; }
-    add(k, B.s, B.off, B.start, {w:B.w});
+    if (k === 'new') { k = 'n' + seq; CL[k] = {name:B.newName.trim(), phone:'Not added yet', since:T0.getFullYear(), visits:0, last:null, isNew:true, intake:false, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true, ...(P.look === 'seaglass' ? {} : {rows:[]})}; if (!CL[k].name.includes(' ')) CL[k].name += ' '; }
+    add(k, B.s, B.off, B.start, {w:B.w, mine:true});
     if (B.fromReq) REQ.open = false;
     msg = `Booked ${first(k)} for ${dayName(B.off)} at ${clock(B.start)}. In the real app, a confirmation text goes out.`;
   }
@@ -1565,8 +1665,8 @@ function obRender(){
         <div class="field"><span class="label">A booking is called a</span><div class="chips">${UNIT_WORDS.map((w,i) => `<button class="chip" data-act="ob-unit" data-v="${i}" aria-pressed="${OB.unit===i}">${cap(w[1])}</button>`).join('')}</div></div>
       </div>` : ''}${nav('ob-next','Next')}`;
   if (OB.step === 2) body = `${dots}<h2>Your business</h2>
-      <div class="field"><span class="label">Business name</span><input class="text-in" id="ob-biz" value="${esc(OB.biz)}" placeholder="Heart and Soul Massage" autocomplete="organization"></div>
-      <div class="field"><span class="label">Your first name</span><input class="text-in" id="ob-owner" value="${esc(OB.owner)}" placeholder="Kelli" autocomplete="given-name"></div>
+      <div class="field"><span class="label">Business name</span><input class="text-in" id="ob-biz" value="${esc(OB.biz)}" placeholder="Your business name" autocomplete="organization"></div>
+      <div class="field"><span class="label">Your first name</span><input class="text-in" id="ob-owner" value="${esc(OB.owner)}" placeholder="Your first name" autocomplete="given-name"></div>
       <div class="field"><span class="label">Who works here?</span><div class="chips"><button class="chip" data-act="ob-two" data-v="0" aria-pressed="${!OB.two}">Just me</button><button class="chip" data-act="ob-two" data-v="1" aria-pressed="${OB.two}">Me and one other person</button></div>
       ${OB.two ? `<input class="text-in" id="ob-mate" value="${esc(OB.mate)}" placeholder="Their first name">` : ''}</div>${nav('ob-next','Next')}`;
   if (OB.step === 3) body = `${dots}<h2>Your logo</h2><p class="muted">Sole takes its colors from your logo.</p>
@@ -1657,13 +1757,13 @@ on('click', e => {
       let off = Math.max(a.off, 0) + wk * 7; while (isOff(off)) off++;
       let v = validStarts(off, SV[a.s].min, TURN, undefined, a.w); const t = v.includes(a.start) ? a.start : v[0];
       if (t == null) { openBook({c:a.c, s:a.s, off, w:a.w}); break; }
-      add(a.c, a.s, off, t, {w:a.w}); closeSheet(); render(); toast(`Booked ${first(a.c)} for ${dayLong(off)} at ${clock(t)}.`); break; }
+      add(a.c, a.s, off, t, {w:a.w, mine:true}); closeSheet(); render(); toast(`Booked ${first(a.c)} for ${dayLong(off)} at ${clock(t)}.`); break; }
     case 'cancel': $('#confirm').hidden = false; $('#confirm').scrollIntoView({block:'nearest'}); break;
     case 'cancel-no': $('#confirm').hidden = true; break;
     case 'cancel-yes': { const i = AP.findIndex(x => x.id === id), a = AP[i]; AP.splice(i,1); closeSheet(); render(); toast(`Canceled ${first(a.c)}’s ${clock(a.start)}. That time is open again.`); break; }
     case 'block': { const b = BL.find(x => x.id === id); sheet(`${top(b.label, `${cap(dayName(b.off))} · ${clock(b.start)} to ${clock(b.start + b.min)}`)}<button class="btn danger" data-act="unblock" data-id="${b.id}">Remove this block</button>`); break; }
     case 'unblock': { BL.splice(BL.findIndex(x => x.id === id), 1); closeSheet(); render(); toast('Block removed. That time is open again.'); break; }
-    case 'req-ok': add(REQ.c, REQ.s, REQ.off, REQ.start, {w:REQ.w}); REQ.open = false; render(); toast(`Booked ${first(REQ.c)} for ${dayName(REQ.off)} at ${clock(REQ.start)}. In the real app, ${first(REQ.c)} gets a confirmation.`); break;
+    case 'req-ok': add(REQ.c, REQ.s, REQ.off, REQ.start, {w:REQ.w, mine:true}); REQ.open = false; render(); toast(`Booked ${first(REQ.c)} for ${dayName(REQ.off)} at ${clock(REQ.start)}. In the real app, ${first(REQ.c)} gets a confirmation.`); break;
     case 'req-other': openBook({c:REQ.c, s:REQ.s, off:REQ.off, fromReq:true, w:REQ.w}); break;
     case 'week': S.week += +v; S.day = S.week * 7; render(); break;
     case 'day': S.day = +v; render(); break;
@@ -1683,6 +1783,7 @@ on('click', e => {
       <div class="trades">${[...Object.keys(PROFILES), ...Object.keys(ACCOUNTS)].map(k => { const p = PROFILES[k], a = ACCOUNTS[k];
         const biz = p ? p.biz : a.biz, sub = p ? `${p.trade} · ${p.real ? 'real numbers' : 'sample business'}` : `${a.what || TRADES.find(t => t.id === a.trade).label} · set up in this browser`;
         return `<button data-act="pick" data-v="${k}" aria-pressed="${k===KEY}"><span><b>${esc(biz)}</b><span>${sub}</span></span>${k===KEY ? '<span class="tag ok">Open</span>' : ''}</button>`; }).join('')}</div>
+      ${ACC && ACC.sample ? `<button class="btn line" data-act="clearsample">Clear sample data from ${esc(P.biz)}</button>` : ''}
       <button class="btn primary" data-act="ob-start">${I.plus}Set up a new business</button>`); break;
     case 'pick': if (v !== KEY) { closeSheet(); window.scrollTo(0,0); boot(v); } else closeSheet(); break;
     case 'ob-start': OB = {step:0, trade:null, what:'', who:0, unit:0, biz:'', owner:'', mate:'', two:false, logo:null, colors:[], color:null, docs:[], prices:{}, names:{}}; obRender(); break;
@@ -1695,6 +1796,36 @@ on('click', e => {
     case 'ob-color': OB.color = v; obRender(); break;
     case 'ob-nocolor': OB.color = null; OB.logo = null; OB.colors = []; obRender(); break;
     case 'ob-done': obFinish(); break;
+    case 'addc': sheet(`${top(`Add a ${W1}`, 'Just a name gets you started.')}
+      <div class="field"><span class="label">Name</span><input class="text-in" id="ac-name" autocomplete="off" placeholder="First and last name"></div>
+      <div class="field"><span class="label">Phone</span><input class="text-in" id="ac-phone" inputmode="tel" autocomplete="off" placeholder="(555) 555-0123"></div>
+      <div class="field"><span class="label">Notes</span><textarea class="text-in" id="ac-note" placeholder="Anything to remember before they come in" style="min-height:90px"></textarea></div>
+      <button class="btn primary" data-act="ac-save">Save ${W1}</button>`); setTimeout(() => { const n = $('#ac-name'); n && n.focus(); }, 50); break;
+    case 'ac-save': { const nm = ($('#ac-name').value || '').trim(); if (!nm) { toast('Add a name first.'); break; }
+      const k = 'm' + Date.now().toString(36); CL[k] = {name:nm.includes(' ') ? nm : nm + ' ', phone:($('#ac-phone').value || '').trim() || 'Not added yet', since:T0.getFullYear(), visits:0, last:null,
+        isNew:true, intake:false, rows:[], note:($('#ac-note').value || '').trim(), mine:true};
+      closeSheet(); render(); openClient(k); toast(`${nm} added.`); break; }
+    case 'connect': { const sq = v === 'square';
+      sheet(`${top(sq ? 'Get paid with Square' : 'Bring in your calendar', sq ? 'Sign in once. Sole does the rest.' : 'Where do you book people now?')}
+      ${sq ? `<div class="card facts2"><p>Payments, tips and customers from Square show up in Today and Snapshot by themselves, and “Charge” opens Square with the amount ready.</p></div>`
+        : `<div class="chips">${['MassageBook','Vagaro','Booksy','Square Appointments','Google Calendar','Apple Calendar'].map(x => `<button class="chip" data-act="connect-go" data-v="cal">${x}</button>`).join('')}</div>`}
+      ${sq ? '<button class="btn primary" data-act="connect-go" data-v="square">Connect Square</button>' : `<button class="btn line" data-act="connect-go" data-v="cal">I’ll book everything in Sole</button>`}
+      <p class="small muted">This preview marks it as connected. In the real app you sign in to ${sq ? 'Square' : 'that app'} and your ${sq ? 'payments' : 'bookings'} come in.</p>`); break; }
+    case 'connect-go': DONE_STEPS[v] = true; closeSheet(); render(); toast(v === 'square' ? 'Square connected.' : 'Calendar set.'); break;
+    case 'checkforms': DONE_STEPS.forms = true; S.tab = 'forms'; render(); window.scrollTo(0,0); break;
+    case 'addlicense': sheet(`${top('Add your license', 'Sole reminds you three months before it renews.')}
+      <div class="field"><span class="label">License</span><input class="text-in" id="lic-name" autocomplete="off" placeholder="State license, insurance or certification"></div>
+      <div class="field"><span class="label">Renews</span><input class="text-in" id="lic-when" type="month"></div>
+      <button class="btn primary" data-act="lic-save">Save</button>`); break;
+    case 'lic-save': { const w = $('#lic-when').value; if (!w) { toast('Pick the month it renews.'); break; }
+      const [y, m] = w.split('-').map(Number); ACC.license = {name:($('#lic-name').value || '').trim(), next:`${MON[m-1]} ${y}`, short:`${MON[m-1].slice(0,3)} ${y}`};
+      saveState(); closeSheet(); boot(KEY); break; }
+    case 'addcost': sheet(`${top('Add a cost', 'Rent, supplies, fuel, insurance, anything you pay for.')}
+      <div class="card facts2"><p>In the real app you snap a photo of the receipt. Sole reads the amount and the store, files it, and it shows up in “Where it goes” and in what you kept.</p></div>`); break;
+    case 'fillsample': if (ACC) { ACC.sample = true; saveState(); closeSheet(); window.scrollTo(0,0); boot(KEY); setTimeout(() => toast('Sample customers and numbers added. Clear them from the business menu.'), 50); } break;
+    case 'clearsample': if (ACC) { delete ACC.sample; saveState(); closeSheet(); window.scrollTo(0,0); boot(KEY); setTimeout(() => toast('Sample data cleared.'), 50); } break;
+    case 'welcome-setup': try { localStorage.setItem('sole-seen', '1'); } catch (_) {} OB = {step:1, trade:null, what:'', who:0, unit:0, biz:'', owner:'', mate:'', two:false, logo:null, colors:[], color:null, docs:[], prices:{}, names:{}}; obRender(); break;
+    case 'welcome-look': try { localStorage.setItem('sole-seen', '1'); } catch (_) {} closeSheet(); setTimeout(() => toast('Tap the business name at the top to see other kinds of business, or to set up yours.'), 50); break;
     case 'book': openBook(el.dataset.c ? {c:el.dataset.c} : {}); break;
     case 'blockt': openBook({kind:'block', off:S.day}); break;
     case 'range': S.range = v; render(); break;
@@ -1731,6 +1862,11 @@ on('submit', e => {
 on('keydown', e => { if (e.key === 'Escape' && $('#layer').innerHTML) closeSheet(); });
 
 render();
+if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.getItem('sole-seen'); } catch (_) {}
+  if (!seen) sheet(`<div class="welcome"><div class="brand">${SUNMARK}<b>Sole</b></div>
+    <p>The app for the one-person business. Your schedule, your customers, your money and your paperwork, in one place made for yours.</p></div>
+    <button class="btn primary" data-act="welcome-setup">Set up my business</button>
+    <button class="btn line" data-act="welcome-look">Look around a sample business</button>`); }
 }
 let START = 'massage';
 try { START = localStorage.getItem('sole-current') || START; } catch (_) {}

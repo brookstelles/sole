@@ -18,11 +18,17 @@ Product plan: Google Drive, Business / Sole / *Sole: Product Plan*.
   - `TRADES`: the kinds of business setup offers, with their words, starter services and the profile each one builds on.
   - `makeProfile(id)`: turns a business created in setup into a full profile.
   - `boot(key)`: builds and renders one business; switching businesses calls it again.
-- `tests/run.mjs`: drives every business through every tab, then runs setup for a custom business. `node tests/run.mjs`.
+- `demo/massage.js`, `build_demo.py`, `dist/demo.html`: the public demo.
+- `tests/run.mjs`: both editions, every business through every tab, setup, and day one. `python3 build_demo.py && node tests/run.mjs`.
 
-## Publishing
+## Two editions
 
-Published as a private claude.ai artifact: https://claude.ai/artifact/AsBAX1NXNyuv6T1MdPGVSd (publish `index.html` to that URL).
+- **Private** (`index.html`): includes Heart and Soul Massage with its real numbers. Published at https://claude.ai/artifact/AsBAX1NXNyuv6T1MdPGVSd.
+- **Public demo** (`dist/demo.html`, built by `python3 build_demo.py`): the private business between the `PRIVATE:START` / `PRIVATE:END` markers is replaced by `demo/massage.js` (Tidewater Massage, made up). The build stops if any private detail is left. Published at https://claude.ai/artifact/Wk3yTmZAva3UbfY6eShtXe. First-time visitors see a welcome: set up a business, or look around.
+
+## Day one
+
+A business made in setup starts empty: a "Get set up" list (first customer, first booking, Square, calendar, intake form, license), real totals from what it books and gets paid, and empty states everywhere else. "Fill with sample data" shows what a busy year looks like and can be cleared again. Customers, bookings, time off and setup steps the owner adds are saved with the account (in this browser for now).
 
 ## Data
 

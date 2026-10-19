@@ -8,16 +8,20 @@ Sole (spelled S-O-L-E, as in sole proprietor; never "Soleil") is a phone app for
 - Every business gets the same framework (Today, Schedule, Snapshot, Forms). What changes per business lives in data: words (clients/customers/students, appointments/jobs/lessons), services, client-note fields, forms, hours. Don't hard-code one trade's wording in the engine; use `P.who`, `P.whoOne`, `P.unit`, `P.unitOne`, `W1`, `WN`.
 - Keep it simple for non-technical owners: big targets, plain words, no settings screens.
 - `index.html` holds Heart and Soul Massage's real yearly numbers and P&L. Keep the repo and the published page private; anything shown to outsiders uses a made-up massage business.
-- Run `node tests/run.mjs` before every publish and push (Playwright; set `CHROMIUM` if needed). Check the page at 390px wide in light and dark.
+- Never put private details outside the `PRIVATE:START` / `PRIVATE:END` block in `index.html`, including comments and placeholders. `build_demo.py` refuses to build if any are left.
+- Run `python3 build_demo.py && node tests/run.mjs` before every publish and push (Playwright; set `CHROMIUM` if needed). Check the page at 390px wide in light and dark.
+- Publish both editions together: `index.html` (private) and `dist/demo.html` (public demo).
 
 ## Layout
 
 - `index.html`: the whole app. `PROFILES` (six built-in businesses), `TRADES` (kinds of business offered in setup), `makeProfile(id)` (setup account to profile), `boot(key)` (renders one business).
-- `tests/run.mjs`, `tests/fixtures/`: end-to-end test.
+- `demo/massage.js`, `build_demo.py`, `dist/demo.html`: the public demo edition.
+- `tests/run.mjs`, `tests/fixtures/`: end-to-end test of both editions, setup and day one.
 
 ## Publishing
 
-Publish `index.html` as the claude.ai artifact https://claude.ai/artifact/AsBAX1NXNyuv6T1MdPGVSd (same URL every time).
+- Private edition: `index.html` to https://claude.ai/artifact/AsBAX1NXNyuv6T1MdPGVSd
+- Public demo: `dist/demo.html` to https://claude.ai/artifact/Wk3yTmZAva3UbfY6eShtXe
 
 ## Drive
 

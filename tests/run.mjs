@@ -1,38 +1,82 @@
-// Drives every demo business through every tab, then runs setup for a business that isn't on the list.
-// Run: node tests/run.mjs   (needs Playwright; set CHROMIUM to a Chromium binary if it isn't found)
+// End-to-end check of both editions: every built-in business through every tab, setup for a new business,
+// and day one (getting started, first customer, first booking, getting paid, saved across a reload).
+// Run: python3 build_demo.py && node tests/run.mjs   (Playwright; set CHROMIUM to a Chromium binary if needed)
 import { chromium } from 'playwright';
 import fs from 'fs';
-const root = new URL('..', import.meta.url).pathname;
-const html = '<!doctype html><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1">' + fs.readFileSync(root + 'index.html', 'utf8');
+const root = new URL('..', import.meta.url).pathname, fx = root + 'tests/fixtures/';
 const b = await chromium.launch(process.env.CHROMIUM ? {executablePath: process.env.CHROMIUM} : {});
-const p = await (await b.newContext({viewport:{width:390, height:844}})).newPage();
-const errs = []; p.on('pageerror', e => errs.push(e.message));
-await p.route('http://sole.test/', r => r.fulfill({contentType:'text/html; charset=utf-8', body:html}));
-await p.goto('http://sole.test/', {waitUntil:'networkidle'});
-const wide = () => p.evaluate(() => document.documentElement.scrollWidth > 390);
-for (const k of ['massage','hair','barber','tattoo','landscape','tennis']) {
-  await p.click('[data-act=trade]'); await p.click(`[data-act=pick][data-v=${k}]`);
-  await p.click('[data-act=ask][data-q*="spent"]');
-  await p.click('.tab[data-v=schedule]'); await p.click('[data-act=day] >> nth=2');
-  if (await p.locator('[data-act=gap]').count()) { await p.click('[data-act=gap] >> nth=0'); await p.click('[data-act=b-c] >> nth=0');
-    if (await p.locator('[data-act=b-t]').count()) { await p.click('[data-act=b-t] >> nth=0'); await p.click('#book-go'); } else await p.click('.sheet .close'); }
-  await p.click('.tab[data-v=money]'); await p.click('.topc >> nth=0'); await p.click('.sheet .close');
-  await p.click('[data-act=snapgo][data-sec=y-costs] >> nth=0');
-  await p.click('.tab[data-v=forms]'); await p.click('.tab[data-v=today]');
-  if (await wide()) errs.push(k + ': page wider than the phone');
-  console.log('ok', k, '-', await p.textContent('.biz-name'));
+const errs = [];
+const check = (ok, what) => { if (!ok) errs.push(what); };
+
+async function open(file){
+  const html = '<!doctype html><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1">' + fs.readFileSync(root + file, 'utf8');
+  const p = await (await b.newContext({viewport:{width:390, height:844}})).newPage();
+  p.on('pageerror', e => errs.push(file + ': ' + e.message));
+  await p.route('http://sole.test/', r => r.fulfill({contentType:'text/html; charset=utf-8', body:html}));
+  await p.goto('http://sole.test/', {waitUntil:'networkidle'});
+  return p;
 }
-const fx = root + 'tests/fixtures/';
+const wide = p => p.evaluate(() => document.documentElement.scrollWidth > 390);
+
+async function tour(p, label){
+  for (const k of ['massage','hair','barber','tattoo','landscape','tennis']) {
+    await p.click('[data-act=trade]'); await p.click(`[data-act=pick][data-v=${k}]`);
+    await p.click('[data-act=ask][data-q*="spent"]');
+    await p.click('.tab[data-v=schedule]'); await p.click('[data-act=day] >> nth=2');
+    if (await p.locator('[data-act=gap]').count()) { await p.click('[data-act=gap] >> nth=0'); await p.click('[data-act=b-c] >> nth=0');
+      if (await p.locator('[data-act=b-t]').count()) { await p.click('[data-act=b-t] >> nth=0'); await p.click('#book-go'); } else await p.click('.sheet .close'); }
+    await p.click('.tab[data-v=money]'); await p.click('.topc >> nth=0'); await p.click('.sheet .close');
+    await p.click('[data-act=snapgo][data-sec=y-costs] >> nth=0');
+    await p.click('.tab[data-v=forms]'); await p.click('.tab[data-v=today]');
+    check(!(await wide(p)), `${label} ${k}: wider than the phone`);
+    console.log('ok', label, k, '-', await p.textContent('.biz-name'));
+  }
+}
+
+// private edition
+let p = await open('index.html');
+check((await p.textContent('.biz-name')) === 'Heart and Soul Massage', 'private edition opens on Heart and Soul Massage');
+await tour(p, 'private');
+
+// public demo: welcome first, no private business anywhere
+p = await open('dist/demo.html');
+check(await p.locator('[data-act=welcome-look]').count() === 1, 'demo shows the welcome');
+await p.click('[data-act=welcome-look]');
+check((await p.textContent('.biz-name')) === 'Tidewater Massage', 'demo opens on the sample massage business');
+await tour(p, 'demo');
+
+// setup for a business that isn't on the list, then day one
 await p.click('[data-act=trade]'); await p.click('[data-act=ob-start]'); await p.click('[data-act=ob-next]');
 await p.click('[data-act=ob-trade][data-v=other]'); await p.fill('#ob-what', 'Mobile car detailing');
 await p.click('[data-act=ob-who][data-v="1"]'); await p.click('[data-act=ob-unit][data-v="1"]'); await p.click('[data-act=ob-next]');
 await p.fill('#ob-biz', 'Shine On Detailing'); await p.fill('#ob-owner', 'Marcus'); await p.click('[data-act=ob-next]');
 await p.setInputFiles('#ob-logo', fx + 'test-logo.png'); await p.waitForSelector('.swatches button'); await p.click('[data-act=ob-next]');
 await p.setInputFiles('#ob-docs', [fx + 'Intake-Form.pdf', fx + 'sales-2025.csv', fx + 'policy.jpg']); await p.waitForSelector('.docrow'); await p.click('[data-act=ob-next]');
-await p.fill('#ob-name-s1', 'Full detail'); await p.click('[data-act=ob-done]'); await p.waitForTimeout(300);
-const lede = await p.textContent('.lede');
-if (!/customers today/.test(lede)) errs.push('setup: words not applied: ' + lede);
-console.log('ok setup -', await p.textContent('.biz-name'), '-', lede);
+await p.fill('#ob-name-s1', 'Full detail'); await p.fill('#ob-price-s1', '180'); await p.click('[data-act=ob-done]'); await p.waitForTimeout(300);
+check((await p.textContent('.biz-name')) === 'Shine On Detailing', 'setup opens the new business');
+check(/Nothing booked today/.test(await p.textContent('.lede')), 'day one starts empty');
+check((await p.textContent('.getstarted .aside')).startsWith('0 of 6'), 'getting started shows 0 of 6');
+await p.click('.gs[data-act=addc]'); await p.fill('#ac-name', 'Jordan Ellis'); await p.fill('#ac-note', 'White Tacoma, ceramic coat in spring'); await p.click('[data-act=ac-save]');
+await p.click('.sheet [data-act=book]'); await p.click('[data-act=b-d] >> nth=1'); await p.click('[data-act=b-t] >> nth=0'); await p.click('#book-go');
+await p.click('.gs[data-act=connect][data-v=square]'); await p.click('[data-act=connect-go][data-v=square]');
+check((await p.textContent('.getstarted .aside')).startsWith('3 of 6'), 'three steps done after customer, booking and Square');
+await p.click('.tab[data-v=money]');
+check(/Jordan Ellis/.test(await p.textContent('#s-clients')), 'new customer shows in Snapshot');
+await p.click('.tab[data-v=schedule]'); await p.click('[data-act=day] >> nth=1');
+check(/Jordan Ellis/.test(await p.textContent('main')), 'booking shows on the schedule');
+check(/Full detail/.test(await p.textContent('main')), 'renamed service is used');
+await p.reload({waitUntil:'networkidle'});
+check((await p.textContent('.biz-name')) === 'Shine On Detailing', 'business is still open after a reload');
+check((await p.textContent('.getstarted .aside')).startsWith('3 of 6'), 'progress is kept after a reload');
+await p.click('.tab[data-v=schedule]'); await p.click('[data-act=day] >> nth=1');
+check(/Jordan Ellis/.test(await p.textContent('main')), 'booking is kept after a reload');
+await p.click('.tab[data-v=today]'); await p.click('[data-act=fillsample]');
+check(!(await p.locator('.getstarted').count()) && /customers today/.test(await p.textContent('.lede')), 'sample data fills the business');
+await p.click('[data-act=trade]'); await p.click('[data-act=clearsample]');
+check(await p.locator('.getstarted').count() === 1, 'clearing sample data goes back to day one');
+for (const t of ['schedule','money','forms','today']) { await p.click(`.tab[data-v=${t}]`); check(!(await wide(p)), 'day one ' + t + ' fits'); }
+console.log('ok setup and day one -', await p.textContent('.biz-name'));
+
 await b.close();
-if (errs.length) { console.error('FAILED', errs); process.exit(1); }
+if (errs.length) { console.error('FAILED\n - ' + errs.join('\n - ')); process.exit(1); }
 console.log('all passed');
