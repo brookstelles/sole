@@ -340,7 +340,7 @@ html[data-look="sole"][data-theme="dark"]{
 /* clients in snapshot */
 .stat3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-block:4px 6px}
 .stat3 button{border:0;background:var(--sunk);border-radius:14px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;min-width:0}
-.stat3 b{font-family:var(--display);font-size:28px;font-weight:400;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat3 b{font-family:var(--display);font-size:clamp(20px, 6.2vw, 28px);white-space:nowrap;font-weight:400;font-variant-numeric:tabular-nums;line-height:1.1}
 .stat3 span{font-size:13px;color:var(--muted)}
 .tops{display:flex;flex-direction:column;gap:2px}
 .topc{display:grid;grid-template-columns:20px 1fr auto;gap:10px;align-items:center;border:0;background:transparent;text-align:left;padding:8px 0;min-height:48px;width:100%}
@@ -987,7 +987,7 @@ async function saveMerges(groups, key){
 }
 async function loadSquare(key){
   try {
-    if (window.__SOLE_SQUARE) { SQ = window.__SOLE_SQUARE; boot(key); return; }   // test hook: tests/fixtures/square-sample.json
+    if (window.__SOLE_SQUARE) { SQ = window.__SOLE_SQUARE; watchSquare(key); boot(key); return; }   // test hook: tests/fixtures/square-sample.json
     if (!window.claude || !window.claude.use) return;
     const db = await window.claude.use('db'); if (!db) return;
     const [a, b, fr, mg] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false}))]);
@@ -995,7 +995,53 @@ async function loadSquare(key){
     if (!a.exists && !responses.length) return;
     SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses, merges:mg.exists ? JSON.parse(JSON.stringify(mg.data())) : null};
     if (!document.querySelector('.sheet')) boot(key);
+    watchSquare(key);
   } catch (_) {}
+}
+// Square read live through the viewer's own Square connector (read only): every payment since the 1st of the month
+// the daily refresh last covered, checked again every two minutes while the page is open. Without the connector
+// the page keeps the daily numbers.
+let SQ_WATCH = null, LIVE_DRAWN = '', CUR_S = null, CUR_KEY = null;
+const SQ_TOOL = ['Square', 'make_api_request_read'];
+const liveFrom = () => { const t = SQ.summary.through; return new Date(+t.slice(0,4), +t.slice(5,7) - 1, 1); };
+const liveReq = cursor => ({service:'payments', method:'list', characterization:'reviewing recent payments',
+  request:{begin_time:liveFrom().toISOString(), sort_order:'DESC', limit:100, ...(cursor ? {cursor} : {})}});
+async function takeLive(mcp, result){
+  const pick = r => r && r.payload && typeof r.payload === 'object' ? r.payload : null;
+  const first = pick(result); if (!first) return;
+  let pays = first.payments || [], cur = first.cursor, n = 0;
+  while (cur && n++ < 10) { const q = pick(await mcp.callTool(...SQ_TOOL, liveReq(cur))); if (!q) return; pays = pays.concat(q.payments || []); cur = q.cursor; }
+  SQ.live = {payments:pays, from:isoDay(liveFrom()), at:result.cache ? new Date(result.cache.storedAt) : new Date(), sig:pays.map(p => p.id + p.status + p.updated_at).join()};
+  SQ.liveAsk = false;
+  redrawLive();
+}
+function redrawLive(){
+  const at = document.getElementById('sq-at');
+  if (at && SQ.live) at.textContent = liveText(SQ.live.at);
+  if (!PROFILES[CUR_KEY] || !PROFILES[CUR_KEY].real || document.querySelector('.sheet')) return;
+  const sig = SQ.live ? SQ.live.sig : (SQ.liveAsk ? 'ask' : '');
+  if (sig === LIVE_DRAWN) return;
+  LIVE_DRAWN = sig; KEEP = CUR_S ? {...CUR_S} : null;
+  const y = window.scrollY; boot(CUR_KEY); window.scrollTo(0, y);
+}
+const liveText = at => { const h = at.getHours(); return `Live · ${h % 12 || 12}:${String(at.getMinutes()).padStart(2,'0')} ${h >= 12 ? 'pm' : 'am'}`; };
+async function watchSquare(key){
+  if (!SQ || !SQ.summary) return;
+  if (window.__SOLE_SQUARE_LIVE) { SQ.live = {payments:window.__SOLE_SQUARE_LIVE.payments, from:isoDay(liveFrom()), at:new Date(), sig:'test'}; return; }   // test hook
+  if (!window.claude || !window.claude.use) return;
+  const mcp = await window.claude.use('mcp').catch(() => null); if (!mcp) return;
+  SQ_WATCH && SQ_WATCH();
+  SQ_WATCH = mcp.watchTool(...SQ_TOOL, liveReq(), ev => {
+    if (ev.type === 'data') { takeLive(mcp, ev.result).catch(() => {}); return; }
+    const code = ev.error && ev.error.code;
+    if (code === 'approval_required') { SQ.liveAsk = true; redrawLive(); }
+    else if (['needs_reauth', 'server_not_connected', 'not_in_manifest', 'blocked_by_policy', 'selection_required', 'not_granted'].includes(code) && (SQ.live || SQ.liveAsk)) { SQ.live = null; SQ.liveAsk = false; redrawLive(); }
+  }, {refetchInterval:120000});
+}
+async function allowLive(){
+  if (!window.claude || !window.claude.use) return;
+  const mcp = await window.claude.use('mcp').catch(() => null); if (!mcp) return;
+  try { await takeLive(mcp, await mcp.callTool(...SQ_TOOL, liveReq())); } catch (_) {}
 }
 function boot(KEY){
 CTL && CTL.abort(); CTL = new AbortController();
@@ -1168,13 +1214,34 @@ const BOOKS = P.fresh ? {} : P.books ? JSON.parse(JSON.stringify(P.books)) : Obj
 const BY = Object.keys(BOOKS).map(Number), Y1 = BY[0], Y2 = BY[1];
 const LICENSE = P.license;
 const SQX = P.real && SQ && SQ.summary ? (() => {
-  const mo = SQ.summary.months || {}, fees = SQ.summary.fees || {};
+  const mo = {...(SQ.summary.months || {})}, fees = {...(SQ.summary.fees || {})}, mk = `${T0.getFullYear()}-${String(T0.getMonth()+1).padStart(2,'0')}`;
+  let customers = SQ.customers, today = null;
+  const lv = SQ.live;
+  if (lv) {
+    // live payments replace the stored months from the start of the live window; fees and tips only add what came in after the daily refresh
+    const after = new Date(SQ.summary.updated), cy = String(T0.getFullYear()), td = isoDay(T0), c = x => ((x || {}).amount || 0) / 100;
+    const ps = lv.payments.filter(p => p.status === 'COMPLETED').map(p => { const d = new Date(p.created_at), day = isoDay(d), back = c(p.refunded_money);
+      return {day, mk:day.slice(0,7), net:Math.max(0, c(p.amount_money) - back), tips:c(p.tip_money), collected:Math.max(0, c(p.total_money) - back),
+        fee:(p.processing_fee || []).reduce((t, x) => t + c(x.amount_money), 0), cust:p.customer_id || null, fresh:d > after}; });
+    const tot = (a, k) => a.reduce((t, p) => t + p[k], 0);
+    Object.keys(mo).filter(k => k >= lv.from.slice(0,7)).forEach(k => delete mo[k]);
+    ps.forEach(p => { const m = mo[p.mk] || (mo[p.mk] = {net:0, tips:0, collected:0, orders:0}); m.net += p.net; m.tips += p.tips; m.collected += p.collected; m.orders++;
+      if (p.fresh) fees[p.mk.slice(0,4)] = (fees[p.mk.slice(0,4)] || 0) + p.fee; });
+    const tp = ps.filter(p => p.day === td); today = {net:tot(tp, 'net'), tips:tot(tp, 'tips'), n:tp.length};
+    const by = {}; ps.filter(p => p.cust).forEach(p => (by[p.cust] = by[p.cust] || []).push(p));
+    const sameYear = SQ.summary.through.slice(0,4) === cy;   // the stored "this year" is still this year
+    const fold = (base, mine) => { const sm = base.month || {n:0, net:0}, yp = mine.filter(p => p.mk.startsWith(cy)), mp = mine.filter(p => p.mk === mk), nw = mine.filter(p => p.fresh);
+      return {...base, all:{n:base.all.n - sm.n + mine.length, net:base.all.net - sm.net + tot(mine, 'net'), tips:(base.all.tips || 0) + tot(nw, 'tips')},
+        year:{n:(sameYear ? base.year.n - sm.n : 0) + yp.length, net:(sameYear ? base.year.net - sm.net : 0) + tot(yp, 'net'), tips:(sameYear ? base.year.tips || 0 : 0) + tot(nw.filter(p => p.mk.startsWith(cy)), 'tips')},
+        month:{n:mp.length, net:tot(mp, 'net')}, last:[base.last || '', ...mine.map(p => p.day)].sort().pop()}; };
+    const known = new Set(SQ.customers.map(x => x.id)), zero = {all:{n:0, net:0, tips:0}, year:{n:0, net:0, tips:0}, month:{n:0, net:0}, last:''};
+    customers = SQ.customers.map(x => fold(x, by[x.id] || [])).concat(Object.keys(by).filter(id => !known.has(id)).map(id => fold({id, name:null, ...zero}, by[id])));
+  }
   const yr = y => Object.entries(mo).filter(([k]) => k.startsWith(y + '-')).reduce((t, [, v]) => ({net:t.net + v.net, tips:t.tips + v.tips, collected:t.collected + v.collected, orders:t.orders + v.orders}), {net:0, tips:0, collected:0, orders:0});
   const years = {}; [...new Set(Object.keys(mo).map(k => k.slice(0,4)))].forEach(y => { const t = yr(y); years[y] = {...t, fees:fees[y] || 0, deposited:t.collected - (fees[y] || 0)}; });
-  const mk = `${T0.getFullYear()}-${String(T0.getMonth()+1).padStart(2,'0')}`;
   const updated = new Date(SQ.summary.updated);
-  return {years, month:mo[mk] || {net:0, tips:0, orders:0}, months:mo, customers:mergeCards(SQ.customers, SQ.merges), updated,
-    updatedText:`${MON[updated.getMonth()].slice(0,3)} ${updated.getDate()}, ${clock(updated.getHours() * 60 + updated.getMinutes())}`};
+  return {years, month:mo[mk] || {net:0, tips:0, orders:0}, months:mo, customers:mergeCards(customers, SQ.merges), updated, today, live:!!lv,
+    updatedText:lv ? liveText(lv.at) : `${MON[updated.getMonth()].slice(0,3)} ${updated.getDate()}, ${clock(updated.getHours() * 60 + updated.getMinutes())}`};
 })() : null;
 // a business whose 2025 books are missing Square for September to December gets them filled in from Square itself
 let BOOKS_NOTE = P.booksNote;
@@ -1221,7 +1288,7 @@ const SUNMARK = `<svg viewBox="-32 -32 64 64" aria-hidden="true"><g fill="none" 
 
 /* ---------- state ---------- */
 const S = {tab:'today', week:0, day:0, range:'week', bar:0, answer:null, search:'', yr:2026, wiC:0, wiP:0, money:'home', who:ME, ...(KEEP || {})};
-KEEP = null;
+KEEP = null; CUR_S = S; CUR_KEY = KEY;
 const TABS = [['today','Today'],['schedule','Schedule'],['money','Snapshot'],['forms','Forms']];
 const TITLES = {today:`Good ${NOW < 720 ? 'morning' : NOW < 1020 ? 'afternoon' : 'evening'}, ${P.owner}`, schedule:'Schedule', money:'Snapshot', forms:'Forms'};
 
@@ -1267,7 +1334,8 @@ function viewToday(){
   <section class="sec" ${ap.length ? '' : 'hidden'}><div class="sec-h"><h2>Today’s ${WN}</h2><button class="chip" data-act="tab" data-v="schedule">Full schedule</button></div>
     <div class="list">${dayRows(0)}</div></section>
   <section class="glance">
-    <button data-act="money" data-v="today"><span class="small muted">Today so far</span><span class="big">${money(td.net)}</span><span class="small muted">+ ${money(td.tips)} tips</span></button>
+    ${SQX && SQX.today ? `<button data-act="tab" data-v="money"><span class="small muted">Today so far</span><span class="big">${money(SQX.today.net)}</span><span class="small muted">+ ${money(SQX.today.tips)} tips · Square</span></button>`
+      : `<button data-act="money" data-v="today"><span class="small muted">Today so far</span><span class="big">${money(td.net)}</span><span class="small muted">+ ${money(td.tips)} tips</span></button>`}
     ${P.fresh ? `<button data-act="money" data-v="month"><span class="small muted">This month</span><span class="big">${money(sumOf('month').net)}</span><span class="small muted">${sumOf('month').n} ${sumOf('month').n === 1 ? P.unitOne : P.unit} paid</span></button>`
       : `<button data-act="money" data-v="year"><span class="small muted">This year</span><span class="big">${SO_FAR}</span><span class="small muted">${P.unit} · on pace for ${PROJ}</span></button>`}
   </section>`;
@@ -1457,9 +1525,11 @@ function viewSnap(){
 }
 function squareCard(){
   const y = SQX.years[String(CUR)] || {net:0, tips:0, fees:0, deposited:0, orders:0}, m = SQX.month;
-  return `<section class="card sec"><div class="sec-h"><h2>Card payments</h2><span class="aside">Square · ${SQX.updatedText}</span></div>
+  return `<section class="card sec"><div class="sec-h"><h2>Card payments</h2><span class="aside">${SQX.live ? '' : 'Square · '}<span id="sq-at">${SQX.updatedText}</span></span></div>
+    ${SQX.today ? `<p class="lede" style="margin:0 0 12px"><b>Today: ${money(SQX.today.net)}</b> ${SQX.today.n ? `from ${SQX.today.n} card payment${SQX.today.n === 1 ? '' : 's'}, plus ${money(SQX.today.tips)} in tips.` : 'so far. Card payments show up here a minute or two after you take them.'}</p>` : ''}
     <div class="stat3"><button data-act="snapgo" data-sec="y-square"><b>${money(y.net)}</b><span>services in ${CUR}</span></button><button data-act="snapgo" data-sec="y-square"><b>${money(y.tips)}</b><span>tips</span></button><button data-act="snapgo" data-sec="y-square"><b>${money(y.deposited)}</b><span>in your bank</span></button></div>
-    <p class="muted small">${y.orders} card payments this year. Square’s cut was ${money(y.fees)}. ${MON[T0.getMonth()]} so far: ${money(m.net)} plus ${money(m.tips)} in tips.</p></section>`;
+    <p class="muted small">${y.orders} card payments this year. Square’s cut was ${money(y.fees)}. ${MON[T0.getMonth()]} so far: ${money(m.net)} plus ${money(m.tips)} in tips.</p>
+    ${SQ.liveAsk && !SQX.live ? `<button class="btn" style="width:100%" data-act="sqlive">See payments as they come in</button>` : ''}</section>`;
 }
 function sqClientRows(list){
   return list.map(c => `<button class="topc" data-act="sqclient" data-v="${c.id}"><span class="n">${c.rank}</span><span class="nm"><b>${esc(sqName(c))}</b><i style="width:${Math.max(6, c.bar)}%"></i></span><span class="v">${money(c.val)}</span></button>`).join('');
@@ -2079,6 +2149,7 @@ on('click', e => {
       const names = [a.name, b.name].filter(Boolean), name = names.find(n => !/^dr\b/i.test(n)) || names[0] || null;
       closeSheet(); saveMerges([...groups, {ids, name}], KEY); setTimeout(() => toast(`Combined into ${name || 'one person'}.`), 60); break; }
     case 'sqsplit': { const groups = ((SQ.merges && SQ.merges.groups) || []).filter(g => !g.ids.includes(v)); closeSheet(); saveMerges(groups, KEY); setTimeout(() => toast('Separated.'), 60); break; }
+    case 'sqlive': allowLive(); break;
     case 'sqall': { const cs = [...SQX.customers].sort((a,b) => b.year.net - a.year.net || b.all.net - a.all.net), mx = (cs[0] || {all:{net:1}}).all.net || 1;
       sheet(`${top(`All card customers`, `${cs.length} people who’ve paid by card · this year, then all time`)}
       <div class="tops">${sqClientRows(cs.map((c,i) => ({...c, rank:i+1, val:c.year.net || c.all.net, bar:(c.year.net || c.all.net)/mx*100})))}</div>`); break; }

@@ -65,6 +65,24 @@ check(/Card payments by year/.test(await p.textContent('main')), 'private: Squar
 check(/weren’t in the sheet/.test(await p.textContent('#y-kept')), 'private: missing 2025 Square months are filled in');
 await p.click('.tab[data-v=today]');
 console.log('ok private Square views');
+
+// live Square: payments taken today show up right away (made-up payments, the way the Square connector returns them)
+{
+  const now = new Date().toISOString(), pay = (id, cust, amt, tip) => ({id, created_at:now, updated_at:now, status:'COMPLETED', customer_id:cust,
+    amount_money:{amount:amt, currency:'USD'}, tip_money:{amount:tip, currency:'USD'}, total_money:{amount:amt + tip, currency:'USD'}, processing_fee:[{amount_money:{amount:300, currency:'USD'}}]});
+  const live = {payments:[pay('T1', 'TESTCUSTOMER0000', 12000, 2500), pay('T2', 'TESTNEWCUSTOMER', 8000, 0), {...pay('T3', 'TESTCUSTOMER0000', 5000, 0), status:'FAILED'}]};
+  const q = await open('index.html', `window.__SOLE_SQUARE = ${sq}; window.__SOLE_SQUARE_LIVE = ${JSON.stringify(live)};`);
+  check(/Today so far\s*\$200/.test(await q.textContent('.glance')), 'live: Today shows card payments taken today');
+  await q.click('.tab[data-v=money]');
+  check(/Today: \$200 from 2 card payments/.test(await q.textContent('main')), 'live: Square card shows today');
+  check(/Live · \d/.test(await q.textContent('main')), 'live: Square card says it is live');
+  await q.click('[data-act=sqall] >> nth=0');
+  check(/Card customer OMER/.test(await q.textContent('.sheet')), 'live: a new card customer appears');
+  await q.click('.sheet .close');
+  check(!(await wide(q)), 'live: wider than the phone');
+  await q.close();
+  console.log('ok live Square');
+}
 await tour(p, 'private');
 
 // public demo: welcome first, no private business anywhere
