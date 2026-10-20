@@ -1006,7 +1006,7 @@ function redrawLive(){
   const at = document.getElementById('sq-at');
   if (at && SQ.live) at.textContent = liveText(SQ.live.at);
   if (!PROFILES[CUR_KEY] || !PROFILES[CUR_KEY].real || document.querySelector('.sheet')) return;
-  const sig = SQ.live ? SQ.live.sig : (SQ.liveAsk ? 'ask' : '');
+  const sig = (SQ.live ? SQ.live.sig : (SQ.liveAsk ? 'ask' : '')) + '|' + (SQ.book && SQ.book.bookings ? SQ.book.bsig + SQ.book.ssig : '');
   if (sig === LIVE_DRAWN) return;
   LIVE_DRAWN = sig; KEEP = CUR_S ? {...CUR_S} : null;
   const y = window.scrollY; boot(CUR_KEY); window.scrollTo(0, y);
@@ -1014,6 +1014,7 @@ function redrawLive(){
 const liveText = at => { const h = at.getHours(); return `Live · ${h % 12 || 12}:${String(at.getMinutes()).padStart(2,'0')} ${h >= 12 ? 'pm' : 'am'}`; };
 async function watchSquare(key){
   if (!SQ || !SQ.summary) return;
+  if (window.__SOLE_SQUARE_BOOK) SQ.book = window.__SOLE_SQUARE_BOOK;   // test hook: {bookings, services, names}
   if (window.__SOLE_SQUARE_LIVE) { SQ.live = {payments:window.__SOLE_SQUARE_LIVE.payments, from:isoDay(liveFrom()), at:new Date(), sig:'test'}; return; }   // test hook
   if (!window.claude || !window.claude.use) return;
   const mcp = await window.claude.use('mcp').catch(() => null); if (!mcp) return;
@@ -1024,11 +1025,42 @@ async function watchSquare(key){
     if (code === 'approval_required') { SQ.liveAsk = true; redrawLive(); }
     else if (['needs_reauth', 'server_not_connected', 'not_in_manifest', 'blocked_by_policy', 'selection_required', 'not_granted'].includes(code) && (SQ.live || SQ.liveAsk)) { SQ.live = null; SQ.liveAsk = false; redrawLive(); }
   }, {refetchInterval:120000});
+  // a booking error (Appointments not turned on, say) leaves the sample schedule in place
+  mcp.watchTool(...SQ_TOOL, svcReq, ev => { if (ev.type === 'data') takeServices(ev.result); }, {refetchInterval:600000});
+  mcp.watchTool(...SQ_TOOL, bookReq(), ev => { if (ev.type === 'data') takeBook(mcp, ev.result).catch(() => {}); }, {refetchInterval:60000});
+}
+// Square Appointments: bookings from yesterday through the next 30 days (Square allows 31 days per request),
+// the bookable services, and a name for each person who booked
+const bookReq = () => { const a = new Date(); a.setHours(0,0,0,0); a.setDate(a.getDate() - 1); const b = new Date(a); b.setDate(b.getDate() + 31);
+  return {service:'bookings', method:'list', characterization:'reviewing upcoming appointments', request:{start_at_min:a.toISOString(), start_at_max:b.toISOString(), limit:100}}; };
+const svcReq = {service:'catalog', method:'list', characterization:'reviewing bookable services', request:{types:'ITEM'}};
+const NAMES = {};
+async function takeBook(mcp, result){
+  const p = result && result.payload; if (!p || typeof p !== 'object' || !Array.isArray(p.bookings)) return;
+  let list = p.bookings, cur = p.cursor, n = 0;
+  while (cur && n++ < 5) { const r = await mcp.callTool(...SQ_TOOL, {...bookReq(), request:{...bookReq().request, cursor:cur}}); const q = r.payload || {}; list = list.concat(q.bookings || []); cur = q.cursor; }
+  (SQ.customers || []).forEach(c => { if (c.name && !NAMES[c.id]) NAMES[c.id] = c.name; });
+  const want = [...new Set(list.map(b => b.customer_id).filter(id => id && !(id in NAMES)))].slice(0, 20);
+  await Promise.all(want.map(id => mcp.callTool(...SQ_TOOL, {service:'customers', method:'get', characterization:'reviewing appointment customer', request:{customer_id:id}})
+    .then(r => { const c = (r.payload || {}).customer || {}; NAMES[id] = [c.given_name, c.family_name].filter(Boolean).join(' ').trim() || null; }).catch(() => {})));
+  SQ.book = {...(SQ.book || {}), bookings:list, names:{...NAMES}, bsig:list.map(b => b.id + b.version + b.status).join()};
+  redrawLive();
+}
+function takeServices(result){
+  const p = result && result.payload; if (!p || typeof p !== 'object') return;
+  const sv = {};
+  (p.objects || []).filter(o => o.type === 'ITEM' && o.item_data && o.item_data.product_type === 'APPOINTMENTS_SERVICE').forEach(o => (o.item_data.variations || []).forEach(v => {
+    const d = v.item_variation_data || {}, pr = d.price_money ? d.price_money.amount / 100 : null;
+    sv[v.id] = {name:(o.item_data.variations.length > 1 && d.name && d.name !== 'Regular') ? `${o.item_data.name}, ${d.name}` : o.item_data.name, min:Math.round((d.service_duration || 0) / 60000) || null, price:pr};
+  }));
+  SQ.book = {...(SQ.book || {bookings:null}), services:sv, ssig:JSON.stringify(sv)};
+  if (SQ.book.bookings) redrawLive();
 }
 async function allowLive(){
   if (!window.claude || !window.claude.use) return;
   const mcp = await window.claude.use('mcp').catch(() => null); if (!mcp) return;
   try { await takeLive(mcp, await mcp.callTool(...SQ_TOOL, liveReq())); } catch (_) {}
+  try { takeServices(await mcp.callTool(...SQ_TOOL, svcReq)); await takeBook(mcp, await mcp.callTool(...SQ_TOOL, bookReq())); } catch (_) {}
 }
 function boot(KEY){
 CTL && CTL.abort(); CTL = new AbortController();
@@ -1043,7 +1075,8 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 
 /* ---------- time ---------- */
 const T0 = new Date(); T0.setHours(0,0,0,0);
-const NOW = P.now;                   // the sample's "right now"
+const LIVEBOOK = !!(P.real && SQ && SQ.book && SQ.book.bookings);   // the real schedule, from Square Appointments
+const NOW = LIVEBOOK ? nowMin() : P.now;   // otherwise the sample's "right now"
 const OPEN = P.hours.open, CLOSE = P.hours.close, TURN = P.hours.turn;   // opening hours and the turnover after each client
 const DOW = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MON = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1062,7 +1095,7 @@ const nextOffWith = (from, dow) => { for (let i = from; i < from + 8; i++) if (d
 const prevWork = () => { let o = -1; while (P.hours.closed.includes(dateOf(o).getDay())) o--; return o; };
 
 /* ---------- this business (from its profile) ---------- */
-const SV = P.services;
+const SV = {...P.services};
 const svLabel = id => `${SV[id].min < 120 ? SV[id].min + ' min' : dur(SV[id].min)} ${SV[id].name.toLowerCase()}`;
 const LAST = prevWork();
 const CL = JSON.parse(JSON.stringify(P.clients));
@@ -1086,6 +1119,30 @@ if (ACC && ACC.state) {
     if (off >= -400 && CL[x.c] && SV[x.s]) add(x.c, x.s, off, x.start, {paid:x.paid, tip:x.tip || 0, w:x.w || ME, mine:true}); });
   (ACC.state.blocks || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number); BL.push({id:seq++, off:Math.round((new Date(y, m-1, d) - T0) / 864e5), start:x.start, min:x.min, label:x.label, w:x.w || ME, mine:true}); });
 }
+if (LIVEBOOK) {
+  AP.length = 0; BL.length = 0; REQ.open = false;
+  const bk = SQ.book, svs = bk.services || {}, used = new Set(), byCard = Object.fromEntries((SQ.customers || []).map(c => [c.id, c]));
+  const sqClient = (id, name) => { const card = byCard[id];
+    return {name:name || (card && card.name) || `Card customer ${String(id).slice(-4)}`, anon:!(name || (card && card.name)), phone:'', since:card && card.last ? +card.last.slice(0,4) : T0.getFullYear(), visits:card ? card.all.n : 0,
+      last:card && card.last ? Math.round((T0 - new Date(card.last + 'T00:00:00')) / 864e5) : null, every:null, pressure:0, focus:'Not known yet', intake:true, isNew:!card, sq:id, note:''}; };
+  Object.keys(CL).forEach(k => delete CL[k]);   // the sample clients go; the real ones come from Square
+  (SQ.customers || []).filter(c => c.name).forEach(c => { CL['sq:' + c.id] = sqClient(c.id, c.name); });
+  const pays = ((SQ.live && SQ.live.payments) || []).filter(p => p.status === 'COMPLETED').map(p => ({id:p.id, day:isoDay(new Date(p.created_at)), cust:p.customer_id, net:((p.amount_money || {}).amount || 0) / 100, tip:((p.tip_money || {}).amount || 0) / 100}));
+  bk.bookings.filter(b => b.status === 'ACCEPTED' || b.status === 'PENDING').forEach(b => {
+    const at = new Date(b.start_at), day = new Date(at); day.setHours(0,0,0,0);
+    const off = Math.round((day - T0) / 864e5), segs = b.appointment_segments || [], min = segs.reduce((t, g) => t + (g.duration_minutes || 0), 0) || 60;
+    const vid = (segs[0] || {}).service_variation_id, sv = svs[vid] || {}, s = `sq:${vid}:${min}`;
+    if (!SV[s]) { const same = Object.values(P.services).find(x => x.min === min); SV[s] = {name:sv.name || 'Appointment', min, price:sv.price != null ? sv.price : same ? same.price : 0}; }
+    const c = b.customer_id ? 'sq:' + b.customer_id : 'sq:none';
+    if (!CL[c]) CL[c] = b.customer_id ? sqClient(b.customer_id, (bk.names || {})[b.customer_id]) : {...sqClient('none', cap(W1)), sq:undefined, anon:true};
+    if (b.customer_note && !CL[c].note) CL[c].note = b.customer_note;
+    let paid = false, tip = 0;
+    if (off <= 0) { const dk = isoDay(day), p = pays.find(x => !used.has(x.id) && x.day === dk && x.cust && x.cust === b.customer_id) || pays.find(x => !used.has(x.id) && x.day === dk && x.net === SV[s].price);
+      if (p) { used.add(p.id); paid = true; tip = p.tip; } }
+    add(c, s, off, at.getHours() * 60 + at.getMinutes(), {paid, tip, sq:b.id, pending:b.status === 'PENDING'});
+  });
+}
+const ASKNAME = LIVEBOOK ? ((Object.values(CL).filter(c => c.sq && c.visits).sort((a, b) => b.visits - a.visits)[0] || {name:P.askName}).name.split(' ')[0]) : P.askName;
 const DONE_STEPS = ACC ? (ACC.steps = ACC.steps || {}) : {};
 const RESP = [...((ACC && ACC.state && ACC.state.responses) || []), ...(P.real && SQ && SQ.responses ? SQ.responses : [])];   // filled-in forms
 function saveState(){
@@ -1142,6 +1199,8 @@ const whenText = a => `${cap(dayName(a.off))}${a.off > 6 ? ', ' + dayShort(a.off
 const apptsFor = off => apptsOn(off).filter(a => !MULTI || a.w === S.who);
 const DOY = Math.round((T0 - new Date(T0.getFullYear(), 0, 1)) / 864e5), MDAY = T0.getDate() - 1;
 function spend(k){
+  if (CL[k].sq !== undefined && SQX) { const x = SQX.customers.find(y => y.id === CL[k].sq || (y.ids || []).includes(CL[k].sq)) || {all:{n:0, net:0}, year:{n:0, net:0, tips:0}, month:{n:0, net:0}};
+    return {price:x.all.n ? x.all.net / x.all.n : 0, m:{v:x.month.n, $:x.month.net}, y:{v:x.year.n, $:x.year.net}, a:{v:x.all.n, $:x.all.net}, tipsY:x.year.tips || 0}; }
   const c = CL[k], price = SV[c.usual || Object.keys(SV)[0]].price;
   const paidNow = AP.filter(a => a.c === k && a.off === 0 && a.paid).reduce((s,a) => s + SV[a.s].price, 0), nNow = AP.filter(a => a.c === k && a.off === 0 && a.paid).length;
   const within = days => (c.last == null || !c.every || c.last > days) ? 0 : Math.floor((days - c.last) / c.every) + 1;
@@ -1357,7 +1416,7 @@ function rowsOf(c){
   if (c.setup) r.push({l:'Table', v:c.setup});
   return r;
 }
-const askChips = () => P.fresh ? ['How’s my year going?', 'What’s open tomorrow?', 'Who hasn’t paid?'] : ['How’s my year going?', 'Who hasn’t paid?', `What’s open ${dayName(REQ.off)}?`, `How much has ${P.askName} spent?`];
+const askChips = () => P.fresh ? ['How’s my year going?', 'What’s open tomorrow?', 'Who hasn’t paid?'] : ['How’s my year going?', 'Who hasn’t paid?', `What’s open ${dayName(REQ.off)}?`, `How much has ${ASKNAME} spent?`];
 
 /* ---------- rows shared by Today and Schedule ---------- */
 function dayRows(off){
@@ -1374,6 +1433,7 @@ function dayRows(off){
       const a = it.a, c = CL[a.c], done = off < 0 || (off === 0 && endOf(a) <= NOW);
       let tag = '';
       if (done) tag = a.paid ? '<span class="tag ok">Paid</span>' : '<span class="tag warn">Not paid</span>';
+      else if (a.pending) tag = '<span class="tag new">Request</span>';
       else if (!c.intake) tag = '<span class="tag warn">Form missing</span>';
       else if (c.isNew) tag = '<span class="tag new">New</span>';
       out += `<button class="li${done?' done':''}" data-act="appt" data-id="${a.id}"><span class="t">${clockS(a.start)}<small>${SV[a.s].min} min</small></span><span class="who"><b>${c.name}</b><span>${SV[a.s].name}${MULTI && S.tab !== 'schedule' ? ` · <span class="who-tag">${a.w}</span>` : ''}${rowsOf(c).some(r => r.bad)?' · <span style="color:var(--bad)">see notes</span>':''}</span></span>${tag || I.chev}</button>`;
@@ -1405,8 +1465,8 @@ function viewSchedule(){
     <div class="strip">${strip}</div>
   </section>
   <section class="sec">
-    <div class="sec-h"><h2>${off===0?'Today':dayLong(off)}</h2><span class="aside">${isOff(off)?'Day off':`${ap.length} ${ap.length===1?W1:WN} · ${open?dur(open)+' open':'full'}`}</span></div>
-    ${isOff(off) ? `<div class="empty">Weekends are your days off.</div>` : `<div class="list">${dayRows(off)}</div>`}
+    <div class="sec-h"><h2>${off===0?'Today':dayLong(off)}</h2><span class="aside">${isOff(off) && !ap.length?'Day off':`${ap.length} ${ap.length===1?W1:WN} · ${open?dur(open)+' open':'full'}`}</span></div>
+    ${isOff(off) && !ap.length ? `<div class="empty">Weekends are your days off.</div>` : `<div class="list">${dayRows(off)}</div>`}
   </section>
   <section class="btn-row"><button class="btn primary" data-act="book">${I.plus}Book a ${W1}</button><button class="btn" data-act="blockt">Block time</button></section>`;
 }
@@ -1699,7 +1759,7 @@ function clientRows(){
 function ask(q){
   const s = q.toLowerCase();
   let a;
-  const hit = Object.keys(CL).find(k => s.includes(first(k).toLowerCase()) || s.includes(CL[k].name.toLowerCase()));
+  const hit = Object.keys(CL).filter(k => !CL[k].anon).find(k => s.includes(first(k).toLowerCase()) || s.includes(CL[k].name.toLowerCase()));
   const dayHit = () => {
     if (/tomorrow/.test(s)) return 1;
     if (/today/.test(s)) return 0;
@@ -1721,7 +1781,7 @@ function ask(q){
     const off = dayHit(), g = freeGaps(off);
     a = isOff(off) ? `${cap(dayName(off))} is your day off.` : g.length ? `${cap(dayName(off))} you’re open:<ul>${g.map(([x,y]) => `<li><b>${clock(x)} to ${clock(y)}</b> (${dur(y-x)})</li>`).join('')}</ul>` : `${cap(dayName(off))} is fully booked.`;
   } else if (/(made|make|earn|money|income|tips|took|sales)/.test(s)) {
-    const r = /today/.test(s) ? 'today' : /week|7/.test(s) ? 'week' : 'month', t = sumOf(r);
+    const r = /today/.test(s) ? 'today' : /week|7/.test(s) ? 'week' : 'month', t = SQX && SQX.today && r === 'today' ? SQX.today : SQX && SQX.live && r === 'month' ? {...SQX.month, n:SQX.month.orders} : sumOf(r);
     a = `You made <b>${money(t.net)}</b> ${RANGES[r].name}, plus <b>${money(t.tips)}</b> in tips, from ${t.n} sessions.`;
   } else if (/(who|next|schedule|coming)/.test(s)) {
     const n = apptsOn(0).filter(x => x.start >= NOW);
@@ -2040,6 +2100,12 @@ function toast(m){ clearTimeout(tt); let el = $('.toast'); if (!el) { el = docum
 on('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const v = el.dataset.v, id = +el.dataset.id;
+  if (LIVEBOOK && ['book', 'gap', 'move', 'cancel', 'rebook', 'unblock', 'req-ok', 'req-other', 'charge'].includes(el.dataset.act)) {
+    const pay = el.dataset.act === 'charge';
+    sheet(`${top(pay ? 'Charge it in Square' : 'Book it in Square', pay ? 'Take the payment in Square as usual.' : 'Your schedule lives in Square Appointments now.')}
+      <p>${pay ? 'It shows up here as paid a minute or two later.' : 'Open the Square Appointments app to book, move or cancel. The change shows up here a minute or two later.'}</p>`);
+    return;
+  }
   switch (el.dataset.act) {
     case 'tab': closeSheet(); S.tab = v; if (v === 'schedule') { S.day = 0; S.week = 0; } if (v === 'money') S.money = 'home'; render(); window.scrollTo(0,0); break;
     case 'money': closeSheet(); S.tab = 'money'; if (v === 'year') S.money = 'year'; else { S.money = 'day'; S.range = v; } render(); window.scrollTo(0,0); break;

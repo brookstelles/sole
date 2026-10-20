@@ -83,6 +83,30 @@ console.log('ok private Square views');
   await q.close();
   console.log('ok live Square');
 }
+
+// Square Appointments: the real schedule replaces the sample one (made-up bookings, the way the Square connector returns them)
+{
+  const at = (dayOff, h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); d.setDate(d.getDate() + dayOff); return d.toISOString(); };
+  const bk = (id, cust, dayOff, h, m, status = 'ACCEPTED') => ({id, version:0, status, customer_id:cust, start_at:at(dayOff, h, m), appointment_segments:[{duration_minutes:90, service_variation_id:'TESTVAR1'}]});
+  const book = {bookings:[bk('B1', 'TESTCUSTOMER0003', 0, 23, 30), bk('B2', 'TESTBOOKER', 1, 9, 0), bk('B3', 'TESTCUSTOMER0004', 1, 13, 0, 'CANCELLED_BY_CUSTOMER')],
+    services:{TESTVAR1:{name:'Test Deep Tissue', min:90, price:150}}, names:{TESTBOOKER:'Booker Test'}};
+  const q = await open('index.html', `window.__SOLE_SQUARE = ${sq}; window.__SOLE_SQUARE_BOOK = ${JSON.stringify(book)};`);
+  const today = await q.textContent('main');
+  check(/Test Person 3/.test(today) && /Test Deep Tissue/.test(today), 'bookings: today shows the Square booking');
+  check(!/Dana Whitfield/.test(today), 'bookings: the sample schedule is gone');
+  await q.click('.tab[data-v=schedule]'); await q.click('[data-act=day] >> nth=1');
+  const tmr = await q.textContent('main');
+  check(/Booker Test/.test(tmr), 'bookings: tomorrow shows a new client by name');
+  check(!/Test Person 4/.test(tmr), 'bookings: cancelled bookings stay off');
+  await q.click('[data-act=appt] >> nth=0');
+  check(/Spent with you|Before you start/.test(await q.textContent('.sheet')), 'bookings: a booking opens');
+  await q.click('.sheet [data-act=move]');
+  check(/Book it in Square/.test(await q.textContent('.sheet')), 'bookings: moving points to Square');
+  await q.click('.sheet .close');
+  check(!(await wide(q)), 'bookings: wider than the phone');
+  await q.close();
+  console.log('ok Square bookings');
+}
 await tour(p, 'private');
 
 // public demo: welcome first, no private business anywhere
