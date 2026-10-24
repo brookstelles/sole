@@ -141,6 +141,44 @@ console.log('ok private Square views');
   await q.close();
   console.log('ok own book');
 }
+// the weekly check and visit notes
+{
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const y = new Date(); y.setDate(y.getDate() - 1); const t = new Date(); t.setDate(t.getDate() + 3);
+  const at = new Date(y); at.setHours(15, 5, 0, 0);
+  const sole = {appts:[{uid:'aY', c:'nW', s:'sw60', date:iso(y), start:600, paid:false, tip:0, w:'Kelli'}, {uid:'aN', c:'nW', s:'sw60', date:iso(t), start:660, paid:false, tip:0, w:'Kelli'}], blocks:[],
+    clients:{nW:{name:'Wren Sample', phone:'', since:2026, visits:1, last:1, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}}, ledger:[]};
+  const live = {payments:[{id:'LZ', created_at:at.toISOString(), updated_at:at.toISOString(), status:'COMPLETED', customer_id:'TESTCUSTOMER0005', amount_money:{amount:7700}, tip_money:{amount:0}, total_money:{amount:7700}, processing_fee:[]}]};
+  const q = await open('index.html', `window.__SOLE_SQUARE = ${JSON.stringify({...JSON.parse(sq), sole})}; window.__SOLE_SQUARE_LIVE = ${JSON.stringify(live)};`);
+  const wk = new Date().getDay() === 1 ? -1 : 0;
+  await q.click('.tab[data-v=money]'); await q.click('#s-books [data-act=wkcheck]'); await q.click(`[data-act=wkcheck][data-v="${wk}"]`);
+  let m = await q.textContent('main');
+  check(/2 to look at/.test(m) && /Wren Sample/.test(m) && /\$77/.test(m), 'weekly check: an unpaid visit and a stray card payment');
+  await q.click('[data-act=wk-ignore]'); await q.click('[data-act=wk-noshow]');
+  m = await q.textContent('main');
+  check(/All matched/.test(m) && /1 no-show/.test(m), 'weekly check: fixed with a no-show and "not a visit"');
+  await q.click('[data-act=wk-done]');
+  check(/All checked/.test(await q.textContent('main')) && await q.evaluate(() => Object.values(SQ.sole.weeks).some(w => w.checked)), 'weekly check: the week is marked checked and saved');
+  await q.close();
+  // notes: write SOAP notes on yesterday's visit, then see them before the next one
+  const r = await open('index.html', `window.__SOLE_SQUARE = ${JSON.stringify({...JSON.parse(sq), sole})};`);
+  await r.click('.tab[data-v=schedule]'); await r.click('[data-act=week][data-v="-1"]'); await r.click('[data-act=day] >> nth=6');
+  check(!(await r.locator('[data-act=gap]').count()), 'schedule: past days show no openings to book');
+  await r.click('[data-act=appt]:has-text("Wren")');
+  await r.click('.sheet [data-act=vnotes]');
+  await r.click('.sheet [data-act=vn-c][data-v="Neck"]'); await r.click('.sheet [data-act=vn-c][data-v="Deep tissue"]'); await r.click('.sheet [data-act=vn-c][data-v="Firm"]');
+  await r.fill('#vn-S', 'Test stiff neck'); await r.fill('#vn-P', 'Test focus on left trap'); await r.click('.sheet [data-act=vn-save]');
+  const sh = await r.textContent('.sheet');
+  check(/Neck, Deep tissue/.test(sh) || /Neck · Deep tissue/.test(sh), 'visit notes: chips show on the visit');
+  check(/Test focus on left trap/.test(sh), 'visit notes: the plan shows on the visit');
+  await r.click('.sheet .close');
+  await r.click('[data-act=week][data-v="1"]'); await r.click('[data-act=day] >> nth=3'); await r.click('[data-act=appt]:has-text("Wren")');
+  check(/From last time/.test(await r.textContent('.sheet')) && /Test focus on left trap/.test(await r.textContent('.sheet')), 'visit notes: the plan shows before the next visit');
+  check(await r.evaluate(() => Object.values(SQ.sole.visits).some(v => v.P === 'Test focus on left trap')), 'visit notes: saved to the book');
+  check(!(await wide(r)), 'visit notes: wider than the phone');
+  await r.close();
+  console.log('ok weekly check and visit notes');
+}
 await tour(p, 'private');
 
 // public demo: welcome first, no private business anywhere

@@ -113,6 +113,13 @@ main{display:flex;flex-direction:column;gap:22px}
 .num.out{color:var(--muted)}
 .rcp-snap{cursor:pointer}
 .rcp-img{display:block;width:100%;max-height:340px;object-fit:contain;border-radius:14px;background:var(--sunk);margin-block:10px}
+.li.wk{grid-template-columns:62px 1fr auto}
+.wk-btns{display:flex;flex-direction:column;gap:6px}
+.btn.sm{min-height:36px;padding:6px 12px;font-size:14px;border-radius:11px}
+.btn.wk-go{width:100%;margin-top:10px}
+.card.vnote{padding:12px 14px}
+.card.vnote p{margin:0 0 4px}
+.card.vnote p:last-child{margin:0}
 .btn.danger-line{width:100%;margin-top:12px;color:var(--bad)}
 .scroller{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
 .scroller::-webkit-scrollbar{display:none}
@@ -803,6 +810,31 @@ const PROFILES = {
   },
 };
 
+/* ---------- notes on each visit, per trade: chips to tap and a few lines to write; "plan" carries to next time ---------- */
+const VISIT_FORMS = {
+  massage:{title:'SOAP notes', chips:[
+      {k:'areas', l:'Areas worked', opts:['Neck', 'Shoulders', 'Upper back', 'Low back', 'Hips and glutes', 'Legs', 'Feet', 'Arms and hands', 'Head and face']},
+      {k:'tech', l:'Techniques', opts:['Swedish', 'Deep tissue', 'Trigger point', 'Myofascial', 'Stretching', 'Hot stone', 'Cupping', 'Gua sha']},
+      {k:'press', l:'Pressure used', one:true, opts:['Light', 'Medium', 'Firm']}],
+    text:[{k:'S', l:'S · What they told you', short:'S', ph:'How they feel, what hurts, what they want today'},
+      {k:'O', l:'O · What you found', short:'O', ph:'Tight, tender or knotted areas, posture, range of motion'},
+      {k:'A', l:'A · How it went', short:'A', ph:'How the tissue and pain responded'},
+      {k:'P', l:'P · Plan for next time', short:'P', plan:true, ph:'Focus, how soon to rebook, stretches to do at home'}]},
+  skin:{title:'Treatment notes', chips:[{k:'areas', l:'Treated', opts:['Face', 'Neck', 'Chest', 'Back', 'Brows', 'Lips']}],
+    text:[{k:'done', l:'What you did', ph:'Products, peels, extractions'}, {k:'skin', l:'How the skin looked', ph:'Dry, oily, reactive'}, {k:'next', l:'Next time', plan:true, ph:'What to try, home care'}]},
+  hair:{title:'Visit notes', chips:[{k:'work', l:'Done today', opts:['Cut', 'Color', 'Highlights', 'Toner', 'Blowout', 'Treatment']}],
+    text:[{k:'formula', l:'Formula', ph:'Color, developer, timing'}, {k:'done', l:'Cut and style', ph:'Lengths, guards, products'}, {k:'next', l:'Next time', plan:true, ph:'What to change, when to come back'}]},
+  barber:{title:'Visit notes', chips:[{k:'work', l:'Done today', opts:['Cut', 'Fade', 'Beard', 'Line up', 'Shave']}],
+    text:[{k:'done', l:'How you cut it', ph:'Guards, length on top, part'}, {k:'next', l:'Next time', plan:true, ph:'What to change'}]},
+  tattoo:{title:'Session notes', chips:[{k:'work', l:'This session', opts:['Linework', 'Shading', 'Color', 'Touch-up', 'Consult']}],
+    text:[{k:'done', l:'What you did', ph:'Area, needles, inks'}, {k:'heal', l:'Healing', ph:'How the last session healed'}, {k:'next', l:'Next session', plan:true, ph:'What’s left, how long'}]},
+  tennis:{title:'Lesson notes', chips:[{k:'work', l:'Worked on', opts:['Forehand', 'Backhand', 'Serve', 'Volley', 'Footwork', 'Match play']}],
+    text:[{k:'done', l:'How it went', ph:'What clicked, what didn’t'}, {k:'next', l:'Homework and next time', plan:true, ph:'Drills to practice, what to work on next'}]},
+  landscape:{title:'Job notes', chips:[{k:'work', l:'Done', opts:['Mowed', 'Edged', 'Trimmed', 'Mulched', 'Planted', 'Cleanup']}],
+    text:[{k:'done', l:'What you did', ph:'Anything special about this visit'}, {k:'next', l:'Next visit', plan:true, ph:'What to do next time, what to quote'}]},
+  other:{title:'Visit notes', chips:[], text:[{k:'done', l:'What you did', ph:'What happened this visit'}, {k:'next', l:'Next time', plan:true, ph:'What to remember for next time'}]},
+};
+
 /* ---------- trades Sole sets itself up for ---------- */
 const TRADES = [
   // [id, label, base template, group, who, whoOne, unit, unitOne, intake form, monthly volume, services [id, name, minutes, price]]
@@ -944,7 +976,7 @@ function makeProfile(id){
   const uploads = (a.docs || []).map((d, i) => ({name:d.name, kind:d.kind, upload:true, send:true, doc:i, about:'Uploaded during setup.'}));
   const common = {
     trade:a.what || T.label, short:T.label, biz:a.biz, who:who[0], whoOne:who[1], owner:a.owner, team:a.mate ? [a.owner, a.mate] : [a.owner], teamSplit:[0.6, 0.4],
-    look:a.color ? 'custom' : 'sole', color:a.color, logo:a.logo, real:false, custom:true,
+    look:a.color ? 'custom' : 'sole', color:a.color, logo:a.logo, real:false, custom:true, visitKind:T.id,
     unit:unit[0], unitOne:unit[1], firstVisit:'first ' + unit[1], treat:'birthday ' + unit[1], intakeName:T.intake, reviewOn:'Google', booking:'your booking app and Square',
     services:svc, hours:base.hours,
     rate:Math.max(20, Math.round(Object.values(svc).reduce((x, v) => x + v.price, 0) / newK.length)), rateNote:'your average price',
@@ -978,9 +1010,10 @@ let SQ = null;     // Square payments and card customers, written into this page
 let KEEP = null;   // the tab to return to when the page rebuilds itself
 // the real business's own book (appointments, time off, clients, payments and costs), one database document per item;
 // REAL_SAVED mirrors what the database holds so only changed items are written
-const SOLE_COLS = ['appts', 'blocks', 'clients', 'ledger'];
+const SOLE_COLS = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks'];
+const SOLE_MAPS = ['clients', 'visits', 'weeks'];   // kept by id; the others are lists of items with a uid
 let REAL_SAVED = null, SOLE_VER = 0, SOLE_Q = Promise.resolve();
-const LEDGER_MEM = {}, NOTES_MEM = {};   // the built-in businesses keep what's added for the visit
+const LEDGER_MEM = {}, NOTES_MEM = {}, VISITS_MEM = {}, WEEKS_MEM = {};   // the built-in businesses keep what's added for the visit
 const uidOf = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const sortKeys = x => Array.isArray(x) ? x.map(sortKeys) : x && typeof x === 'object' ? Object.fromEntries(Object.keys(x).sort().filter(k => x[k] !== undefined).map(k => [k, sortKeys(x[k])])) : x;
 const canon = x => JSON.stringify(sortKeys(x));
@@ -990,7 +1023,7 @@ function persistReal(st){
   if (!REAL_SAVED) return;   // no database in this view
   const jobs = [];
   SOLE_COLS.forEach(col => {
-    const now = col === 'clients' ? st.clients : Object.fromEntries(st[col].map(x => [x.uid, x])), was = REAL_SAVED[col];
+    const now = SOLE_MAPS.includes(col) ? st[col] : Object.fromEntries(st[col].map(x => [x.uid, x])), was = REAL_SAVED[col];
     Object.entries(now).forEach(([id, x]) => { const j = canon(x); if (was[id] !== j) { was[id] = j; jobs.push(db => db.collection(col).doc(id).set(JSON.parse(j))); } });
     Object.keys(was).filter(id => !(id in now)).forEach(id => { delete was[id]; jobs.push(db => db.collection(col).doc(id).delete()); });
   });
@@ -1008,7 +1041,7 @@ function watchSole(db){
       if ((REAL_SAVED[col][id] || null) === j) return;   // our own write coming back
       changed = true;
       if (data) REAL_SAVED[col][id] = j; else delete REAL_SAVED[col][id];
-      if (col === 'clients') { if (data) SQ.sole.clients[id] = data; else delete SQ.sole.clients[id]; }
+      if (SOLE_MAPS.includes(col)) { if (data) SQ.sole[col][id] = data; else delete SQ.sole[col][id]; }
       else { const L = SQ.sole[col], i = L.findIndex(x => x.uid === id); if (data) { if (i >= 0) L[i] = data; else L.push(data); } else if (i >= 0) L.splice(i, 1); }
     });
     if (changed) { SOLE_VER++; redrawLive(); }
@@ -1041,10 +1074,10 @@ async function loadSquare(key){
     const [a, b, fr, mg, ...book] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false})),
       ...SOLE_COLS.map(c => db.collection(c).get().catch(() => ({docs:[]})))]);
     const responses = fr.docs.filter(d => d.exists).map(d => JSON.parse(JSON.stringify(d.data())));
-    const sole = {appts:[], blocks:[], clients:{}, ledger:[]};
-    REAL_SAVED = {appts:{}, blocks:{}, clients:{}, ledger:{}};
+    const sole = {appts:[], blocks:[], clients:{}, ledger:[], visits:{}, weeks:{}};
+    REAL_SAVED = Object.fromEntries(SOLE_COLS.map(c => [c, {}]));
     SOLE_COLS.forEach((c, i) => book[i].docs.filter(d => d.exists).forEach(d => { const x = JSON.parse(JSON.stringify(d.data()));
-      REAL_SAVED[c][d.id] = canon(x); if (c === 'clients') sole.clients[d.id] = x; else sole[c].push({...x, uid:d.id}); }));
+      REAL_SAVED[c][d.id] = canon(x); if (SOLE_MAPS.includes(c)) sole[c][d.id] = x; else sole[c].push({...x, uid:d.id}); }));
     SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses, merges:mg.exists ? JSON.parse(JSON.stringify(mg.data())) : null, sole};
     if (!document.querySelector('.sheet')) boot(key);
     watchSole(db);
@@ -1056,7 +1089,8 @@ async function loadSquare(key){
 // the page keeps the daily numbers.
 let SQ_WATCH = null, LIVE_DRAWN = '', CUR_S = null, CUR_KEY = null;
 const SQ_TOOL = ['Square', 'make_api_request_read'];
-const liveFrom = () => { const t = SQ.summary.through; return new Date(+t.slice(0,4), +t.slice(5,7) - 1, 1); };
+const liveFrom = () => { const t = SQ.summary.through, wk = new Date(); wk.setDate(wk.getDate() - 14);
+  const a = new Date(+t.slice(0,4), +t.slice(5,7) - 1, 1), b = new Date(wk.getFullYear(), wk.getMonth(), 1); return a < b ? a : b; };
 const liveReq = cursor => ({service:'payments', method:'list', characterization:'reviewing recent payments',
   request:{begin_time:liveFrom().toISOString(), sort_order:'DESC', limit:100, ...(cursor ? {cursor} : {})}});
 async function takeLive(mcp, result){
@@ -1146,6 +1180,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 /* ---------- time ---------- */
 const T0 = new Date(); T0.setHours(0,0,0,0);
 const SOLE = P.real && SQ ? (SQ.sole || (SQ.sole = {appts:[], blocks:[], clients:{}, ledger:[]})) : null;   // the real business's own book
+if (SOLE) { SOLE.visits = SOLE.visits || {}; SOLE.weeks = SOLE.weeks || {}; }
 const LIVEBOOK = !!SOLE;   // the real schedule: what's booked in Sole, plus anything booked in Square
 const NOW = LIVEBOOK ? nowMin() : P.now;   // otherwise the sample's "right now"
 const OPEN = P.hours.open, CLOSE = P.hours.close, TURN = P.hours.turn;   // opening hours and the turnover after each client
@@ -1186,6 +1221,8 @@ const REQ = P.req ? {...P.req, off:nextOffWith(1, P.req.dow), w:P.req.w || ME, o
 // what the owner added themselves (customers, bookings, time off, setup steps) is kept with the account
 const ACC = ACCOUNTS[KEY];
 const NOTES = SOLE ? null : ACC ? ((ACC.state = ACC.state || {}).notes = ACC.state.notes || {}) : (NOTES_MEM[KEY] = NOTES_MEM[KEY] || {});   // notes edited on clients the owner didn't add
+const VISITS = SOLE ? SOLE.visits : ACC ? ((ACC.state = ACC.state || {}).visits = ACC.state.visits || {}) : (VISITS_MEM[KEY] = VISITS_MEM[KEY] || {});   // notes on each visit (SOAP notes for massage), and no-shows
+const WEEKS = SOLE ? SOLE.weeks : ACC ? ((ACC.state = ACC.state || {}).weeks = ACC.state.weeks || {}) : (WEEKS_MEM[KEY] = WEEKS_MEM[KEY] || {});   // weeks the owner has checked, by Monday's date
 const LEDGER = SOLE ? SOLE.ledger : ACC ? ((ACC.state = ACC.state || {}).ledger = ACC.state.ledger || []) : (LEDGER_MEM[KEY] = LEDGER_MEM[KEY] || []);   // payments Square didn't take, and costs
 if (ACC && ACC.state) {
   Object.assign(CL, JSON.parse(JSON.stringify(ACC.state.clients || {})));
@@ -1194,10 +1231,12 @@ if (ACC && ACC.state) {
   (ACC.state.blocks || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number); BL.push({id:seq++, off:Math.round((new Date(y, m-1, d) - T0) / 864e5), start:x.start, min:x.min, label:x.label, w:x.w || ME, uid:x.uid, mine:true}); });
 }
 if (NOTES) Object.entries(NOTES).forEach(([k, x]) => { if (CL[k]) Object.assign(CL[k], x, {edited:true}); });
-const PAYS = ((SQ && SQ.live && SQ.live.payments) || []).filter(p => p.status === 'COMPLETED').map(p => ({id:p.id, day:isoDay(new Date(p.created_at)), cust:p.customer_id, net:((p.amount_money || {}).amount || 0) / 100, tip:((p.tip_money || {}).amount || 0) / 100}));
+const PAYS = ((SQ && SQ.live && SQ.live.payments) || []).filter(p => p.status === 'COMPLETED').map(p => { const d = new Date(p.created_at);
+  return {id:p.id, day:isoDay(d), at:d.getHours() * 60 + d.getMinutes(), cust:p.customer_id, net:((p.amount_money || {}).amount || 0) / 100, tip:((p.tip_money || {}).amount || 0) / 100}; });
+const PAY_USED = new Set();   // card payments matched to a visit
 if (LIVEBOOK) {
   AP.length = 0; BL.length = 0; REQ.open = false;
-  const bk = SQ.book && SQ.book.bookings ? SQ.book : {bookings:[], services:(SQ.book || {}).services}, svs = bk.services || {}, used = new Set(), byCard = Object.fromEntries((SQ.customers || []).map(c => [c.id, c]));
+  const bk = SQ.book && SQ.book.bookings ? SQ.book : {bookings:[], services:(SQ.book || {}).services}, svs = bk.services || {}, byCard = Object.fromEntries((SQ.customers || []).map(c => [c.id, c]));
   const sqClient = (id, name) => { const card = byCard[id];
     return {name:name || (card && card.name) || `Card customer ${String(id).slice(-4)}`, anon:!(name || (card && card.name)), phone:'', since:card && card.last ? +card.last.slice(0,4) : T0.getFullYear(), visits:card ? card.all.n : 0,
       last:card && card.last ? Math.round((T0 - new Date(card.last + 'T00:00:00')) / 864e5) : null, every:null, pressure:0, focus:'Not known yet', intake:true, isNew:!card, sq:id, note:''}; };
@@ -1208,7 +1247,7 @@ if (LIVEBOOK) {
   // Sole's own bookings and time off
   SOLE.appts.forEach(x => { const off = offOf(x.date); if (off >= -400 && CL[x.c] && SV[x.s]) add(x.c, x.s, off, x.start, {paid:!!x.paid, tip:x.tip || 0, w:x.w || ME, method:x.method, uid:x.uid, mine:true}); });
   SOLE.blocks.forEach(x => BL.push({id:seq++, off:offOf(x.date), start:x.start, min:x.min, label:x.label, w:x.w || ME, uid:x.uid, mine:true}));
-  const pays = PAYS;
+  const pays = PAYS, used = PAY_USED;
   // anything booked in Square shows too; it's changed in Square
   bk.bookings.filter(b => b.status === 'ACCEPTED' || b.status === 'PENDING').forEach(b => {
     const at = new Date(b.start_at), day = new Date(at); day.setHours(0,0,0,0);
@@ -1241,10 +1280,10 @@ function saveState(){
   if (SOLE) {
     const clients = Object.fromEntries([...Object.entries(CL).filter(([, c]) => c.mine).map(own),
       ...Object.entries(CL).filter(([, c]) => !c.mine && c.edited).map(([k, c]) => [k, {name:c.name, ...Object.fromEntries(NOTE_FIELDS.filter(f => c[f] !== undefined && c[f] !== '').map(f => [f, c[f]]))}])]);
-    persistReal(JSON.parse(JSON.stringify({appts, blocks, clients, ledger})));
+    persistReal(JSON.parse(JSON.stringify({appts, blocks, clients, ledger, visits:VISITS, weeks:WEEKS})));
     return;
   }
-  ACC.state = {clients:Object.fromEntries(Object.entries(CL).filter(([, c]) => c.mine).map(own)), appts, blocks, responses:RESP, ledger, notes:NOTES};
+  ACC.state = {clients:Object.fromEntries(Object.entries(CL).filter(([, c]) => c.mine).map(own)), appts, blocks, responses:RESP, ledger, notes:NOTES, visits:VISITS, weeks:WEEKS};
   saveAccounts();
 }
 
@@ -1333,7 +1372,9 @@ const RANGES = {
   month:{label:MON[T0.getMonth()], offs:() => Array.from({length:T0.getDate()}, (_,i) => i - T0.getDate() + 1), name:`in ${MON[T0.getMonth()]} so far`},
 };
 const sumOf = r => RANGES[r].offs().map(take).reduce((s,t) => ({net:s.net+t.net, tips:s.tips+t.tips, n:s.n+t.n}), {net:0,tips:0,n:0});
-const unpaid = () => AP.filter(a => !a.paid && (a.off < 0 || (a.off === 0 && endOf(a) <= NOW)));
+const visitKey = a => a.uid || (a.sq ? 'sq:' + a.sq : `x${a.c}:${isoDay(dateOf(a.off))}:${a.start}`);
+const noShow = a => !!(VISITS[visitKey(a)] || {}).noshow;
+const unpaid = () => AP.filter(a => !a.paid && !noShow(a) && (a.off < 0 || (a.off === 0 && endOf(a) <= NOW)));
 
 /* ---------- year numbers (from the business's records, or samples) ---------- */
 const HIST = P.hist;
@@ -1463,7 +1504,10 @@ function viewToday(){
   const needs = [];
   if (REQ.open) needs.push(`<div class="need req"><div><p>${CL[REQ.c].name} asked for ${cap(dayName(REQ.off))} at ${clock(REQ.start)}</p><p class="small muted">${svLabel(REQ.s)} · booked online</p></div>
     <div class="btn-row"><button class="btn primary" data-act="req-ok">Accept</button><button class="btn" data-act="req-other">Offer another time</button></div></div>`);
-  unpaid().forEach(a => needs.push(`<div class="need"><div><p>${CL[a.c].name} hasn’t paid</p><p class="small muted">${cap(dayName(a.off))} · ${svLabel(a.s)} · ${money(SV[a.s].price)}</p></div><button class="btn" data-act="charge" data-id="${a.id}">Charge ${money(SV[a.s].price)}</button></div>`));
+  { const dn = ap.filter(a => endOf(a) <= NOW && !noShow(a) && !(VISITS[visitKey(a)] || {}).at);
+    if (dn.length) needs.push(`<div class="need"><div><p>Write ${dn.length === 1 ? `${first(dn[0].c)}’s ${visitForm().title.toLowerCase().replace('soap', 'SOAP')}` : `${visitForm().title.toLowerCase().replace('soap', 'SOAP')} for ${dn.map(a => first(a.c)).join(', ')}`}</p><p class="small muted">A minute now, and it’s there before their next visit.</p></div><button class="btn" data-act="vnotes" data-id="${dn[0].id}">Write notes</button></div>`); }
+  { const w = weekInfo(-1); if (!w.rec.checked && w.todo) needs.push(`<div class="need"><div><p>Last week needs a quick check</p><p class="small muted">${w.todo} thing${w.todo === 1 ? '' : 's'} to look at, about two minutes.</p></div><button class="btn" data-act="wkcheck" data-v="-1">Check it</button></div>`); }
+  unpaid().filter(a => a.off >= -7).forEach(a => needs.push(`<div class="need"><div><p>${CL[a.c].name} hasn’t paid</p><p class="small muted">${cap(dayName(a.off))} · ${svLabel(a.s)} · ${money(SV[a.s].price)}</p></div><button class="btn" data-act="charge" data-id="${a.id}">Charge ${money(SV[a.s].price)}</button></div>`));
   ap.filter(a => !CL[a.c].intake && a.start >= NOW).forEach(a => needs.push(`<div class="need"><div><p>${first(a.c)}’s ${P.intakeName} is missing</p><p class="small muted">First visit today at ${clock(a.start)}</p></div><button class="btn" data-act="fillfor" data-c="${a.c}">Fill in now</button></div>`));
   const c = next && CL[next.c];
   const mins = next ? next.start - NOW : 0;
@@ -1532,7 +1576,7 @@ function dayRows(off){
     ...(S.tab === 'schedule' ? apptsFor(off) : apptsOn(off)).map(a => ({t:a.start, a})),
     ...BL.filter(b => b.off === off && (!MULTI || S.tab !== 'schedule' || b.w === S.who)).map(b => ({t:b.start, b})),
   ];
-  if (S.tab === 'schedule') freeGaps(off, S.who).forEach(g => items.push({t:g[0], g}));
+  if (S.tab === 'schedule' && off >= 0) freeGaps(off, S.who).forEach(g => items.push({t:g[0], g}));
   items.sort((x,y) => x.t - y.t);
   let out = '', nowShown = off !== 0;
   for (const it of items) {
@@ -1569,7 +1613,7 @@ function viewSchedule(){
   return `
   ${MULTI ? `<div class="seg" role="group" aria-label="Whose schedule" style="grid-template-columns:repeat(${P.team.length},1fr)">${P.team.map(t => `<button data-act="who" data-v="${t}" aria-pressed="${S.who===t}">${t}</button>`).join('')}</div>` : ''}
   <section class="sec">
-    <div class="week"><button class="iconbtn" data-act="week" data-v="-1" ${S.week===0?'disabled':''} aria-label="Previous week">${I.left}</button><b>${S.week===0?'This week':range}</b><button class="iconbtn" data-act="week" data-v="1" ${S.week>=4?'disabled':''} aria-label="Next week">${I.right}</button></div>
+    <div class="week"><button class="iconbtn" data-act="week" data-v="-1" ${S.week<=-4?'disabled':''} aria-label="Previous week">${I.left}</button><b>${S.week===0?'This week':range}</b><button class="iconbtn" data-act="week" data-v="1" ${S.week>=4?'disabled':''} aria-label="Next week">${I.right}</button></div>
     <div class="strip">${strip}</div>
   </section>
   <section class="sec">
@@ -1583,7 +1627,7 @@ function viewSchedule(){
 function viewMoney(){
   if (S.money === 'home') return viewSnap();
   const back = `<button class="back" data-act="snap">${I.left}Snapshot</button>`;
-  return back + (S.money === 'year' ? viewYear() : S.money === 'clients' ? viewClients() : dayMoney());
+  return back + (S.money === 'year' ? viewYear() : S.money === 'clients' ? viewClients() : S.money === 'check' ? viewCheck() : dayMoney());
 }
 function dayMoney(){
   const t = sumOf(S.range), per = t.n ? t.net / t.n : 0;
@@ -1697,8 +1741,87 @@ function moneyCard(){
     <div class="stat3 two"><button data-act="lg-all"><b>${money(tot(pays))}</b><span>cash and other payments</span></button><button data-act="lg-all"><b>${money(tot(costs))}</b><span>costs, ${costs.length} receipt${costs.length === 1 ? '' : 's'}</span></button></div>
     ${recent.length ? `<div class="list flat">${recent.map(entryRow).join('')}</div>` : `<p class="small muted">${SQX ? 'Square only sees cards. ' : ''}Add cash, Zelle and other payments here, and snap a receipt for anything you pay for.</p>`}
     <div class="btn-row" style="margin-top:10px"><button class="btn" data-act="addpay">Add a payment</button><button class="btn" data-act="addcost">Add a cost</button></div>
+    ${(() => { const w = weekInfo(-1); return `<button class="btn line wk-go" data-act="wkcheck" data-v="-1">${I.check.replace('<svg', '<svg width="18" height="18"')}${w.rec.checked ? 'Last week is checked' : w.todo ? `Weekly check · ${w.todo} to look at` : 'Weekly check'}</button>`; })()}
     ${costs.length && tot(pays) + (SQX ? (SQX.years[yk] || {net:0}).net : 0) ? `<p class="small muted" style="margin-top:8px">${MON[T0.getMonth()]}: ${money(tot(LEDGER.filter(x => x.kind === 'pay' && x.date.startsWith(mk))))} in and ${money(tot(LEDGER.filter(x => x.kind === 'cost' && x.date.startsWith(mk))))} out here${SQX ? ', besides cards' : ''}.</p>` : ''}
   </section>`;
+}
+// the weekly check: every visit has its payment, and every card payment has its visit
+const mondayOff = w => { const d = T0.getDay(); return -((d + 6) % 7) + w * 7; };   // w = 0 this week, -1 last week
+function weekInfo(w){
+  const mo = mondayOff(w), offs = Array.from({length:7}, (_, i) => mo + i), key = isoDay(dateOf(mo)), days = offs.map(o => isoDay(dateOf(o)));
+  const rec = WEEKS[key] || {}, ign = new Set(rec.ignore || []);
+  const visits = AP.filter(a => offs.includes(a.off) && (a.off < 0 || (a.off === 0 && endOf(a) <= NOW)));
+  const shown = visits.filter(a => !noShow(a)), open = shown.filter(a => !a.paid);
+  const cards = PAYS.filter(p => days.includes(p.day)), loose = cards.filter(p => !PAY_USED.has(p.id) && !ign.has(p.id));
+  const L = LEDGER.filter(x => days.includes(x.date)), tot = (A, f) => A.reduce((t, x) => t + f(x), 0);
+  return {w, mo, key, rec, visits:shown, open, cards, loose, cash:L.filter(x => x.kind === 'pay'), costs:L.filter(x => x.kind === 'cost'), todo:open.length + loose.length,
+    cardTotal:tot(cards, p => p.net), cashTotal:tot(L.filter(x => x.kind === 'pay'), x => x.amount), costTotal:tot(L.filter(x => x.kind === 'cost'), x => x.amount), noshows:visits.length - shown.length};
+}
+const payName = p => { const c = p.cust && CL['sq:' + p.cust]; if (c) return c.name; const x = SQX && SQX.customers.find(y => y.id === p.cust || (y.ids || []).includes(p.cust)); return x ? sqName(x) : 'Card payment'; };
+function viewCheck(){
+  const w = weekInfo(S.wk == null ? -1 : S.wk), d1 = dateOf(w.mo), d2 = dateOf(w.mo + 6);
+  const range = `${MON[d1.getMonth()].slice(0,3)} ${d1.getDate()} to ${d1.getMonth() === d2.getMonth() ? '' : MON[d2.getMonth()].slice(0,3) + ' '}${d2.getDate()}`;
+  const nav = `<div class="seg" role="group" aria-label="Week" style="grid-template-columns:1fr 1fr"><button data-act="wkcheck" data-v="-1" aria-pressed="${w.w === -1}">Last week</button><button data-act="wkcheck" data-v="0" aria-pressed="${w.w === 0}">This week</button></div>`;
+  const dayT = (off, t) => `<span class="t">${cap(DOW[dateOf(off).getDay()]).slice(0,3)}<small>${clockS(t)}</small></span>`;
+  return `${nav}
+  <section class="hero"><p class="eyebrow">Weekly check · ${range}</p>
+    <p class="amt">${w.todo ? `${w.todo} to look at` : w.rec.checked ? 'All checked' : 'All matched'}</p>
+    <p class="sub num"><span><b>${w.visits.length}</b> ${w.visits.length === 1 ? P.unitOne : P.unit}</span>${SQX ? `<span><b>${money(w.cardTotal)}</b> cards</span>` : ''}<span><b>${money(w.cashTotal)}</b> cash and other</span><span><b>${money(w.costTotal)}</b> costs</span></p></section>
+  ${w.open.length ? `<section class="sec"><div class="sec-h"><h2>Not paid</h2><span class="aside">${w.open.length}</span></div><div class="list">${w.open.map(a => `<div class="li wk">${dayT(a.off, a.start)}<span class="who" data-act="appt" data-id="${a.id}" role="button"><b>${esc(CL[a.c].name)}</b><span>${svLabel(a.s)} · ${money(SV[a.s].price)}</span></span>
+      <span class="wk-btns"><button class="btn sm" data-act="payfor" data-id="${a.id}">Paid</button><button class="btn sm" data-act="wk-noshow" data-id="${a.id}">No-show</button></span></div>`).join('')}</div>
+    <p class="small muted">Paid in cash or Zelle? Tap Paid to add it. Paid by card? It shows up once Square has it.</p></section>` : ''}
+  ${w.loose.length ? `<section class="sec"><div class="sec-h"><h2>Card payments with no ${P.unitOne}</h2><span class="aside">${w.loose.length}</span></div><div class="list">${w.loose.map(p => `<div class="li wk">${dayT(offOf(p.day), p.at)}<span class="who"><b>${esc(payName(p))}</b><span>${money(p.net)}${p.tip ? ' + ' + money(p.tip) + ' tip' : ''} by card</span></span>
+      <span class="wk-btns"><button class="btn sm" data-act="wk-add" data-v="${p.id}">Add it</button><button class="btn sm" data-act="wk-ignore" data-v="${p.id}">Not a ${P.unitOne}</button></span></div>`).join('')}</div>
+    <p class="small muted">A ${P.unitOne} you didn’t book in Sole? Add it so it counts. A gift card or something you sold? Tap “Not a ${P.unitOne}”.</p></section>` : ''}
+  ${!w.todo ? `<section class="card facts2"><p>${w.visits.length ? `Every ${P.unitOne} has its payment${SQX ? ' and every card payment has its ' + P.unitOne : ''}.` : `Nothing booked ${w.w === 0 ? 'yet this week' : 'that week'}.`}${w.noshows ? ` ${w.noshows} no-show${w.noshows === 1 ? '' : 's'}.` : ''}</p></section>` : ''}
+  ${w.cash.length || w.costs.length ? `<section class="sec"><div class="sec-h"><h2>Added in Sole</h2></div><div class="list">${[...w.cash, ...w.costs].sort(entrySort).map(entryRow).join('')}</div></section>` : ''}
+  ${w.rec.checked ? `<p class="small muted" style="text-align:center">Checked ${(() => { const d = new Date(w.rec.at); return `${MON[d.getMonth()].slice(0,3)} ${d.getDate()}`; })()}.</p>`
+    : `<button class="btn primary" style="width:100%" data-act="wk-done" data-v="${w.key}" ${w.todo ? 'disabled' : ''}>${w.todo ? `Fix the ${w.todo} above to finish` : 'Mark the week checked'}</button>`}`;
+}
+// a card payment for a visit that wasn't booked in Sole: add the visit
+let PV = null;
+function openPastVisit(pid){
+  const p = PAYS.find(x => x.id === pid); if (!p) return;
+  const known = p.cust && CL['sq:' + p.cust] ? 'sq:' + p.cust : '', svs = Object.keys(SV).filter(k => !k.startsWith('sq:'));
+  PV = {p, s:svs.find(k => SV[k].price === p.net) || CL[known] && CL[known].usual || svs[0]};
+  const opts = Object.keys(CL).filter(k => !CL[k].anon).sort((a, b) => CL[a].name.localeCompare(CL[b].name));
+  sheet(`${top(`Add the ${P.unitOne}`, `${cap(DOW[dateOf(offOf(p.day)).getDay()])} at ${clock(p.at)} · ${money(p.net)} by card`)}
+    <div class="field"><span class="label">Who</span><select class="text-in" id="pv-c"><option value="new">Someone new…</option>${opts.map(k => `<option value="${k}"${k === known ? ' selected' : ''}>${esc(CL[k].name)}</option>`).join('')}</select></div>
+    <div class="field" id="pv-new-f" ${known ? 'hidden' : ''}><span class="label">Name</span><input class="text-in" id="pv-new" autocomplete="off" placeholder="First and last name"></div>
+    <div class="field"><span class="label">What</span><div class="chips">${svs.map(k => `<button class="chip" data-act="pv-s" data-v="${k}" aria-pressed="${k === PV.s}">${esc(SV[k].name)}</button>`).join('')}</div></div>
+    <button class="btn primary" style="width:100%" data-act="pv-save">Add it</button>`);
+}
+function savePastVisit(){
+  let c = $('#pv-c').value; const p = PV.p;
+  if (c === 'new') { const nm = ($('#pv-new').value || '').trim(); if (!nm) { toast('Add their name first.'); return; }
+    c = p.cust && !CL['sq:' + p.cust] ? 'sq:' + p.cust : 'n' + Date.now().toString(36);
+    CL[c] = {name:nm, phone:'', since:T0.getFullYear(), visits:0, last:null, isNew:true, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true, ...(c.startsWith('sq:') ? {sq:p.cust} : {}), ...(P.look === 'seaglass' ? {} : {rows:[]})}; }
+  add(c, PV.s, offOf(p.day), Math.max(0, p.at - SV[PV.s].min), {mine:true, uid:uidOf('a')});
+  PV = null; saveState(); closeSheet(); KEEP = {...S}; boot(KEY); toast('Added. It counts in your week now.');
+}
+// visit notes: SOAP notes for massage, each trade its own fields (VISIT_FORMS)
+let VN = null;
+function visitForm(){ return VISIT_FORMS[P.visitKind || KEY] || VISIT_FORMS[(TRADES.find(t => t.id === (P.visitKind || KEY)) || {}).base] || VISIT_FORMS.other; }
+function lastVisitNote(k, before){ return Object.values(VISITS).filter(v => v.c === k && v.at && v.date < before).sort((a, b) => b.date.localeCompare(a.date))[0]; }
+function openVisit(id){
+  const a = AP.find(x => x.id === id); if (!a) return;
+  const F = visitForm(), key = visitKey(a), v = VISITS[key] || {};
+  VN = {id, key, picks:Object.fromEntries(F.chips.map(g => [g.k, [...(v[g.k] || [])]]))};
+  sheet(`${top(`${F.title} · ${esc(first(a.c))}`, `${cap(dayName(a.off))} · ${svLabel(a.s)}`)}
+    ${F.chips.map(g => `<div class="field"><span class="label">${g.l}</span><div class="chips">${g.opts.map(o => `<button class="chip" data-act="vn-c" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${VN.picks[g.k].includes(o)}">${esc(o)}</button>`).join('')}</div></div>`).join('')}
+    ${F.text.map(t => `<div class="field"><span class="label">${t.l}</span><textarea class="text-in" id="vn-${t.k}" style="min-height:76px" placeholder="${esc(t.ph)}">${esc(v[t.k] || '')}</textarea></div>`).join('')}
+    <button class="btn primary" style="width:100%" data-act="vn-save">Save notes</button>`);
+}
+function saveVisit(){
+  const a = AP.find(x => x.id === VN.id), F = visitForm(), v = {...(VISITS[VN.key] || {}), c:a.c, date:isoDay(dateOf(a.off)), s:a.s, at:new Date().toISOString()};
+  F.chips.forEach(g => { v[g.k] = VN.picks[g.k]; }); F.text.forEach(t => { v[t.k] = ($('#vn-' + t.k).value || '').trim(); });
+  VISITS[VN.key] = v;
+  const plan = F.text.find(t => t.plan); if (plan && v[plan.k]) CL[a.c].note = v[plan.k];
+  const id = VN.id; VN = null; render(); openAppt(id); toast('Visit notes saved.');
+}
+function visitSummary(v){
+  const F = visitForm(), bits = F.chips.map(g => (v[g.k] || []).join(', ')).filter(Boolean), pl = F.text.find(t => t.plan);
+  return `${bits.length ? `<p>${esc(bits.join(' · '))}</p>` : ''}${F.text.filter(t => v[t.k]).map(t => `<p><b>${t.short || t.l}:</b> ${esc(v[t.k])}</p>`).join('')}`;
 }
 function openLedger(){
   const L = [...LEDGER].sort(entrySort);
@@ -2068,13 +2191,17 @@ function openAppt(id){
   const status = a.paid ? `<span class="tag ok">Paid ${money(a.paidAmt != null ? a.paidAmt : SV[a.s].price)}${a.tip?' + '+money(a.tip)+' tip':''}${a.method && a.method !== 'Card' ? ' · ' + esc(a.method) : ''}</span>` : done ? '<span class="tag warn">Not paid</span>' : c.isNew ? `<span class="tag new">New ${W1}</span>` : '';
   sheet(`${top(c.name, `${cap(dayName(a.off))} · ${clock(a.start)} to ${clock(endOf(a))}<br>${svLabel(a.s)} · ${money(SV[a.s].price)}`)}
     ${status ? `<div>${status}</div>` : ''}
-    <div class="field"><span class="label lbl-row">Before you start<button class="chip sm" data-act="editnotes" data-c="${a.c}" data-back="${a.id}">Edit</button></span>${notesHTML(a.c)}</div>
+    ${done ? (() => { const v = VISITS[visitKey(a)] || {}; return v.noshow ? `<div class="card facts2"><p>Marked as a no-show.</p></div>` : `<div class="field"><span class="label lbl-row">${visitForm().title}${v.at ? `<button class="chip sm" data-act="vnotes" data-id="${a.id}">Edit</button>` : ''}</span>
+      ${v.at ? `<div class="card vnote">${visitSummary(v)}</div>` : `<button class="btn primary" style="width:100%" data-act="vnotes" data-id="${a.id}">Write ${visitForm().title.toLowerCase().replace('soap', 'SOAP')}</button>`}</div>`; })() : ''}
+    ${(() => { const lv = !done && lastVisitNote(a.c, isoDay(dateOf(a.off))); return lv ? `<div class="field"><span class="label">From last time · ${(() => { const d = new Date(lv.date + 'T12:00:00'); return `${MON[d.getMonth()].slice(0,3)} ${d.getDate()}`; })()}</span><div class="card vnote">${visitSummary(lv)}</div></div>` : ''; })()}
+    <div class="field"><span class="label lbl-row">${done ? 'About them' : 'Before you start'}<button class="chip sm" data-act="editnotes" data-c="${a.c}" data-back="${a.id}">Edit</button></span>${notesHTML(a.c)}</div>
     <div class="btn-row">
       ${!a.paid ? `<button class="btn primary" data-act="charge" data-id="${a.id}">Charge ${money(SV[a.s].price)}</button>` : ''}
       ${future && a.off === 0 ? `<button class="btn" data-act="late" data-id="${a.id}">Running late</button>` : ''}
       ${future && a.off > 0 && LIVEBOOK ? `<button class="btn" data-act="reach" data-c="${a.c}" data-kind="remind" data-id="${a.id}">Text a reminder</button>` : ''}
       ${!c.intake ? `<button class="btn" data-act="fillfor" data-c="${a.c}">Fill in ${P.intakeName}</button><button class="btn" data-act="intake" data-c="${a.c}">Text the form</button>` : ''}
       ${future ? `<button class="btn" data-act="move" data-id="${a.id}">Move</button>` : ''}
+      ${done && !a.paid && !noShow(a) ? `<button class="btn" data-act="wk-noshow" data-id="${a.id}">No-show</button>` : ''}
       <button class="btn" data-act="rebook" data-id="${a.id}">Rebook in ${Math.max(1, Math.round((c.every||28)/7))} wk</button>
       ${future ? `<button class="btn danger" data-act="cancel" data-id="${a.id}">Cancel</button>` : ''}
     </div>
@@ -2091,6 +2218,8 @@ function openClient(k){
       ${sp.a.v ? `<p class="small muted">About ${money(sp.price)} a visit, plus about ${money(sp.tipsY)} in tips this year.</p>` : ''}</div>`; })()}
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><span class="label">Next visit</span><p style="font-weight:600;margin-top:2px">${n ? `${whenText(n)} · ${svLabel(n.s)}` : 'Nothing booked'}</p></div>${n?`<button class="close" data-act="appt" data-id="${n.id}">Open</button>`:''}</div>
     <div class="field"><span class="label lbl-row">Notes<button class="chip sm" data-act="editnotes" data-c="${k}">Edit</button></span>${notesHTML(k)}</div>
+    ${(() => { const vs = AP.filter(a => a.c === k && (VISITS[visitKey(a)] || {}).at).sort((x, y) => y.off - x.off).slice(0, 6);
+      return vs.length ? `<div class="field"><span class="label">${visitForm().title}</span><div class="list flat">${vs.map(a => `<button class="li" data-act="appt" data-id="${a.id}"><span class="t">${dayShort(a.off).slice(4)}<small>${SV[a.s].min} min</small></span><span class="who"><b>${esc(SV[a.s].name)}</b><span>${esc((VISITS[visitKey(a)][visitForm().text.find(t => t.plan).k] || (visitForm().chips[0] ? VISITS[visitKey(a)][visitForm().chips[0].k] || [] : []).join(', ') || 'Notes written'))}</span></span>${I.chev}</button>`).join('')}</div></div>` : ''; })()}
     ${(() => { const rs = RESP.filter(r => r.client === k); const intakeI = FORMS.findIndex(x => x.intake);
       return `<div class="field"><span class="label">Forms</span>${rs.map(r => `<button class="li" data-act="resp" data-v="${r.id}" style="background:var(--surface);border-radius:14px;box-shadow:var(--shadow)"><span class="t">${I.check.replace('<svg', '<svg width="20" height="20" style="color:var(--accent)"')}</span><span class="who"><b>${esc(r.form)}</b><span>Filled in ${MON[+r.date.slice(5,7)-1].slice(0,3)} ${+r.date.slice(8,10)}</span></span>${I.chev}</button>`).join('')}
         ${intakeI >= 0 && !rs.some(r => r.form === FORMS[intakeI].name) ? `<button class="btn line" data-act="fillfor" data-c="${k}">Fill in ${esc(FORMS[intakeI].name.toLowerCase())} now</button>` : ''}</div>`; })()}
@@ -2405,6 +2534,18 @@ on('click', e => {
     case 'lg-del-no': $('#lg-confirm').hidden = true; break;
     case 'lg-del-yes': { const i = LEDGER.findIndex(x => x.uid === v); if (i >= 0) LEDGER.splice(i, 1); saveState(); closeSheet(); KEEP = {...S}; boot(KEY); toast('Removed.'); break; }
     case 'lg-all': openLedger(); break;
+    case 'wkcheck': closeSheet(); S.tab = 'money'; S.money = 'check'; S.wk = +(v || -1); render(); window.scrollTo(0,0); break;
+    case 'wk-noshow': { const a = AP.find(x => x.id === id); VISITS[visitKey(a)] = {...(VISITS[visitKey(a)] || {}), c:a.c, date:isoDay(dateOf(a.off)), noshow:true}; closeSheet(); render(); toast(`Marked ${first(a.c)} as a no-show.`); break; }
+    case 'wk-ignore': { const w = weekInfo(S.wk == null ? -1 : S.wk); WEEKS[w.key] = {...w.rec, ignore:[...(w.rec.ignore || []), v]}; render(); break; }
+    case 'wk-add': openPastVisit(v); break;
+    case 'pv-s': PV.s = v; document.querySelectorAll('[data-act=pv-s]').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); break;
+    case 'pv-save': savePastVisit(); break;
+    case 'wk-done': WEEKS[v] = {...(WEEKS[v] || {}), checked:true, at:new Date().toISOString()}; render(); window.scrollTo(0,0); toast('Week checked. Nice.'); break;
+    case 'vnotes': openVisit(id); break;
+    case 'vn-c': { const g = el.dataset.g, L = VN.picks[g], i = L.indexOf(v), one = (visitForm().chips.find(x => x.k === g) || {}).one;
+      if (i >= 0) L.splice(i, 1); else { if (one) L.length = 0; L.push(v); }
+      document.querySelectorAll(`[data-act=vn-c][data-g="${g}"]`).forEach(b => b.setAttribute('aria-pressed', L.includes(b.dataset.v))); break; }
+    case 'vn-save': saveVisit(); break;
     case 'editnotes': openNotes(el.dataset.c, el.dataset.back); break;
     case 'en-p': EN.pressure = +v; document.querySelectorAll('[data-act=en-p]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === +v)); break;
     case 'en-save': saveNotes(); break;
@@ -2530,6 +2671,7 @@ on('change', e => {
   if (e.target.id === 'ob-logo' && OB) obLogo(e.target.files[0]);
   if (e.target.id === 'ob-docs' && OB) obDocs(e.target.files);
   if (e.target.id === 'rc-file' && RC && e.target.files[0]) takeReceipt(e.target.files[0]);
+  if (e.target.id === 'pv-c') { const f = $('#pv-new-f'); if (f) f.hidden = e.target.value !== 'new'; }
 });
 on('input', e => {
   if (OB && e.target.id === 'ob-biz') OB.biz = e.target.value;
