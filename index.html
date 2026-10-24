@@ -104,6 +104,16 @@ main{display:flex;flex-direction:column;gap:22px}
 .chip{border:1.5px solid var(--line);background:transparent;border-radius:999px;padding:8px 13px;font-size:15px;font-weight:500;color:var(--ink);min-height:40px}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .chip.dim{opacity:.5}
+.chip.sm{min-height:30px;padding:3px 11px;font-size:13px;letter-spacing:0;text-transform:none}
+.lbl-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.stat3.two{grid-template-columns:repeat(2,1fr)}
+.two-in{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.list.flat{box-shadow:none;background:transparent}
+.list.flat .li{padding-inline:0}
+.num.out{color:var(--muted)}
+.rcp-snap{cursor:pointer}
+.rcp-img{display:block;width:100%;max-height:340px;object-fit:contain;border-radius:14px;background:var(--sunk);margin-block:10px}
+.btn.danger-line{width:100%;margin-top:12px;color:var(--bad)}
 .scroller{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
 .scroller::-webkit-scrollbar{display:none}
 .scroller .chip{flex:none}
@@ -966,6 +976,44 @@ let FILL = null; // a form being filled in
 let CTL;
 let SQ = null;     // Square payments and card customers, written into this page's database by the daily refresh
 let KEEP = null;   // the tab to return to when the page rebuilds itself
+// the real business's own book (appointments, time off, clients, payments and costs), one database document per item;
+// REAL_SAVED mirrors what the database holds so only changed items are written
+const SOLE_COLS = ['appts', 'blocks', 'clients', 'ledger'];
+let REAL_SAVED = null, SOLE_VER = 0, SOLE_Q = Promise.resolve();
+const LEDGER_MEM = {}, NOTES_MEM = {};   // the built-in businesses keep what's added for the visit
+const uidOf = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const sortKeys = x => Array.isArray(x) ? x.map(sortKeys) : x && typeof x === 'object' ? Object.fromEntries(Object.keys(x).sort().filter(k => x[k] !== undefined).map(k => [k, sortKeys(x[k])])) : x;
+const canon = x => JSON.stringify(sortKeys(x));
+async function dbOf(){ try { return window.claude && window.claude.use ? await window.claude.use('db') : null; } catch (_) { return null; } }
+function persistReal(st){
+  SQ.sole = st;
+  if (!REAL_SAVED) return;   // no database in this view
+  const jobs = [];
+  SOLE_COLS.forEach(col => {
+    const now = col === 'clients' ? st.clients : Object.fromEntries(st[col].map(x => [x.uid, x])), was = REAL_SAVED[col];
+    Object.entries(now).forEach(([id, x]) => { const j = canon(x); if (was[id] !== j) { was[id] = j; jobs.push(db => db.collection(col).doc(id).set(JSON.parse(j))); } });
+    Object.keys(was).filter(id => !(id in now)).forEach(id => { delete was[id]; jobs.push(db => db.collection(col).doc(id).delete()); });
+  });
+  if (jobs.length) SOLE_Q = SOLE_Q.then(async () => { const db = await dbOf(); if (!db) return;
+    for (const j of jobs) { try { await j(db); } catch (_) { const t = document.querySelector('.toast'); if (!t) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = 'Saved on this phone. It couldn’t reach your account just now.'; document.body.appendChild(el); setTimeout(() => el.remove(), 3600); } } } });
+}
+// changes made on another phone come in live
+let SOLE_WATCH = false;
+function watchSole(db){
+  if (SOLE_WATCH || !db) return; SOLE_WATCH = true;
+  SOLE_COLS.forEach(col => { try { db.collection(col).onSnapshot(snap => {
+    let changed = false;
+    snap.docChanges().forEach(ch => {
+      const id = ch.doc.id, data = ch.type === 'removed' ? null : JSON.parse(JSON.stringify(ch.doc.data())), j = data ? canon(data) : null;
+      if ((REAL_SAVED[col][id] || null) === j) return;   // our own write coming back
+      changed = true;
+      if (data) REAL_SAVED[col][id] = j; else delete REAL_SAVED[col][id];
+      if (col === 'clients') { if (data) SQ.sole.clients[id] = data; else delete SQ.sole.clients[id]; }
+      else { const L = SQ.sole[col], i = L.findIndex(x => x.uid === id); if (data) { if (i >= 0) L[i] = data; else L.push(data); } else if (i >= 0) L.splice(i, 1); }
+    });
+    if (changed) { SOLE_VER++; redrawLive(); }
+  }, () => {}); } catch (_) {} });
+}
 function mergeCards(list, merges){
   const groups = (merges && merges.groups) || [], byId = Object.fromEntries(list.map(c => [c.id, c])), used = new Set(), out = [];
   groups.forEach(g => {
@@ -990,11 +1038,16 @@ async function loadSquare(key){
     if (window.__SOLE_SQUARE) { SQ = window.__SOLE_SQUARE; watchSquare(key); boot(key); return; }   // test hook: tests/fixtures/square-sample.json
     if (!window.claude || !window.claude.use) return;
     const db = await window.claude.use('db'); if (!db) return;
-    const [a, b, fr, mg] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false}))]);
+    const [a, b, fr, mg, ...book] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false})),
+      ...SOLE_COLS.map(c => db.collection(c).get().catch(() => ({docs:[]})))]);
     const responses = fr.docs.filter(d => d.exists).map(d => JSON.parse(JSON.stringify(d.data())));
-    if (!a.exists && !responses.length) return;
-    SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses, merges:mg.exists ? JSON.parse(JSON.stringify(mg.data())) : null};
+    const sole = {appts:[], blocks:[], clients:{}, ledger:[]};
+    REAL_SAVED = {appts:{}, blocks:{}, clients:{}, ledger:{}};
+    SOLE_COLS.forEach((c, i) => book[i].docs.filter(d => d.exists).forEach(d => { const x = JSON.parse(JSON.stringify(d.data()));
+      REAL_SAVED[c][d.id] = canon(x); if (c === 'clients') sole.clients[d.id] = x; else sole[c].push({...x, uid:d.id}); }));
+    SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses, merges:mg.exists ? JSON.parse(JSON.stringify(mg.data())) : null, sole};
     if (!document.querySelector('.sheet')) boot(key);
+    watchSole(db);
     watchSquare(key);
   } catch (_) {}
 }
@@ -1019,25 +1072,29 @@ function redrawLive(){
   const at = document.getElementById('sq-at');
   if (at && SQ.live) at.textContent = liveText(SQ.live.at);
   if (!PROFILES[CUR_KEY] || !PROFILES[CUR_KEY].real || document.querySelector('.sheet')) return;
-  const sig = (SQ.live ? SQ.live.sig : (SQ.liveAsk ? 'ask' : '')) + '|' + (SQ.book && SQ.book.bookings ? SQ.book.bsig + SQ.book.ssig : '');
+  const sig = liveSig();
   if (sig === LIVE_DRAWN) return;
   LIVE_DRAWN = sig; KEEP = CUR_S ? {...CUR_S} : null;
   const y = window.scrollY; boot(CUR_KEY); window.scrollTo(0, y);
 }
+const liveSig = () => !SQ ? '' : (SQ.live ? SQ.live.sig : (SQ.liveAsk ? 'ask' : '')) + '|' + (SQ.book && SQ.book.bookings ? SQ.book.bsig + SQ.book.ssig : '') + '|' + SOLE_VER;
 const liveText = at => { const h = at.getHours(); return `Live · ${h % 12 || 12}:${String(at.getMinutes()).padStart(2,'0')} ${h >= 12 ? 'pm' : 'am'}`; };
 async function watchSquare(key){
-  if (!SQ || !SQ.summary) return;
+  if (!SQ) return;
   if (window.__SOLE_SQUARE_BOOK) SQ.book = window.__SOLE_SQUARE_BOOK;   // test hook: {bookings, services, names}
+  if (!SQ.summary) return;
   if (window.__SOLE_SQUARE_LIVE) { SQ.live = {payments:window.__SOLE_SQUARE_LIVE.payments, from:isoDay(liveFrom()), at:new Date(), sig:'test'}; return; }   // test hook
   if (!window.claude || !window.claude.use) return;
   const mcp = await window.claude.use('mcp').catch(() => null); if (!mcp) return;
   SQ_WATCH && SQ_WATCH();
+  if (SQ.summary)
   SQ_WATCH = mcp.watchTool(...SQ_TOOL, liveReq(), ev => {
     if (ev.type === 'data') { takeLive(mcp, ev.result).catch(() => {}); return; }
     const code = ev.error && ev.error.code;
     if (code === 'approval_required') { SQ.liveAsk = true; redrawLive(); }
     else if (['needs_reauth', 'server_not_connected', 'not_in_manifest', 'blocked_by_policy', 'selection_required', 'not_granted'].includes(code) && (SQ.live || SQ.liveAsk)) { SQ.live = null; SQ.liveAsk = false; redrawLive(); }
   }, {refetchInterval:120000});
+  else SQ_WATCH = null;
   // a booking error (Appointments not turned on, say) leaves the sample schedule in place
   mcp.watchTool(...SQ_TOOL, svcReq, ev => { if (ev.type === 'data') takeServices(ev.result); }, {refetchInterval:600000});
   mcp.watchTool(...SQ_TOOL, bookReq(), ev => { if (ev.type === 'data') takeBook(mcp, ev.result).catch(() => {}); }, {refetchInterval:60000});
@@ -1072,7 +1129,7 @@ function takeServices(result){
 async function allowLive(){
   if (!window.claude || !window.claude.use) return;
   const mcp = await window.claude.use('mcp').catch(() => null); if (!mcp) return;
-  try { await takeLive(mcp, await mcp.callTool(...SQ_TOOL, liveReq())); } catch (_) {}
+  if (SQ.summary) try { await takeLive(mcp, await mcp.callTool(...SQ_TOOL, liveReq())); } catch (_) {}
   try { takeServices(await mcp.callTool(...SQ_TOOL, svcReq)); await takeBook(mcp, await mcp.callTool(...SQ_TOOL, bookReq())); } catch (_) {}
 }
 function boot(KEY){
@@ -1088,7 +1145,8 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 
 /* ---------- time ---------- */
 const T0 = new Date(); T0.setHours(0,0,0,0);
-const LIVEBOOK = !!(P.real && SQ && SQ.book && SQ.book.bookings);   // the real schedule, from Square Appointments
+const SOLE = P.real && SQ ? (SQ.sole || (SQ.sole = {appts:[], blocks:[], clients:{}, ledger:[]})) : null;   // the real business's own book
+const LIVEBOOK = !!SOLE;   // the real schedule: what's booked in Sole, plus anything booked in Square
 const NOW = LIVEBOOK ? nowMin() : P.now;   // otherwise the sample's "right now"
 const OPEN = P.hours.open, CLOSE = P.hours.close, TURN = P.hours.turn;   // opening hours and the turnover after each client
 const DOW = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -1109,6 +1167,7 @@ const prevWork = () => { let o = -1; while (P.hours.closed.includes(dateOf(o).ge
 
 /* ---------- this business (from its profile) ---------- */
 const SV = {...P.services};
+const offOf = d => { const [y, m, dd] = d.split('-').map(Number); return Math.round((new Date(y, m-1, dd) - T0) / 864e5); };
 const svLabel = id => `${SV[id].min < 120 ? SV[id].min + ' min' : dur(SV[id].min)} ${SV[id].name.toLowerCase()}`;
 const LAST = prevWork();
 const CL = JSON.parse(JSON.stringify(P.clients));
@@ -1126,21 +1185,31 @@ if (P.tpl.length) for (let off = 1, w = 0; off <= 34; off++) { if (isOff(off)) c
 const REQ = P.req ? {...P.req, off:nextOffWith(1, P.req.dow), w:P.req.w || ME, open:true} : {open:false, off:1};
 // what the owner added themselves (customers, bookings, time off, setup steps) is kept with the account
 const ACC = ACCOUNTS[KEY];
+const NOTES = SOLE ? null : ACC ? ((ACC.state = ACC.state || {}).notes = ACC.state.notes || {}) : (NOTES_MEM[KEY] = NOTES_MEM[KEY] || {});   // notes edited on clients the owner didn't add
+const LEDGER = SOLE ? SOLE.ledger : ACC ? ((ACC.state = ACC.state || {}).ledger = ACC.state.ledger || []) : (LEDGER_MEM[KEY] = LEDGER_MEM[KEY] || []);   // payments Square didn't take, and costs
 if (ACC && ACC.state) {
   Object.assign(CL, JSON.parse(JSON.stringify(ACC.state.clients || {})));
   (ACC.state.appts || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number), off = Math.round((new Date(y, m-1, d) - T0) / 864e5);
-    if (off >= -400 && CL[x.c] && SV[x.s]) add(x.c, x.s, off, x.start, {paid:x.paid, tip:x.tip || 0, w:x.w || ME, mine:true}); });
-  (ACC.state.blocks || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number); BL.push({id:seq++, off:Math.round((new Date(y, m-1, d) - T0) / 864e5), start:x.start, min:x.min, label:x.label, w:x.w || ME, mine:true}); });
+    if (off >= -400 && CL[x.c] && SV[x.s]) add(x.c, x.s, off, x.start, {paid:x.paid, tip:x.tip || 0, w:x.w || ME, method:x.method, uid:x.uid, mine:true}); });
+  (ACC.state.blocks || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number); BL.push({id:seq++, off:Math.round((new Date(y, m-1, d) - T0) / 864e5), start:x.start, min:x.min, label:x.label, w:x.w || ME, uid:x.uid, mine:true}); });
 }
+if (NOTES) Object.entries(NOTES).forEach(([k, x]) => { if (CL[k]) Object.assign(CL[k], x, {edited:true}); });
+const PAYS = ((SQ && SQ.live && SQ.live.payments) || []).filter(p => p.status === 'COMPLETED').map(p => ({id:p.id, day:isoDay(new Date(p.created_at)), cust:p.customer_id, net:((p.amount_money || {}).amount || 0) / 100, tip:((p.tip_money || {}).amount || 0) / 100}));
 if (LIVEBOOK) {
   AP.length = 0; BL.length = 0; REQ.open = false;
-  const bk = SQ.book, svs = bk.services || {}, used = new Set(), byCard = Object.fromEntries((SQ.customers || []).map(c => [c.id, c]));
+  const bk = SQ.book && SQ.book.bookings ? SQ.book : {bookings:[], services:(SQ.book || {}).services}, svs = bk.services || {}, used = new Set(), byCard = Object.fromEntries((SQ.customers || []).map(c => [c.id, c]));
   const sqClient = (id, name) => { const card = byCard[id];
     return {name:name || (card && card.name) || `Card customer ${String(id).slice(-4)}`, anon:!(name || (card && card.name)), phone:'', since:card && card.last ? +card.last.slice(0,4) : T0.getFullYear(), visits:card ? card.all.n : 0,
       last:card && card.last ? Math.round((T0 - new Date(card.last + 'T00:00:00')) / 864e5) : null, every:null, pressure:0, focus:'Not known yet', intake:true, isNew:!card, sq:id, note:''}; };
   Object.keys(CL).forEach(k => delete CL[k]);   // the sample clients go; the real ones come from Square
   (SQ.customers || []).filter(c => c.name).forEach(c => { CL['sq:' + c.id] = sqClient(c.id, c.name); });
-  const pays = ((SQ.live && SQ.live.payments) || []).filter(p => p.status === 'COMPLETED').map(p => ({id:p.id, day:isoDay(new Date(p.created_at)), cust:p.customer_id, net:((p.amount_money || {}).amount || 0) / 100, tip:((p.tip_money || {}).amount || 0) / 100}));
+  // clients kept in Sole: the ones added here, and notes written on anyone
+  Object.entries(SOLE.clients).forEach(([k, x]) => { if (x.mine) CL[k] = {...x}; else if (CL[k] || k.startsWith('sq:')) CL[k] = {...(CL[k] || sqClient(k.slice(3), x.name)), ...x, edited:true}; });
+  // Sole's own bookings and time off
+  SOLE.appts.forEach(x => { const off = offOf(x.date); if (off >= -400 && CL[x.c] && SV[x.s]) add(x.c, x.s, off, x.start, {paid:!!x.paid, tip:x.tip || 0, w:x.w || ME, method:x.method, uid:x.uid, mine:true}); });
+  SOLE.blocks.forEach(x => BL.push({id:seq++, off:offOf(x.date), start:x.start, min:x.min, label:x.label, w:x.w || ME, uid:x.uid, mine:true}));
+  const pays = PAYS;
+  // anything booked in Square shows too; it's changed in Square
   bk.bookings.filter(b => b.status === 'ACCEPTED' || b.status === 'PENDING').forEach(b => {
     const at = new Date(b.start_at), day = new Date(at); day.setHours(0,0,0,0);
     const off = Math.round((day - T0) / 864e5), segs = b.appointment_segments || [], min = segs.reduce((t, g) => t + (g.duration_minutes || 0), 0) || 60;
@@ -1149,23 +1218,33 @@ if (LIVEBOOK) {
     const c = b.customer_id ? 'sq:' + b.customer_id : 'sq:none';
     if (!CL[c]) CL[c] = b.customer_id ? sqClient(b.customer_id, (bk.names || {})[b.customer_id]) : {...sqClient('none', cap(W1)), sq:undefined, anon:true};
     if (b.customer_note && !CL[c].note) CL[c].note = b.customer_note;
-    let paid = false, tip = 0;
-    if (off <= 0) { const dk = isoDay(day), p = pays.find(x => !used.has(x.id) && x.day === dk && x.cust && x.cust === b.customer_id) || pays.find(x => !used.has(x.id) && x.day === dk && x.net === SV[s].price);
-      if (p) { used.add(p.id); paid = true; tip = p.tip; } }
-    add(c, s, off, at.getHours() * 60 + at.getMinutes(), {paid, tip, sq:b.id, pending:b.status === 'PENDING'});
+    add(c, s, off, at.getHours() * 60 + at.getMinutes(), {sq:b.id, pending:b.status === 'PENDING'});
   });
+  // a visit is paid when a card payment from that person, or for that price, came in that day
+  AP.filter(a => a.off <= 0 && !a.paid).sort((x, y) => (x.c.startsWith('sq:') ? 0 : 1) - (y.c.startsWith('sq:') ? 0 : 1)).forEach(a => {
+    const dk = isoDay(dateOf(a.off)), cust = CL[a.c].sq, p = pays.find(x => !used.has(x.id) && x.day === dk && cust && x.cust === cust) || pays.find(x => !used.has(x.id) && x.day === dk && x.net === SV[a.s].price);
+    if (p) { used.add(p.id); a.paid = true; a.auto = true; a.tip = p.tip; a.method = 'Card'; } });
 }
+// payments logged in Sole mark that day's visit paid
+LEDGER.filter(x => x.kind === 'pay').forEach(x => { x.matched = false; if (!x.c) return; const off = offOf(x.date), a = AP.find(y => y.c === x.c && y.off === off && !y.paid);
+  if (a) { a.paid = true; a.auto = true; a.tip = x.tip || 0; a.method = x.method; a.paidAmt = x.amount; x.matched = true; } });
 const ASKNAME = LIVEBOOK ? ((Object.values(CL).filter(c => c.sq && c.visits).sort((a, b) => b.visits - a.visits)[0] || {name:P.askName}).name.split(' ')[0]) : P.askName;
 const DONE_STEPS = ACC ? (ACC.steps = ACC.steps || {}) : {};
 const RESP = [...((ACC && ACC.state && ACC.state.responses) || []), ...(P.real && SQ && SQ.responses ? SQ.responses : [])];   // filled-in forms
+const NOTE_FIELDS = ['phone', 'pressure', 'focus', 'avoid', 'reason', 'health', 'setup', 'note', 'rows'];
 function saveState(){
-  if (!ACC) return;
-  ACC.state = {
-    clients:Object.fromEntries(Object.entries(CL).filter(([, c]) => c.mine)),
-    appts:AP.filter(a => a.mine).map(a => ({c:a.c, s:a.s, date:isoDay(dateOf(a.off)), start:a.start, paid:a.paid, tip:a.tip, w:a.w})),
-    blocks:BL.filter(b => b.mine).map(b => ({date:isoDay(dateOf(b.off)), start:b.start, min:b.min, label:b.label, w:b.w})),
-    responses:RESP,
-  };
+  if (!ACC && !SOLE) return;
+  const appts = AP.filter(a => a.mine).map(a => ({uid:a.uid || (a.uid = uidOf('a')), c:a.c, s:a.s, date:isoDay(dateOf(a.off)), start:a.start, paid:!!a.paid && !a.auto, tip:a.auto ? 0 : a.tip || 0, w:a.w, method:a.auto ? undefined : a.method}));
+  const blocks = BL.filter(b => b.mine).map(b => ({uid:b.uid || (b.uid = uidOf('b')), date:isoDay(dateOf(b.off)), start:b.start, min:b.min, label:b.label, w:b.w}));
+  const own = ([k, c]) => [k, JSON.parse(JSON.stringify({...c, birthday:undefined, edited:undefined}))];
+  const ledger = LEDGER.map(x => ({...x, matched:undefined, photoUrl:undefined}));
+  if (SOLE) {
+    const clients = Object.fromEntries([...Object.entries(CL).filter(([, c]) => c.mine).map(own),
+      ...Object.entries(CL).filter(([, c]) => !c.mine && c.edited).map(([k, c]) => [k, {name:c.name, ...Object.fromEntries(NOTE_FIELDS.filter(f => c[f] !== undefined && c[f] !== '').map(f => [f, c[f]]))}])]);
+    persistReal(JSON.parse(JSON.stringify({appts, blocks, clients, ledger})));
+    return;
+  }
+  ACC.state = {clients:Object.fromEntries(Object.entries(CL).filter(([, c]) => c.mine).map(own)), appts, blocks, responses:RESP, ledger, notes:NOTES};
   saveAccounts();
 }
 
@@ -1212,8 +1291,18 @@ const whenText = a => `${cap(dayName(a.off))}${a.off > 6 ? ', ' + dayShort(a.off
 const apptsFor = off => apptsOn(off).filter(a => !MULTI || a.w === S.who);
 const DOY = Math.round((T0 - new Date(T0.getFullYear(), 0, 1)) / 864e5), MDAY = T0.getDate() - 1;
 function spend(k){
+  const sp = spendBase(k), mk = isoDay(T0).slice(0,7), yk = String(T0.getFullYear());
+  const mine = LEDGER.filter(x => x.kind === 'pay' && x.c === k && (SQX || !x.matched)), tot = L => L.reduce((t, x) => t + x.amount, 0);
+  const lm = mine.filter(x => x.date.startsWith(mk)), ly = mine.filter(x => x.date.startsWith(yk));
+  return {...sp, m:{v:sp.m.v + lm.length, $:sp.m.$ + tot(lm)}, y:{v:sp.y.v + ly.length, $:sp.y.$ + tot(ly)}, a:{v:sp.a.v + mine.length, $:sp.a.$ + tot(mine)}, tipsY:sp.tipsY + ly.reduce((t, x) => t + (x.tip || 0), 0)};
+}
+function spendBase(k){
   if (CL[k].sq !== undefined && SQX) { const x = SQX.customers.find(y => y.id === CL[k].sq || (y.ids || []).includes(CL[k].sq)) || {all:{n:0, net:0}, year:{n:0, net:0, tips:0}, month:{n:0, net:0}};
     return {price:x.all.n ? x.all.net / x.all.n : 0, m:{v:x.month.n, $:x.month.net}, y:{v:x.year.n, $:x.year.net}, a:{v:x.all.n, $:x.all.net}, tipsY:x.year.tips || 0}; }
+  if (LIVEBOOK) {   // someone added in Sole: card payments matched to their visits (cash and the rest come from the ledger)
+    const v = AP.filter(a => a.c === k && a.paid && a.method === 'Card' && a.off <= 0), mo = T0.getDate() - 1, yd = DOY, at = (L, d) => L.filter(a => -a.off <= d);
+    const pk = L => ({v:L.length, $:L.reduce((t, a) => t + SV[a.s].price, 0)});
+    return {price:SV[CL[k].usual || Object.keys(SV)[0]].price, m:pk(at(v, mo)), y:pk(at(v, yd)), a:pk(v), tipsY:at(v, yd).reduce((t, a) => t + (a.tip || 0), 0)}; }
   const c = CL[k], price = SV[c.usual || Object.keys(SV)[0]].price;
   const paidNow = AP.filter(a => a.c === k && a.off === 0 && a.paid).reduce((s,a) => s + SV[a.s].price, 0), nNow = AP.filter(a => a.c === k && a.off === 0 && a.paid).length;
   const within = days => (c.last == null || !c.every || c.last > days) ? 0 : Math.floor((days - c.last) / c.every) + 1;
@@ -1224,7 +1313,12 @@ function spend(k){
 const regular = k => { const c = CL[k]; return c.every && c.every <= 28 && c.last != null && c.last <= c.every * 1.5; };
 
 /* ---------- money (made-up history) ---------- */
+// a day's takings: paid visits, plus payments logged in Sole that aren't tied to a visit
 function take(off){
+  const t = takeBase(off), dk = isoDay(dateOf(off)), L = LEDGER.filter(x => x.kind === 'pay' && !x.matched && x.date === dk);
+  return {net:t.net + L.reduce((a, x) => a + x.amount, 0), tips:t.tips + L.reduce((a, x) => a + (x.tip || 0), 0), n:t.n + L.length};
+}
+function takeBase(off){
   if (off === 0) { const p = apptsOn(0).filter(a => a.paid); return {net:p.reduce((s,a)=>s+SV[a.s].price,0), tips:p.reduce((s,a)=>s+a.tip,0), n:p.length}; }
   if (P.fresh) { const p = apptsOn(off).filter(a => a.paid); return {net:p.reduce((s,a)=>s+SV[a.s].price,0), tips:p.reduce((s,a)=>s+a.tip,0), n:p.length}; }
   if (P.hours.closed.includes(dateOf(off).getDay())) return {net:0, tips:0, n:0};
@@ -1325,6 +1419,7 @@ const I = {
   chev:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><path d="M9 5l7 7-7 7"/></svg>',
   trend:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   leaf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8 5-14 15-15-1 10-7 15-15 15z"/><path d="M5 19l7-7"/></svg>',
+  camera:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>',
   wallet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a1 1 0 0 1-1-1V7z"/><path d="M4 7l11-3v3"/><circle cx="16" cy="13.5" r="1"/></svg>',
   bulb:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>',
   badge:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5.5"/><path d="M8.5 13.5L7 21l5-2.5 5 2.5-1.5-7.5"/></svg>',
@@ -1347,7 +1442,7 @@ const SUNMARK = `<svg viewBox="-32 -32 64 64" aria-hidden="true"><g fill="none" 
 
 /* ---------- state ---------- */
 const S = {tab:'today', week:0, day:0, range:'week', bar:0, answer:null, search:'', yr:2026, wiC:0, wiP:0, money:'home', who:ME, ...(KEEP || {})};
-KEEP = null; CUR_S = S; CUR_KEY = KEY;
+KEEP = null; CUR_S = S; CUR_KEY = KEY; if (LIVEBOOK) LIVE_DRAWN = liveSig();
 const TABS = [['today','Today'],['schedule','Schedule'],['money','Snapshot'],['forms','Forms']];
 const TITLES = {today:`Good ${NOW < 720 ? 'morning' : NOW < 1020 ? 'afternoon' : 'evening'}, ${P.owner}`, schedule:'Schedule', money:'Snapshot', forms:'Forms'};
 
@@ -1393,8 +1488,8 @@ function viewToday(){
   <section class="sec" ${ap.length ? '' : 'hidden'}><div class="sec-h"><h2>Today’s ${WN}</h2><button class="chip" data-act="tab" data-v="schedule">Full schedule</button></div>
     <div class="list">${dayRows(0)}</div></section>
   <section class="glance">
-    ${SQX && SQX.today ? `<button data-act="tab" data-v="money"><span class="small muted">Today so far</span><span class="big">${money(SQX.today.net)}</span><span class="small muted">+ ${money(SQX.today.tips)} tips · Square</span></button>`
-      : `<button data-act="money" data-v="today"><span class="small muted">Today so far</span><span class="big">${money(td.net)}</span><span class="small muted">+ ${money(td.tips)} tips</span></button>`}
+    ${(() => { const o = otherToday(); return SQX && SQX.today ? `<button data-act="tab" data-v="money"><span class="small muted">Today so far</span><span class="big">${money(SQX.today.net + o.net)}</span><span class="small muted">+ ${money(SQX.today.tips + o.tips)} tips${o.n ? '' : ' · Square'}</span></button>`
+      : `<button data-act="money" data-v="today"><span class="small muted">Today so far</span><span class="big">${money(td.net)}</span><span class="small muted">+ ${money(td.tips)} tips</span></button>`; })()}
     ${P.fresh ? `<button data-act="money" data-v="month"><span class="small muted">This month</span><span class="big">${money(sumOf('month').net)}</span><span class="small muted">${sumOf('month').n} ${sumOf('month').n === 1 ? P.unitOne : P.unit} paid</span></button>`
       : `<button data-act="money" data-v="year"><span class="small muted">This year</span><span class="big">${SO_FAR}</span><span class="small muted">${P.unit} · on pace for ${PROJ}</span></button>`}
   </section>`;
@@ -1525,6 +1620,7 @@ function viewSnapFresh(){
     ${ks.length ? `<div class="list" style="box-shadow:none">${clientRows()}</div>` : `<p class="muted">No ${WN} yet. Each one you add keeps their notes, their visits and what they’ve spent.</p>`}
     <button class="btn ${ks.length ? 'line' : 'primary'}" data-act="addc">${I.plus}Add ${ks.length ? `a ${W1}` : `your first ${W1}`}</button>
   </section>
+  ${moneyCard()}
   <section class="card sec"><div class="sec-h"><h2>Bring in your history</h2></div>
     <p class="muted">Connect Square, or upload a spreadsheet of past sales, and Sole fills in your year, your busy and slow months, and what you kept.</p>
     <div class="btn-row"><button class="btn primary" data-act="connect" data-v="square" ${DONE_STEPS.square ? 'disabled' : ''}>${DONE_STEPS.square ? 'Square connected' : 'Connect Square'}</button><button class="btn" data-act="fillsample">See it with sample data</button></div>
@@ -1578,10 +1674,151 @@ function viewSnap(){
     </div>
   </section>
   ${SQX ? squareCard() : ''}
+  ${moneyCard()}
   ${clientsCard()}
   <p class="eyebrow" style="margin:0">Dig in</p>
   <section class="bento">${tiles.map(t => `<button class="tile ${t.wide?'wide':''} ${t.cls||''}" ${t.go}>${t.h}</button>`).join('')}</section>
   <p class="small muted">${P.source}</p>`;
+}
+// payments Square didn't take (cash, Zelle and the rest) and costs, logged in Sole
+const PAY_WAYS = ['Cash', 'Zelle', 'Venmo', 'Check', 'Other'];
+function otherToday(){ const td = isoDay(T0), L = LEDGER.filter(x => x.kind === 'pay' && x.date === td && (SQX && SQX.today ? true : !x.matched));
+  return {net:L.reduce((t, x) => t + x.amount, 0), tips:L.reduce((t, x) => t + (x.tip || 0), 0), n:L.length}; }
+const entrySort = (a, b) => b.date.localeCompare(a.date) || String(b.uid).localeCompare(String(a.uid));
+function entryRow(x){
+  const d = new Date(x.date + 'T12:00:00'), who = x.kind === 'pay' ? (x.c && CL[x.c] ? CL[x.c].name : x.cname || `${x.method || ''} payment`.trim()) : (x.store || x.cat || 'Cost');
+  return `<button class="li" data-act="lg" data-v="${x.uid}"><span class="t">${MON[d.getMonth()].slice(0,3)} ${d.getDate()}<small>${x.kind === 'pay' ? esc(x.method || '') : 'cost'}</small></span><span class="who"><b>${esc(who)}</b><span>${x.kind === 'pay' ? (x.tip ? `plus ${money(x.tip)} tip` : x.c ? 'Paid' : 'No name added') : esc(x.cat || '')}${x.photo || x.photoUrl ? ' · receipt' : ''}</span></span><span class="num ${x.kind === 'cost' ? 'out' : ''}">${x.kind === 'cost' ? '−' : '+'}${money(x.amount)}</span></button>`;
+}
+function moneyCard(){
+  const yk = String(T0.getFullYear()), mk = isoDay(T0).slice(0,7), inY = LEDGER.filter(x => x.date.startsWith(yk));
+  const pays = inY.filter(x => x.kind === 'pay'), costs = inY.filter(x => x.kind === 'cost'), tot = L => L.reduce((t, x) => t + x.amount, 0);
+  const recent = [...LEDGER].sort(entrySort).slice(0, 4);
+  return `<section class="card sec" id="s-books"><div class="sec-h"><h2>Money in and out</h2>${LEDGER.length > 4 ? '<button class="chip" data-act="lg-all">See all</button>' : `<span class="aside">${CUR}</span>`}</div>
+    <div class="stat3 two"><button data-act="lg-all"><b>${money(tot(pays))}</b><span>cash and other payments</span></button><button data-act="lg-all"><b>${money(tot(costs))}</b><span>costs, ${costs.length} receipt${costs.length === 1 ? '' : 's'}</span></button></div>
+    ${recent.length ? `<div class="list flat">${recent.map(entryRow).join('')}</div>` : `<p class="small muted">${SQX ? 'Square only sees cards. ' : ''}Add cash, Zelle and other payments here, and snap a receipt for anything you pay for.</p>`}
+    <div class="btn-row" style="margin-top:10px"><button class="btn" data-act="addpay">Add a payment</button><button class="btn" data-act="addcost">Add a cost</button></div>
+    ${costs.length && tot(pays) + (SQX ? (SQX.years[yk] || {net:0}).net : 0) ? `<p class="small muted" style="margin-top:8px">${MON[T0.getMonth()]}: ${money(tot(LEDGER.filter(x => x.kind === 'pay' && x.date.startsWith(mk))))} in and ${money(tot(LEDGER.filter(x => x.kind === 'cost' && x.date.startsWith(mk))))} out here${SQX ? ', besides cards' : ''}.</p>` : ''}
+  </section>`;
+}
+function openLedger(){
+  const L = [...LEDGER].sort(entrySort);
+  sheet(`${top('Money in and out', `${L.length} added in Sole`)}${L.length ? `<div class="list flat">${L.map(entryRow).join('')}</div>` : '<p class="muted">Nothing added yet.</p>'}
+    <div class="btn-row" style="margin-top:12px"><button class="btn" data-act="addpay">Add a payment</button><button class="btn" data-act="addcost">Add a cost</button></div>`);
+}
+function openEntry(id){
+  const x = LEDGER.find(y => y.uid === id); if (!x) return;
+  const d = new Date(x.date + 'T12:00:00'), when = `${DOW[d.getDay()]}, ${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  const img = x.photoUrl || (x.photo ? '/_blob/' + x.photo : '');
+  sheet(`${top(x.kind === 'pay' ? `${money(x.amount)} ${esc(x.method || '')}` : `${money(x.amount)} · ${esc(x.store || x.cat || 'Cost')}`, when)}
+    <dl class="notes">
+      ${x.kind === 'pay' ? `<div class="note"><dt>From</dt><dd>${esc(x.c && CL[x.c] ? CL[x.c].name : x.cname || 'Not listed')}</dd></div>${x.tip ? `<div class="note"><dt>Tip</dt><dd>${money(x.tip)}</dd></div>` : ''}`
+        : `<div class="note"><dt>For</dt><dd>${esc(x.cat || 'Other')}</dd></div>`}
+      ${x.note ? `<div class="note"><dt>Note</dt><dd>${esc(x.note)}</dd></div>` : ''}
+    </dl>
+    ${img ? `<img class="rcp-img" src="${img}" alt="Receipt">` : ''}
+    <button class="btn line danger-line" data-act="lg-del">Remove this ${x.kind === 'pay' ? 'payment' : 'cost'}</button>
+    <div class="confirm" id="lg-confirm" hidden><p>Remove it? This can’t be undone.</p><div class="btn-row"><button class="btn danger" data-act="lg-del-yes" data-v="${x.uid}">Yes, remove</button><button class="btn" data-act="lg-del-no">Keep it</button></div></div>`);
+}
+let PF = null;
+function openCharge(a){
+  if (!a) return;
+  sheet(`${top(`${first(a.c)} · ${money(SV[a.s].price)}`, `${cap(dayName(a.off))} · ${svLabel(a.s)}`)}
+    ${LIVEBOOK ? `<p>Take a card in Square as usual. It shows here as paid a minute or two later.</p>` : `<button class="btn primary" style="width:100%" data-act="charge-card" data-id="${a.id}">Charge a card with Square</button>`}
+    <button class="btn${LIVEBOOK ? ' primary' : ''}" style="width:100%;margin-top:10px" data-act="payfor" data-id="${a.id}">Paid with cash, Zelle or another way</button>`);
+}
+function openPay(o = {}){
+  PF = {c:o.c || '', method:'Cash'};
+  const opts = Object.keys(CL).filter(k => !CL[k].anon).sort((a, b) => CL[a].name.localeCompare(CL[b].name));
+  sheet(`${top('Add a payment', 'Cash, Zelle, Venmo, a check: anything Square didn’t take.')}
+    <div class="field"><span class="label">From</span><select class="text-in" id="pf-c"><option value="">Someone not listed</option>${opts.map(k => `<option value="${k}"${k === PF.c ? ' selected' : ''}>${esc(CL[k].name)}</option>`).join('')}</select></div>
+    <div class="two-in"><div class="field"><span class="label">Amount</span><input class="text-in" id="pf-amt" inputmode="decimal" autocomplete="off" placeholder="$0" value="${o.amt != null ? o.amt : ''}"></div>
+      <div class="field"><span class="label">Tip</span><input class="text-in" id="pf-tip" inputmode="decimal" autocomplete="off" placeholder="$0"></div></div>
+    <div class="field"><span class="label">How</span><div class="chips">${PAY_WAYS.map(w => `<button class="chip" data-act="pf-m" data-v="${w}" aria-pressed="${w === PF.method}">${w}</button>`).join('')}</div></div>
+    <div class="field"><span class="label">Day</span><input class="text-in" id="pf-date" type="date" value="${o.date || isoDay(T0)}"></div>
+    <button class="btn primary" style="width:100%" data-act="pf-save">Save payment</button>`);
+}
+const num = s => { const n = parseFloat(String(s || '').replace(/[^0-9.]/g, '')); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+function savePay(){
+  const amount = num($('#pf-amt').value), tip = num($('#pf-tip').value), c = $('#pf-c').value, date = $('#pf-date').value || isoDay(T0);
+  if (!amount) { toast('Add the amount first.'); return; }
+  LEDGER.push({uid:uidOf('p'), kind:'pay', date, amount, tip, method:PF.method, c:c || null, cname:c && CL[c] ? CL[c].name : null});
+  saveState(); closeSheet(); KEEP = {...S}; boot(KEY);
+  toast(`Saved ${money(amount)}${c && CL[c] ? ` from ${CL[c].name.split(' ')[0]}` : ''}, ${PF.method.toLowerCase()}.`);
+}
+// a cost: snap the receipt and Claude reads it (on the viewer's own Claude account); the photo is kept with the page where it can be
+let RC = null;
+const costCats = () => [...new Set([...COSTS.map(c => c.n), 'Supplies', 'Other'])];
+function openCost(){ RC = {url:null, asset:null, cat:'', reading:false, msg:''}; sheet(costHTML()); }
+function costHTML(){
+  const v = id => { const el = $('#' + id); return el ? esc(el.value) : ''; };
+  return `${top('Add a cost', 'Snap the receipt and Sole fills in the rest.')}
+    <label class="btn ${RC.url ? 'line' : 'primary'} rcp-snap" style="width:100%">${I.camera}${RC.url ? 'Take another photo' : 'Snap a receipt'}<input type="file" id="rc-file" accept="image/*" capture="environment" hidden></label>
+    ${RC.url ? `<img class="rcp-img" src="${RC.url}" alt="Receipt">` : ''}
+    <p class="small muted" id="rc-status" ${RC.reading || RC.msg ? '' : 'hidden'}>${RC.reading ? 'Reading the receipt…' : esc(RC.msg)}</p>
+    <div class="field"><span class="label">What for</span><input class="text-in" id="rc-what" autocomplete="off" placeholder="Store or what you paid for" value="${v('rc-what')}"></div>
+    <div class="two-in"><div class="field"><span class="label">Amount</span><input class="text-in" id="rc-amt" inputmode="decimal" autocomplete="off" placeholder="$0" value="${v('rc-amt')}"></div>
+      <div class="field"><span class="label">Day</span><input class="text-in" id="rc-date" type="date" value="${v('rc-date') || isoDay(T0)}"></div></div>
+    <div class="field"><span class="label">Kind of cost</span><div class="chips">${costCats().map(c => `<button class="chip" data-act="rc-cat" data-v="${esc(c)}" aria-pressed="${c === RC.cat}">${esc(c)}</button>`).join('')}</div></div>
+    <button class="btn primary" style="width:100%" data-act="rc-save" ${RC.reading ? 'disabled' : ''}>Save cost</button>`;
+}
+function rerenderCost(){ const sh = $('.sheet'); if (!sh || !RC) return; const sc = sh.scrollTop; sh.innerHTML = `<div class="grab"></div>${costHTML()}`; sh.scrollTop = sc; }
+async function takeReceipt(file){
+  const mine = RC; mine.url = URL.createObjectURL(file); mine.asset = null; mine.msg = '';
+  const use = n => window.claude && window.claude.use ? window.claude.use(n).catch(() => null) : Promise.resolve(null);
+  const [sample, assets] = await Promise.all([use('sample'), use('assets')]);
+  if (assets) assets.upload(file).then(r => { mine.asset = r.id; }).catch(() => {});
+  const lim = sample && sample.limits ? await sample.limits().catch(() => null) : null;
+  if (!sample || !lim || !lim.images) { mine.msg = 'Fill in the amount below.'; rerenderCost(); return; }
+  mine.reading = true; rerenderCost();
+  try {
+    const cats = costCats();
+    const r = await sample.json(`This photo is a receipt or bill paid by a small ${String(P.trade || 'service').toLowerCase()} business. Reply with only a JSON object: {"store": the shop or company name as a short string, "amount": the total paid as a number, "date": the purchase date as "YYYY-MM-DD" or null, "category": exactly one of ${JSON.stringify(cats)}}. If the photo isn't a receipt or bill, reply {"amount": null}.`, {images:file, modelTier:'quick'});
+    if (RC !== mine) return;
+    mine.reading = false;
+    if (!r || r.amount == null || !isFinite(+r.amount)) { mine.msg = 'Couldn’t read that one. Fill it in below.'; rerenderCost(); return; }
+    rerenderCost();
+    if (r.store) $('#rc-what').value = String(r.store).slice(0, 80);
+    $('#rc-amt').value = (+r.amount).toFixed(2);
+    if (r.date && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) $('#rc-date').value = r.date;
+    if (cats.includes(r.category)) { mine.cat = r.category; document.querySelectorAll('[data-act=rc-cat]').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === r.category)); }
+    mine.msg = 'Filled in from the receipt. Check it, then save.'; const st = $('#rc-status'); if (st) { st.hidden = false; st.textContent = mine.msg; }
+  } catch (e) {
+    if (RC !== mine) return;
+    mine.reading = false; mine.msg = e && e.code === 'not_granted' ? 'Fill in the amount below.' : 'Couldn’t read that one. Fill it in below.'; rerenderCost();
+  }
+}
+function saveCost(){
+  const amount = num($('#rc-amt').value), date = $('#rc-date').value || isoDay(T0), store = $('#rc-what').value.trim();
+  if (!amount) { toast('Add the amount first.'); return; }
+  LEDGER.push({uid:uidOf('c'), kind:'cost', date, amount, store, cat:RC.cat || 'Other', photo:RC.asset || null, photoUrl:RC.asset ? undefined : RC.url || undefined});
+  RC = null; saveState(); closeSheet(); KEEP = {...S}; boot(KEY); toast(`Saved ${money(amount)}${store ? ' at ' + store : ''}.`);
+}
+// notes on a client, written by the owner
+let EN = null;
+function openNotes(k, back){
+  const c = CL[k], massage = !c.rows; EN = {k, back, pressure:c.pressure || 0};
+  const f = (id, label, val, ph) => `<div class="field"><span class="label">${label}</span><input class="text-in" id="${id}" autocomplete="off" placeholder="${ph || ''}" value="${esc(val || '')}"></div>`;
+  sheet(`${top(`Notes on ${esc(first(k))}`, 'What you want to know before they come in.')}
+    ${c.mine ? f('en-name', 'Name', c.name.trim()) : ''}
+    ${f('en-phone', 'Phone', /not added/i.test(c.phone || '') ? '' : c.phone, '(555) 555-0123')}
+    ${massage ? `<div class="field"><span class="label">Pressure</span><div class="chips">${[[2,'Light'],[3,'Medium'],[4,'Firm'],[0,'Not known']].map(([p, l]) => `<button class="chip" data-act="en-p" data-v="${p}" aria-pressed="${pressureLvl(EN.pressure) === pressureLvl(p)}">${l}</button>`).join('')}</div></div>
+      ${f('en-focus', 'Focus', /not known/i.test(c.focus || '') ? '' : c.focus, 'Neck and shoulders')}${f('en-reason', 'Comes for', c.reason, 'Relaxation or a specific problem')}
+      ${f('en-health', 'Health', c.health, 'Anything to be careful of')}${f('en-avoid', 'Avoid', c.avoid, 'Areas, oils, scents')}${f('en-setup', 'Table', c.setup, 'Heat, bolsters, music')}`
+      : `${(c.rows || []).map(([l, v], i) => f('en-row-' + i, esc(l), v)).join('')}${f('en-avoid', 'Avoid', c.avoid)}`}
+    <div class="field"><span class="label">Last time</span><textarea class="text-in" id="en-note" style="min-height:90px" placeholder="What you worked on, what to try next">${esc(c.note || '')}</textarea></div>
+    <button class="btn primary" style="width:100%" data-act="en-save">Save notes</button>`);
+}
+function saveNotes(){
+  const c = CL[EN.k], v = id => { const el = $('#' + id); return el ? el.value.trim() : undefined; };
+  const x = {phone:v('en-phone') || (c.mine ? 'Not added yet' : ''), note:v('en-note'), avoid:v('en-avoid')};
+  if (!c.rows) Object.assign(x, {pressure:EN.pressure, focus:v('en-focus') || 'Not known yet', reason:v('en-reason'), health:v('en-health'), setup:v('en-setup')});
+  else x.rows = c.rows.map(([l], i) => [l, v('en-row-' + i) || '']);
+  Object.keys(x).forEach(f => { if (x[f] === undefined) delete x[f]; });
+  if (c.mine && v('en-name')) x.name = v('en-name');
+  Object.assign(c, x); if (!c.mine) { c.edited = true; if (NOTES) NOTES[EN.k] = {...(NOTES[EN.k] || {}), ...x}; }
+  const back = EN.back, k = EN.k; EN = null; render();
+  if (back) openAppt(+back); else openClient(k);
+  toast('Notes saved.');
 }
 function squareCard(){
   const y = SQX.years[String(CUR)] || {net:0, tips:0, fees:0, deposited:0, orders:0}, m = SQX.month;
@@ -1811,7 +2048,7 @@ function sheet(html, cls){
   $('#layer').innerHTML = `<div class="scrim" data-act="close"></div><div class="sheet ${cls || ''}" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
   const f = $('.sheet .close'); if (f) f.focus({preventScroll:true});
 }
-const closeSheet = () => { $('#layer').innerHTML = ''; };
+const closeSheet = () => { $('#layer').innerHTML = ''; if (LIVEBOOK) setTimeout(redrawLive, 0); };   // a change that came in while a sheet was open shows now
 const top = (h, sub) => `<div class="sh-top"><div><h2>${h}</h2>${sub?`<p>${sub}</p>`:''}</div><button class="close" data-act="close">Done</button></div>`;
 
 function notesHTML(k){
@@ -1828,13 +2065,14 @@ function notesHTML(k){
 function openAppt(id){
   const a = AP.find(x => x.id === id); if (!a) return;
   const c = CL[a.c], done = a.off < 0 || (a.off === 0 && endOf(a) <= NOW), future = !done;
-  const status = a.paid ? `<span class="tag ok">Paid ${money(SV[a.s].price)}${a.tip?' + '+money(a.tip)+' tip':''}</span>` : done ? '<span class="tag warn">Not paid</span>' : c.isNew ? `<span class="tag new">New ${W1}</span>` : '';
+  const status = a.paid ? `<span class="tag ok">Paid ${money(a.paidAmt != null ? a.paidAmt : SV[a.s].price)}${a.tip?' + '+money(a.tip)+' tip':''}${a.method && a.method !== 'Card' ? ' · ' + esc(a.method) : ''}</span>` : done ? '<span class="tag warn">Not paid</span>' : c.isNew ? `<span class="tag new">New ${W1}</span>` : '';
   sheet(`${top(c.name, `${cap(dayName(a.off))} · ${clock(a.start)} to ${clock(endOf(a))}<br>${svLabel(a.s)} · ${money(SV[a.s].price)}`)}
     ${status ? `<div>${status}</div>` : ''}
-    <div class="field"><span class="label">Before you start</span>${notesHTML(a.c)}</div>
+    <div class="field"><span class="label lbl-row">Before you start<button class="chip sm" data-act="editnotes" data-c="${a.c}" data-back="${a.id}">Edit</button></span>${notesHTML(a.c)}</div>
     <div class="btn-row">
       ${!a.paid ? `<button class="btn primary" data-act="charge" data-id="${a.id}">Charge ${money(SV[a.s].price)}</button>` : ''}
       ${future && a.off === 0 ? `<button class="btn" data-act="late" data-id="${a.id}">Running late</button>` : ''}
+      ${future && a.off > 0 && LIVEBOOK ? `<button class="btn" data-act="reach" data-c="${a.c}" data-kind="remind" data-id="${a.id}">Text a reminder</button>` : ''}
       ${!c.intake ? `<button class="btn" data-act="fillfor" data-c="${a.c}">Fill in ${P.intakeName}</button><button class="btn" data-act="intake" data-c="${a.c}">Text the form</button>` : ''}
       ${future ? `<button class="btn" data-act="move" data-id="${a.id}">Move</button>` : ''}
       <button class="btn" data-act="rebook" data-id="${a.id}">Rebook in ${Math.max(1, Math.round((c.every||28)/7))} wk</button>
@@ -1844,7 +2082,7 @@ function openAppt(id){
 }
 function openClient(k){
   const c = CL[k], n = nextAppt(k);
-  sheet(`${top(c.name, `<span class="phone">${c.phone}</span>`)}
+  sheet(`${top(esc(c.name), c.phone ? `<span class="phone">${esc(c.phone)}</span>` : '')}
     <p class="muted">${c.visits ? `${cap(W1)} since ${c.since}${c.every?` · usually every ${Math.round(c.every/7)} week${c.every>=14?'s':''}`:''}` : 'No visits yet'} · last in ${lastText(k).toLowerCase()}</p>
     ${(() => { const sp = spend(k); return `<div class="field"><span class="label">Spent with you</span><div class="spend">
       <div><span>This month</span><b>${money(sp.m.$)}</b><span>${sp.m.v} visit${sp.m.v===1?'':'s'}</span></div>
@@ -1852,17 +2090,21 @@ function openClient(k){
       <div><span>All time</span><b>${money(sp.a.$)}</b><span>${sp.a.v} visit${sp.a.v===1?'':'s'}</span></div></div>
       ${sp.a.v ? `<p class="small muted">About ${money(sp.price)} a visit, plus about ${money(sp.tipsY)} in tips this year.</p>` : ''}</div>`; })()}
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><span class="label">Next visit</span><p style="font-weight:600;margin-top:2px">${n ? `${whenText(n)} · ${svLabel(n.s)}` : 'Nothing booked'}</p></div>${n?`<button class="close" data-act="appt" data-id="${n.id}">Open</button>`:''}</div>
-    <div class="field"><span class="label">Notes</span>${notesHTML(k)}</div>
+    <div class="field"><span class="label lbl-row">Notes<button class="chip sm" data-act="editnotes" data-c="${k}">Edit</button></span>${notesHTML(k)}</div>
     ${(() => { const rs = RESP.filter(r => r.client === k); const intakeI = FORMS.findIndex(x => x.intake);
       return `<div class="field"><span class="label">Forms</span>${rs.map(r => `<button class="li" data-act="resp" data-v="${r.id}" style="background:var(--surface);border-radius:14px;box-shadow:var(--shadow)"><span class="t">${I.check.replace('<svg', '<svg width="20" height="20" style="color:var(--accent)"')}</span><span class="who"><b>${esc(r.form)}</b><span>Filled in ${MON[+r.date.slice(5,7)-1].slice(0,3)} ${+r.date.slice(8,10)}</span></span>${I.chev}</button>`).join('')}
         ${intakeI >= 0 && !rs.some(r => r.form === FORMS[intakeI].name) ? `<button class="btn line" data-act="fillfor" data-c="${k}">Fill in ${esc(FORMS[intakeI].name.toLowerCase())} now</button>` : ''}</div>`; })()}
-    <div class="btn-row"><button class="btn primary" data-act="book" data-c="${k}">Book ${first(k)}</button><button class="btn" data-act="reach" data-c="${k}" data-kind="hello">Write a text</button></div>`);
+    <div class="btn-row"><button class="btn primary" data-act="book" data-c="${k}">Book ${first(k)}</button><button class="btn" data-act="reach" data-c="${k}" data-kind="hello">Write a text</button></div>
+    <button class="btn line" style="width:100%;margin-top:10px" data-act="addpay" data-c="${k}">Add a payment from ${esc(first(k))}</button>`);
 }
-function msgSheet(title, text){
+function msgSheet(title, text, phone){
+  const tel = String(phone || '').replace(/[^0-9+]/g, '');
   sheet(`${top(title, 'Written for you. Change anything you like.')}
     <textarea class="text-in" id="msg" aria-label="Message">${esc(text)}</textarea>
-    <button class="btn primary" data-act="copy">Copy the text</button>
-    <p class="small muted">In this sample, copy it into Messages. The real app would send it from your number and show the reply here.</p>`);
+    ${LIVEBOOK ? `<div class="btn-row">${tel.length >= 10 ? `<a class="btn primary" id="msg-sms" href="sms:${tel}&body=${encodeURIComponent(text)}" target="_top">Open in Messages</a>` : ''}<button class="btn${tel.length >= 10 ? '' : ' primary'}" data-act="copy">Copy the text</button></div>
+      <p class="small muted">${tel.length >= 10 ? 'Messages opens with the text ready to send.' : `Copy it into Messages. Add a phone number to their notes and Sole opens Messages for you.`}</p>`
+    : `<button class="btn primary" data-act="copy">Copy the text</button>
+    <p class="small muted">In this sample, copy it into Messages. The real app would send it from your number and show the reply here.</p>`}`);
 }
 function messageFor(k, kind){
   const f = first(k), sl = soonSlots(2);
@@ -1871,6 +2113,10 @@ function messageFor(k, kind){
   if (kind === 'bday') return `Happy birthday, ${f}! I hope it’s a great one. If you’d like a ${P.treat} this month, I’ll take $15 off.`;
   if (kind === 'gift') return `Hi ${f}! Just a reminder that you have a ${money(CL[k].gift)} gift card with me. I have ${offer} open if you’d like to use it.`;
   if (kind === 'review') return `Hi ${f}, thank you for coming in today! If you have a minute, a short review on ${P.reviewOn} really helps a small business like mine: [review link]`;
+  if (kind === 'confirm' || kind === 'remind' || kind === 'moved') { const a = arguments[2] || nextAppt(k), when = a ? `${dayName(a.off)}${a.off > 6 ? ', ' + dayShort(a.off).slice(4) : ''} at ${clock(a.start)}` : 'soon';
+    return kind === 'confirm' ? `Hi ${f}! You’re booked for ${a ? svLabel(a.s) : P.unitOne} ${when}. See you then! ${P.owner}, ${P.biz}`
+      : kind === 'moved' ? `Hi ${f}, your ${P.unitOne} is now ${when}. See you then! ${P.owner}`
+      : `Hi ${f}! A reminder that I’ll see you ${when}. Reply if you need to change it. ${P.owner}`; }
   if (kind === 'intake') { const a = nextAppt(k); return `Hi ${f}, I’m looking forward to seeing you ${a ? dayName(a.off) + ' at ' + clock(a.start) : 'soon'}! Before you come, please fill in this short form so I can plan your session: ${INTAKE_URL}`; }
   return `Hi ${f}! `;
 }
@@ -1917,13 +2163,17 @@ function rerenderBook(){ const sc = $('.sheet').scrollTop; $('.sheet').innerHTML
 function bookGo(){
   if (!bookReady()) return;
   let msg;
-  if (B.kind === 'block') { BL.push({id:seq++, off:B.off, start:B.start, min:B.len, label:B.label, w:B.w, mine:true}); msg = `Blocked ${dayName(B.off)} ${clock(B.start)} for ${dur(B.len)}.`; }
-  else if (B.mode === 'move') { const a = AP.find(x => x.id === B.id); a.off = B.off; a.start = B.start; a.w = B.w; msg = `Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}. In the real app, ${first(a.c)} gets a text.`; }
+  if (B.kind === 'block') { BL.push({id:seq++, off:B.off, start:B.start, min:B.len, label:B.label, w:B.w, mine:true, uid:uidOf('b')}); msg = `Blocked ${dayName(B.off)} ${clock(B.start)} for ${dur(B.len)}.`; }
+  else if (B.mode === 'move') { const a = AP.find(x => x.id === B.id); a.off = B.off; a.start = B.start; a.w = B.w;
+    if (LIVEBOOK) { closeSheet(); render(); toast(`Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}.`); msgSheet(`Let ${first(a.c)} know`, messageFor(a.c, 'moved', a), CL[a.c].phone); return; }
+    msg = `Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}. In the real app, ${first(a.c)} gets a text.`; }
   else {
     let k = B.c;
-    if (k === 'new') { k = 'n' + seq; CL[k] = {name:B.newName.trim(), phone:'Not added yet', since:T0.getFullYear(), visits:0, last:null, isNew:true, intake:false, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true, ...(P.look === 'seaglass' ? {} : {rows:[]})}; if (!CL[k].name.includes(' ')) CL[k].name += ' '; }
-    add(k, B.s, B.off, B.start, {w:B.w, mine:true});
+    if (k === 'new') { k = 'n' + Date.now().toString(36); CL[k] = {name:B.newName.trim(), phone:'Not added yet', since:T0.getFullYear(), visits:0, last:null, isNew:true, intake:false, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true, ...(P.look === 'seaglass' ? {} : {rows:[]})}; if (!CL[k].name.includes(' ')) CL[k].name += ' '; }
+    const na = add(k, B.s, B.off, B.start, {w:B.w, mine:true, uid:uidOf('a')});
     if (B.fromReq) REQ.open = false;
+    if (LIVEBOOK) { if (S.tab === 'schedule') { S.day = B.off; S.week = Math.floor(B.off / 7); } closeSheet(); render(); toast(`Booked ${first(k)} for ${dayName(B.off)} at ${clock(B.start)}.`);
+      msgSheet(`Confirm with ${first(k)}`, messageFor(k, 'confirm', na), CL[k].phone); return; }
     msg = `Booked ${first(k)} for ${dayName(B.off)} at ${clock(B.start)}. In the real app, a confirmation text goes out.`;
   }
   if (S.tab === 'schedule') { S.day = B.off; S.week = Math.floor(B.off / 7); }
@@ -2113,12 +2363,9 @@ function toast(m){ clearTimeout(tt); let el = $('.toast'); if (!el) { el = docum
 on('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const v = el.dataset.v, id = +el.dataset.id;
-  if (LIVEBOOK && ['book', 'gap', 'move', 'cancel', 'rebook', 'unblock', 'req-ok', 'req-other', 'charge'].includes(el.dataset.act)) {
-    const pay = el.dataset.act === 'charge';
-    sheet(`${top(pay ? 'Charge it in Square' : 'Book it in Square', pay ? 'Take the payment in Square as usual.' : 'Your schedule lives in Square Appointments now.')}
-      <p>${pay ? 'It shows up here as paid a minute or two later.' : 'Open the Square Appointments app to book, move or cancel. The change shows up here a minute or two later.'}</p>`);
-    return;
-  }
+  { const a = el.dataset.id && ['move', 'cancel'].includes(el.dataset.act) ? AP.find(x => x.id === id) : null;
+    if (a && a.sq) { sheet(`${top('Booked in Square', `${first(a.c)} booked this in Square, so it changes there.`)}
+      <p>Open Square to move or cancel it. The change shows up here a minute or two later. New bookings made in Sole stay in Sole.</p>`); return; } }
   switch (el.dataset.act) {
     case 'tab': closeSheet(); S.tab = v; if (v === 'schedule') { S.day = 0; S.week = 0; } if (v === 'money') S.money = 'home'; render(); window.scrollTo(0,0); break;
     case 'money': closeSheet(); S.tab = 'money'; if (v === 'year') S.money = 'year'; else { S.money = 'day'; S.range = v; } render(); window.scrollTo(0,0); break;
@@ -2141,11 +2388,26 @@ on('click', e => {
     case 'close': closeSheet(); OB = null; FILL = null; break;
     case 'late': { const a = AP.find(x => x.id === id); msgSheet(`Text to ${first(a.c)}`, `Hi ${first(a.c)}, I’m running about 10 minutes behind. So sorry! I’ll see you at ${clock(a.start + 10)}.`); break; }
     case 'intake': msgSheet(`Text to ${first(el.dataset.c)}`, messageFor(el.dataset.c, 'intake')); break;
-    case 'reach': msgSheet(`Text to ${first(el.dataset.c)}`, messageFor(el.dataset.c, el.dataset.kind)); break;
+    case 'reach': msgSheet(`Text to ${first(el.dataset.c)}`, messageFor(el.dataset.c, el.dataset.kind, el.dataset.id ? AP.find(x => x.id === id) : undefined), CL[el.dataset.c].phone); break;
     case 'copy': { const ta = $('#msg'); const t = ta.value;
       try { navigator.clipboard.writeText(t).then(() => toast('Copied. Paste it into Messages.'), () => { ta.select(); toast('Press and hold the text to copy it.'); }); }
       catch (_) { ta.select(); toast('Press and hold the text to copy it.'); } break; }
-    case 'charge': { const a = AP.find(x => x.id === id); a.paid = true; closeSheet(); render(); toast(`Marked ${first(a.c)} paid, ${money(SV[a.s].price)}. In the real app, this opens Square with the amount ready.`); break; }
+    case 'charge': openCharge(AP.find(x => x.id === id)); break;
+    case 'charge-card': { const a = AP.find(x => x.id === id); a.paid = true; a.method = 'Card'; closeSheet(); render(); toast(`Marked ${first(a.c)} paid, ${money(SV[a.s].price)}. In the real app, this opens Square with the amount ready.`); break; }
+    case 'payfor': { const a = AP.find(x => x.id === id); openPay({c:a.c, amt:SV[a.s].price, date:isoDay(dateOf(a.off))}); break; }
+    case 'addpay': openPay(el.dataset.c ? {c:el.dataset.c} : {}); break;
+    case 'pf-m': PF.method = v; document.querySelectorAll('[data-act=pf-m]').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); break;
+    case 'pf-save': savePay(); break;
+    case 'rc-cat': RC.cat = v; document.querySelectorAll('[data-act=rc-cat]').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); break;
+    case 'rc-save': saveCost(); break;
+    case 'lg': openEntry(v); break;
+    case 'lg-del': $('#lg-confirm').hidden = false; break;
+    case 'lg-del-no': $('#lg-confirm').hidden = true; break;
+    case 'lg-del-yes': { const i = LEDGER.findIndex(x => x.uid === v); if (i >= 0) LEDGER.splice(i, 1); saveState(); closeSheet(); KEEP = {...S}; boot(KEY); toast('Removed.'); break; }
+    case 'lg-all': openLedger(); break;
+    case 'editnotes': openNotes(el.dataset.c, el.dataset.back); break;
+    case 'en-p': EN.pressure = +v; document.querySelectorAll('[data-act=en-p]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === +v)); break;
+    case 'en-save': saveNotes(); break;
     case 'move': { const a = AP.find(x => x.id === id); openBook({mode:'move', id:a.id, c:a.c, s:a.s, off:a.off, start:a.start, w:a.w}); break; }
     case 'rebook': { const a = AP.find(x => x.id === id), wk = Math.max(1, Math.round((CL[a.c].every || 28) / 7));
       let off = Math.max(a.off, 0) + wk * 7; while (isOff(off)) off++;
@@ -2243,8 +2505,7 @@ on('click', e => {
     case 'lic-save': { const w = $('#lic-when').value; if (!w) { toast('Pick the month it renews.'); break; }
       const [y, m] = w.split('-').map(Number); ACC.license = {name:($('#lic-name').value || '').trim(), next:`${MON[m-1]} ${y}`, short:`${MON[m-1].slice(0,3)} ${y}`};
       saveState(); closeSheet(); boot(KEY); break; }
-    case 'addcost': sheet(`${top('Add a cost', 'Rent, supplies, fuel, insurance, anything you pay for.')}
-      <div class="card facts2"><p>In the real app you snap a photo of the receipt. Sole reads the amount and the store, files it, and it shows up in “Where it goes” and in what you kept.</p></div>`); break;
+    case 'addcost': openCost(); break;
     case 'fillsample': if (ACC) { ACC.sample = true; saveState(); closeSheet(); window.scrollTo(0,0); boot(KEY); setTimeout(() => toast('Sample customers and numbers added. Clear them from the business menu.'), 50); } break;
     case 'clearsample': if (ACC) { delete ACC.sample; saveState(); closeSheet(); window.scrollTo(0,0); boot(KEY); setTimeout(() => toast('Sample data cleared.'), 50); } break;
     case 'welcome-setup': try { localStorage.setItem('sole-seen', '1'); } catch (_) {} OB = {step:1, trade:null, what:'', who:0, unit:0, biz:'', owner:'', mate:'', two:false, logo:null, colors:[], color:null, docs:[], prices:{}, names:{}}; obRender(); break;
@@ -2268,6 +2529,7 @@ on('change', e => {
   if (e.target.dataset && e.target.dataset.yn) { const m = $('#ff-' + e.target.dataset.yn + '-more'); if (m) { m.hidden = e.target.value !== 'yes'; if (!m.hidden) m.focus(); } }
   if (e.target.id === 'ob-logo' && OB) obLogo(e.target.files[0]);
   if (e.target.id === 'ob-docs' && OB) obDocs(e.target.files);
+  if (e.target.id === 'rc-file' && RC && e.target.files[0]) takeReceipt(e.target.files[0]);
 });
 on('input', e => {
   if (OB && e.target.id === 'ob-biz') OB.biz = e.target.value;

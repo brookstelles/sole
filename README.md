@@ -34,4 +34,4 @@ A business made in setup starts empty: a "Get set up" list (first customer, firs
 
 This repo is private because `index.html` holds Heart and Soul Massage's real yearly numbers. Before showing Sole to anyone else, publish a demo build with a made-up massage business in place of Kelli's.
 
-Today the daily schedule, payments and per-customer spending are sample data, and businesses created in setup live in the browser that made them. Next: Square and a booking calendar, then a real database for accounts and uploads.
+Heart and Soul Massage runs on its own book in the private edition: appointments, time off, clients and notes, cash and Zelle payments and costs live in the page's database and sync between phones; card payments and card customers come live from Square. Sample businesses keep what's added for the visit, and businesses created in setup keep it in the browser that made them. Next: Sole on its own website, so clients can book themselves, get reminders and fill in forms from a link.

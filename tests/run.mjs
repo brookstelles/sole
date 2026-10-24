@@ -25,7 +25,7 @@ async function tour(p, label){
     await p.click('[data-act=ask][data-q*="spent"]');
     await p.click('.tab[data-v=schedule]'); await p.click('[data-act=day] >> nth=2');
     if (await p.locator('[data-act=gap]').count()) { await p.click('[data-act=gap] >> nth=0'); await p.click('[data-act=b-c] >> nth=0');
-      if (await p.locator('[data-act=b-t]').count()) { await p.click('[data-act=b-t] >> nth=0'); await p.click('#book-go'); } else await p.click('.sheet .close'); }
+      if (await p.locator('[data-act=b-t]').count()) { await p.click('[data-act=b-t] >> nth=0'); await p.click('#book-go'); if (await p.locator('.sheet .close').count()) await p.click('.sheet .close'); } else await p.click('.sheet .close'); }
     await p.click('.tab[data-v=money]'); await p.click('.topc >> nth=0'); await p.click('.sheet .close');
     await p.click('[data-act=snapgo][data-sec=y-costs] >> nth=0');
     await p.click('.tab[data-v=forms]'); await p.click('.tab[data-v=today]');
@@ -101,11 +101,45 @@ console.log('ok private Square views');
   await q.click('[data-act=appt] >> nth=0');
   check(/Spent with you|Before you start/.test(await q.textContent('.sheet')), 'bookings: a booking opens');
   await q.click('.sheet [data-act=move]');
-  check(/Book it in Square/.test(await q.textContent('.sheet')), 'bookings: moving points to Square');
+  check(/Booked in Square/.test(await q.textContent('.sheet')), 'bookings: moving a Square booking points to Square');
   await q.click('.sheet .close');
   check(!(await wide(q)), 'bookings: wider than the phone');
   await q.close();
   console.log('ok Square bookings');
+}
+// Kelli's own book: appointments, clients, payments and costs kept in Sole (made-up data, the way the page's database holds it)
+{
+  const today = new Date(), iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const sole = {appts:[{uid:'aT1', c:'nTEST', s:'sw60', date:iso(today), start:1380, paid:false, tip:0, w:'Kelli'}], blocks:[],
+    clients:{nTEST:{name:'Casey Sample', phone:'(555) 010-0000', since:2026, visits:0, last:null, isNew:true, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}}, ledger:[]};
+  const base = JSON.parse(sq);
+  const q = await open('index.html', `window.__SOLE_SQUARE = ${JSON.stringify({...base, sole})};`);
+  check(/Casey Sample/.test(await q.textContent('main')), 'own book: an appointment kept in Sole shows today');
+  await q.click('[data-act=appt] >> nth=0'); await q.click('.sheet [data-act=editnotes]');
+  await q.click('.sheet [data-act=en-p][data-v="4"]'); await q.fill('#en-focus', 'Low back'); await q.fill('#en-health', 'Test allergy'); await q.click('.sheet [data-act=en-save]');
+  const ap = await q.textContent('.sheet');
+  check(/Low back/.test(ap) && /Firm/.test(ap) && /Test allergy/.test(ap), 'own book: edited notes show before the appointment');
+  await q.click('.sheet .close');
+  check(await q.evaluate(() => SQ.sole.clients.nTEST.focus) === 'Low back', 'own book: notes are saved to the book');
+  await q.click('.tab[data-v=money]');
+  await q.click('#s-books [data-act=addpay]'); await q.fill('#pf-amt', '80'); await q.click('.sheet [data-act=pf-m][data-v=Zelle]'); await q.click('.sheet [data-act=pf-save]');
+  check(/\+\$80/.test(await q.textContent('#s-books')) && /Zelle/.test(await q.textContent('#s-books')), 'own book: a Zelle payment shows in Money in and out');
+  await q.click('#s-books [data-act=addcost]'); await q.fill('#rc-what', 'Test Oils'); await q.fill('#rc-amt', '42.50'); await q.click('.sheet [data-act=rc-cat][data-v=Supplies]'); await q.click('.sheet [data-act=rc-save]');
+  check(/Test Oils/.test(await q.textContent('#s-books')) && /\$43/.test(await q.textContent('#s-books')), 'own book: a cost shows in Money in and out');
+  check(await q.evaluate(() => SQ.sole.ledger.length) === 2, 'own book: payment and cost are saved to the book');
+  await q.click('#s-books [data-act=lg]:has-text("Test Oils")'); await q.click('.sheet [data-act=lg-del]'); await q.click('.sheet [data-act=lg-del-yes]');
+  check(await q.evaluate(() => SQ.sole.ledger.length) === 1, 'own book: an entry can be removed');
+  await q.click('.tab[data-v=today]');
+  check(/Today so far\s*\$80/.test(await q.textContent('.glance')), 'own book: Today counts the Zelle payment');
+  await q.click('.tab[data-v=schedule]'); await q.click('[data-act=day] >> nth=0');
+  for (let i = 0; i < 7 && !(await q.locator('[data-act=gap]').count()); i++) await q.click(`[data-act=day] >> nth=${i}`);
+  await q.click('[data-act=gap] >> nth=0'); await q.click('.sheet [data-act=b-c] >> nth=0'); await q.click('.sheet [data-act=b-t] >> nth=0'); await q.click('#book-go');
+  check(/You’re booked/.test(await q.inputValue('#msg')), 'own book: booking offers a confirmation text');
+  await q.click('.sheet .close');
+  check(await q.evaluate(() => SQ.sole.appts.length) === 2, 'own book: the new booking is saved to the book');
+  check(!(await wide(q)), 'own book: wider than the phone');
+  await q.close();
+  console.log('ok own book');
 }
 await tour(p, 'private');
 
@@ -133,14 +167,16 @@ await p.click('.gs[data-act=connect][data-v=square]'); await p.click('[data-act=
 check((await p.textContent('.getstarted .aside')).startsWith('3 of 6'), 'three steps done after customer, booking and Square');
 await p.click('.tab[data-v=money]');
 check(/Jordan Ellis/.test(await p.textContent('#s-clients')), 'new customer shows in Snapshot');
-await p.click('.tab[data-v=schedule]'); await p.click('[data-act=day] >> nth=1');
-check(/Jordan Ellis/.test(await p.textContent('main')), 'booking shows on the schedule');
+const findDay = async (re) => { await p.click('.tab[data-v=schedule]'); for (let i = 0; i < 7; i++) { await p.click(`[data-act=day] >> nth=${i}`); if (re.test(await p.textContent('main'))) return true; } return false; };
+check(await findDay(/Jordan Ellis/), 'booking shows on the schedule');
 check(/Full detail/.test(await p.textContent('main')), 'renamed service is used');
 await p.reload({waitUntil:'networkidle'});
 check((await p.textContent('.biz-name')) === 'Shine On Detailing', 'business is still open after a reload');
 check((await p.textContent('.getstarted .aside')).startsWith('3 of 6'), 'progress is kept after a reload');
-await p.click('.tab[data-v=schedule]'); await p.click('[data-act=day] >> nth=1');
-check(/Jordan Ellis/.test(await p.textContent('main')), 'booking is kept after a reload');
+check(await findDay(/Jordan Ellis/), 'booking is kept after a reload');
+await p.click('.tab[data-v=money]'); await p.click('#s-books [data-act=addpay]'); await p.selectOption('#pf-c', {label:'Jordan Ellis'}); await p.fill('#pf-amt', '180'); await p.click('.sheet [data-act=pf-save]');
+await p.reload({waitUntil:'networkidle'}); await p.click('.tab[data-v=money]');
+check(/Jordan Ellis/.test(await p.textContent('#s-books')) && /\+\$180/.test(await p.textContent('#s-books')), 'a cash payment is kept after a reload');
 await p.click('.tab[data-v=today]'); await p.click('[data-act=fillsample]');
 check(!(await p.locator('.getstarted').count()) && /customers today/.test(await p.textContent('.lede')), 'sample data fills the business');
 await p.click('[data-act=trade]'); await p.click('[data-act=clearsample]');
