@@ -12,3 +12,7 @@ if left: sys.exit('private details left in the demo: ' + ', '.join(left))
 (root / 'dist').mkdir(exist_ok=True)
 (root / 'dist/demo.html').write_text(out)
 print('dist/demo.html', len(out), 'bytes')
+# the website (sole.brookstelles.com, Cloudflare): publish only the app, never the rest of the repository
+(root / 'site').mkdir(exist_ok=True)
+(root / 'site/index.html').write_text(src)
+print('site/index.html', len(src), 'bytes')

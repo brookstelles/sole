@@ -1,0 +1,10 @@
+// Cloudflare deploys this repository to sole.brookstelles.com (behind Cloudflare Access).
+// Only site/ is published; build_demo.py copies index.html there. The workers.dev and preview addresses stay off.
+{
+  "name": "sole",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "./site" },
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "sole.brookstelles.com", "custom_domain": true }]
+}

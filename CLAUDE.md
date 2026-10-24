@@ -23,6 +23,10 @@ Sole (spelled S-O-L-E, as in sole proprietor; never "Soleil") is a phone app for
 - Private edition: `index.html` to https://claude.ai/artifact/AsBAX1NXNyuv6T1MdPGVSd
 - Public demo: `dist/demo.html` to https://claude.ai/artifact/Wk3yTmZAva3UbfY6eShtXe
 
+## Website
+
+- Moving off claude.ai (decided Oct 24, 2026). sole.brookstelles.com is a Cloudflare Worker (static assets) built from this repo on every push to `main`, locked with Cloudflare Access (Zero Trust application "sole": only brookstelles@gmail.com and Kelli's email, one-time PIN). `wrangler.jsonc` publishes only `site/` (`build_demo.py` copies `index.html` there) and keeps the workers.dev and preview addresses off; never publish the repository root. Until the database, logins and Square move to Supabase and a Square developer app, the site can't load Kelli's book or Square, so she keeps using the claude.ai link.
+
 ## Drive
 
 Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`). The plan is the Google Doc *Sole: Product Plan* (id `1SlNHcJMCPG62BhRMYFlwJBEBfTX0bgCNOZ0OWURUXUg`); keep its "Next steps" current. Kelli's source data is in Business / Heart and Soul / Taxes (Heart and Soul Breakdown, Heart and Soul 2024, Heart and Soul 2025).
