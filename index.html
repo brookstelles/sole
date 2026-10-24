@@ -113,6 +113,10 @@ main{display:flex;flex-direction:column;gap:22px}
 .num.out{color:var(--muted)}
 .rcp-snap{cursor:pointer}
 .rcp-img{display:block;width:100%;max-height:340px;object-fit:contain;border-radius:14px;background:var(--sunk);margin-block:10px}
+.signin{max-width:420px;margin:12vh auto 0;display:grid;gap:14px;text-align:center}
+.signin .brand{display:grid;justify-items:center;gap:6px;color:var(--accent)}
+.signin .brand b{font-family:var(--display);font-size:40px;font-weight:400;color:var(--ink)}
+.signin form{display:grid;gap:10px}
 .li.wk{grid-template-columns:62px 1fr auto}
 .wk-btns{display:flex;flex-direction:column;gap:6px}
 .btn.sm{min-height:36px;padding:6px 12px;font-size:14px;border-radius:11px}
@@ -562,6 +566,8 @@ const PROFILES = {
        lines:['National hotline: <span class="phone">(888) 373-7888</span>', 'Palm Beach County Sheriff: <span class="phone">(561) 688-3400</span>']},
     ],
     formsNote:'Forms open in Google Drive, where you can print them or share them.',
+    // Sole's own website: the Supabase project's URL and publishable key (safe in the page), and where it runs
+    cloud:{url:'', key:'', host:/(^|\.)brookstelles\.com$/},
   },
   /* PRIVATE:END */
 
@@ -1442,7 +1448,7 @@ let BOOKS_NOTE = P.booksNote;
 if (SQX && BOOKS[2025] && P.booksNote) {
   const add = ['09','10','11','12'].reduce((t, m) => t + ((SQX.months['2025-' + m] || {}).net || 0), 0);
   BOOKS[2025] = {...BOOKS[2025], take:BOOKS[2025].take + add, kept:BOOKS[2025].kept + add};
-  BOOKS_NOTE = `Includes ${money(add)} of Square payments from September to December 2025 that weren’t in the sheet. Card tips aren’t counted here: ${money(SQX.years['2024'].tips)} in 2024 and ${money(SQX.years['2025'].tips)} in 2025.`;
+  BOOKS_NOTE = `Includes ${money(add)} of Square payments from September to December 2025 that weren’t in the sheet. Card tips aren’t counted here: ${money((SQX.years['2024'] || {tips:0}).tips)} in 2024 and ${money((SQX.years['2025'] || {tips:0}).tips)} in 2025.`;
 }
 const sqName = c => c.name || `Card customer ${c.id.slice(-4)}`;
 const unitCap = cap(P.unit);
@@ -1830,15 +1836,16 @@ function openLedger(){
 }
 function openEntry(id){
   const x = LEDGER.find(y => y.uid === id); if (!x) return;
+  setTimeout(showPhotos, 0);
   const d = new Date(x.date + 'T12:00:00'), when = `${DOW[d.getDay()]}, ${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
-  const img = x.photoUrl || (x.photo ? '/_blob/' + x.photo : '');
+  const img = x.photoUrl || (x.photo && !CLOUD_ON ? '/_blob/' + x.photo : '');
   sheet(`${top(x.kind === 'pay' ? `${money(x.amount)} ${esc(x.method || '')}` : `${money(x.amount)} · ${esc(x.store || x.cat || 'Cost')}`, when)}
     <dl class="notes">
       ${x.kind === 'pay' ? `<div class="note"><dt>From</dt><dd>${esc(x.c && CL[x.c] ? CL[x.c].name : x.cname || 'Not listed')}</dd></div>${x.tip ? `<div class="note"><dt>Tip</dt><dd>${money(x.tip)}</dd></div>` : ''}`
         : `<div class="note"><dt>For</dt><dd>${esc(x.cat || 'Other')}</dd></div>`}
       ${x.note ? `<div class="note"><dt>Note</dt><dd>${esc(x.note)}</dd></div>` : ''}
     </dl>
-    ${img ? `<img class="rcp-img" src="${img}" alt="Receipt">` : ''}
+    ${img ? `<img class="rcp-img" src="${img}" alt="Receipt">` : x.photo && CLOUD_ON ? `<img class="rcp-img" data-photo="${esc(x.photo)}" alt="Receipt">` : ''}
     <button class="btn line danger-line" data-act="lg-del">Remove this ${x.kind === 'pay' ? 'payment' : 'cost'}</button>
     <div class="confirm" id="lg-confirm" hidden><p>Remove it? This can’t be undone.</p><div class="btn-row"><button class="btn danger" data-act="lg-del-yes" data-v="${x.uid}">Yes, remove</button><button class="btn" data-act="lg-del-no">Keep it</button></div></div>`);
 }
@@ -2699,7 +2706,126 @@ if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.g
     <button class="btn primary" data-act="welcome-setup">Set up my business</button>
     <button class="btn line" data-act="welcome-look">Look around a sample business</button>`); }
 }
+/* ---------- Sole on its own website: Supabase in place of claude.ai ----------
+   On Sole's own website the app signs in with Supabase (email and a one-time code), keeps the book in its tables
+   and reads Square payments that the square Edge Function writes. It does this by standing in for window.claude, so
+   the rest of the app is the same on both. On claude.ai nothing here runs. */
+const CLOUD_CFG = PROFILES.massage.cloud || {};   // set in the private edition only
+const CLOUD_ON = !!window.__SOLE_CLOUD_CLIENT || (!!CLOUD_CFG.url && !!CLOUD_CFG.host && CLOUD_CFG.host.test(location.hostname));
+let SB = null, BIZ = null, SQ_CACHE = null;
+function cloudScreen(html){ document.documentElement.dataset.look = 'sole'; $id('hdr').innerHTML = ''; $id('tabs').innerHTML = ''; $id('main').innerHTML = `<section class="signin">${html}</section>`; }
+const $id = id => document.getElementById(id);
+const cloudEsc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function signInHTML(step, email, msg){
+  const mark = `<svg viewBox="-32 -32 64 64" width="56" height="56" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle r="10" fill="currentColor"/>${Array.from({length:8}, (_, i) => `<path transform="rotate(${i*45})" d="M0 -16V-25"/>`).join('')}</g></svg>`;
+  return `<div class="brand">${mark}<b>Sole</b></div>
+    ${step === 'email' ? `<p>Sign in with your email. We’ll send you a code.</p>
+      <form id="si-form"><input class="text-in" id="si-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" value="${cloudEsc(email || '')}" required>
+      <button class="btn primary" style="width:100%">Send me a code</button></form>`
+    : `<p>We sent a code to <b>${cloudEsc(email)}</b>. Type it here.</p>
+      <form id="si-form"><input class="text-in" id="si-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="10" required>
+      <button class="btn primary" style="width:100%">Sign in</button></form>
+      <button class="btn line" style="width:100%;margin-top:10px" id="si-back">Use a different email</button>`}
+    <p class="small muted" id="si-msg">${cloudEsc(msg || '')}</p>`;
+}
+function askSignIn(step = 'email', email = '', msg = ''){
+  cloudScreen(signInHTML(step, email, msg));
+  const form = $id('si-form'), say = t => { $id('si-msg').textContent = t; };
+  const back = $id('si-back'); if (back) back.onclick = () => askSignIn('email', email);
+  form.onsubmit = async e => {
+    e.preventDefault(); const btn = form.querySelector('button'); btn.disabled = true;
+    try {
+      if (step === 'email') { const em = $id('si-email').value.trim().toLowerCase();
+        const { error } = await SB.auth.signInWithOtp({email:em, options:{shouldCreateUser:true}}); if (error) throw error; askSignIn('code', em); }
+      else { const { error } = await SB.auth.verifyOtp({email, token:$id('si-code').value.trim(), type:'email'}); if (error) throw error; cloudGo(); }
+    } catch (err) { btn.disabled = false; say(step === 'email' ? 'That didn’t send. Check the email and try again.' : 'That code didn’t work. Check it, or send a new one.'); }
+  };
+}
+// Square payments from the tables, in the shape the app already reads (square/summary, square/customers, live payments)
+function squareShape(pays, names){
+  const c = x => ((x || {}).amount || 0) / 100, months = {}, fees = {}, per = {}, now = new Date(), yk = String(now.getFullYear()), mk = isoDay(now).slice(0,7);
+  pays.filter(p => p.status === 'COMPLETED').forEach(p => {
+    const d = new Date(p.created_at), day = isoDay(d), m = day.slice(0,7), back = c(p.refunded_money), net = Math.max(0, c(p.amount_money) - back), tip = c(p.tip_money);
+    const mo = months[m] || (months[m] = {net:0, tips:0, collected:0, orders:0}); mo.net += net; mo.tips += tip; mo.collected += Math.max(0, c(p.total_money) - back); mo.orders++;
+    fees[day.slice(0,4)] = (fees[day.slice(0,4)] || 0) + (p.processing_fee || []).reduce((t, f) => t + c(f.amount_money), 0);
+    if (p.customer_id) { const x = per[p.customer_id] || (per[p.customer_id] = {id:p.customer_id, name:names[p.customer_id] || null, all:{n:0, net:0, tips:0}, year:{n:0, net:0, tips:0}, month:{n:0, net:0}, last:''});
+      x.all.n++; x.all.net += net; x.all.tips += tip; if (day.startsWith(yk)) { x.year.n++; x.year.net += net; x.year.tips += tip; } if (m === mk) { x.month.n++; x.month.net += net; } if (day > x.last) x.last = day; }
+  });
+  const iso = now.toISOString();
+  return {summary:{updated:iso, through:isoDay(now), source:'Square', months, fees, days:{}}, customers:Object.values(per).sort((a, b) => b.all.net - a.all.net)};
+}
+async function loadAll(q){ let out = [], from = 0; for (;;) { const { data, error } = await q().range(from, from + 999); if (error) throw error; out = out.concat(data); if (data.length < 1000) return out; from += 1000; } }
+async function loadSquareTables(){
+  const [pays, cust] = await Promise.all([loadAll(() => SB.from('square_payments').select('data').eq('business_id', BIZ).order('created_at')), loadAll(() => SB.from('square_customers').select('id,name').eq('business_id', BIZ))]);
+  SQ_CACHE = {pays:new Map(pays.map(r => [r.data.id, r.data])), names:Object.fromEntries(cust.map(r => [r.id, r.name]))};
+}
+// the claude.ai calls the app makes, answered from Supabase
+function cloudDb(){
+  const itemCols = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks', 'forms', 'people'];
+  const listeners = {};
+  const snap = (id, data) => ({id, exists:data != null, data:() => data});
+  const docRef = (col, id) => ({
+    id,
+    async get(){
+      if (col === 'square') { const sh = squareShape([...SQ_CACHE.pays.values()], SQ_CACHE.names); return id === 'summary' ? (SQ_CACHE.pays.size ? snap(id, sh.summary) : snap(id, null)) : snap(id, {list:sh.customers}); }
+      const { data, error } = await SB.from('items').select('data').eq('business_id', BIZ).eq('col', col).eq('id', id).maybeSingle(); if (error) throw error; return snap(id, data ? data.data : null); },
+    async set(data){ const { error } = await SB.from('items').upsert({business_id:BIZ, col, id, data, updated_at:new Date().toISOString()}); if (error) throw error; },
+    async delete(){ const { error } = await SB.from('items').delete().eq('business_id', BIZ).eq('col', col).eq('id', id); if (error) throw error; },
+  });
+  SB.channel('book-' + BIZ).on('postgres_changes', {event:'*', schema:'public', table:'items', filter:`business_id=eq.${BIZ}`}, ev => {
+    const row = ev.eventType === 'DELETE' ? ev.old : ev.new; (listeners[row.col] || []).forEach(fn => fn({docChanges:() => [{type:ev.eventType === 'DELETE' ? 'removed' : 'modified', doc:snap(row.id, ev.eventType === 'DELETE' ? null : row.data)}]}));
+  }).subscribe();
+  return {
+    doc:path => { const [col, id] = path.split('/'); return docRef(col, id); },
+    collection:col => ({
+      doc:id => docRef(col, id),
+      async get(){ if (!itemCols.includes(col)) return {docs:[]}; const rows = await loadAll(() => SB.from('items').select('id,data').eq('business_id', BIZ).eq('col', col)); return {docs:rows.map(r => snap(r.id, r.data))}; },
+      onSnapshot(next){ (listeners[col] = listeners[col] || []).push(next); return () => { listeners[col] = listeners[col].filter(f => f !== next); }; },
+    }),
+  };
+}
+function cloudAssets(){
+  return {async upload(file){ const ext = (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg'), path = `${BIZ}/${uidOf('r')}.${ext}`;
+    const { error } = await SB.storage.from('receipts').upload(path, file, {contentType:file.type}); if (error) throw error;
+    return {id:path, url:URL.createObjectURL(file)}; }};
+}
+// receipt photos are private: fetch a short-lived link to show one
+async function showPhotos(){ if (!SB) return; for (const img of document.querySelectorAll('img[data-photo]')) { const { data } = await SB.storage.from('receipts').createSignedUrl(img.dataset.photo, 600); if (data) img.src = data.signedUrl; } }
+function liveFromCache(){
+  if (!SQ || !SQ.summary || !SQ_CACHE) return;
+  const from = liveFrom(), pays = [...SQ_CACHE.pays.values()].filter(p => new Date(p.created_at) >= from);
+  SQ.live = {payments:pays, from:isoDay(from), at:new Date(), sig:pays.length + ':' + pays.map(p => p.id + p.status + (p.updated_at || '')).join().length};
+}
+async function cloudGo(){
+  cloudScreen('<p class="muted">Opening your book…</p>');
+  const { data:biz } = await SB.from('businesses').select('id,name,profile').limit(1);
+  if (!biz || !biz.length) { const { data:u } = await SB.auth.getUser(); cloudScreen(`${signInHTML('email', '', '')}`); $id('si-msg').textContent = `${(u && u.user && u.user.email) || 'This email'} isn’t on a business in Sole yet.`; askSignIn('email', '', `${(u && u.user && u.user.email) || 'That email'} isn’t on a business in Sole yet.`); return; }
+  BIZ = biz[0].id;
+  try { await loadSquareTables(); } catch (_) { SQ_CACHE = {pays:new Map(), names:{}}; }
+  const db = cloudDb(), assets = cloudAssets();
+  window.claude = {use:name => Promise.resolve(name === 'db' ? db : name === 'assets' ? assets : null)};
+  await loadSquare(biz[0].profile || 'massage');
+  liveFromCache(); if (SQ) { SOLE_VER++; redrawLive(); }
+  // a card tapped in Square shows up the moment Square tells the server
+  SB.channel('pays-' + BIZ).on('postgres_changes', {event:'*', schema:'public', table:'square_payments', filter:`business_id=eq.${BIZ}`}, ev => {
+    if (!ev.new || !ev.new.data) return; SQ_CACHE.pays.set(ev.new.data.id, ev.new.data);
+    const sh = squareShape([...SQ_CACHE.pays.values()], SQ_CACHE.names); SQ.summary = sh.summary; SQ.customers = sh.customers; liveFromCache(); SOLE_VER++; redrawLive();
+  }).subscribe();
+  // catch up on anything Square sent while no one was looking (the first time, everything since 2022)
+  SB.functions.invoke('square', {body:{business_id:BIZ, full:!SQ_CACHE.pays.size}}).then(async r => {
+    if (r && r.data && r.data.payments) { await loadSquareTables(); const sh = squareShape([...SQ_CACHE.pays.values()], SQ_CACHE.names); if (sh.customers.length || SQ_CACHE.pays.size) { SQ.summary = sh.summary; SQ.customers = sh.customers; liveFromCache(); SOLE_VER++; redrawLive(); } }
+  }).catch(() => {});
+}
+async function cloudStart(){
+  cloudScreen('<p class="muted">Opening Sole…</p>');
+  if (window.__SOLE_CLOUD_CLIENT) SB = window.__SOLE_CLOUD_CLIENT;   // tests: a stand-in for Supabase
+  else { await new Promise((ok, fail) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/dist/umd/supabase.min.js'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc); });
+    SB = window.supabase.createClient(CLOUD_CFG.url, CLOUD_CFG.key, {auth:{persistSession:true, autoRefreshToken:true}}); }
+  const { data } = await SB.auth.getSession();
+  if (data && data.session) cloudGo(); else askSignIn();
+}
+
 let START = 'massage';
 try { START = localStorage.getItem('sole-current') || START; } catch (_) {}
-boot(PROFILES[START] || ACCOUNTS[START] ? START : 'massage');
+if (CLOUD_ON) cloudStart(); else boot(PROFILES[START] || ACCOUNTS[START] ? START : 'massage');
 </script>

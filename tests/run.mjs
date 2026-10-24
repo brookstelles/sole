@@ -179,6 +179,33 @@ console.log('ok private Square views');
   await r.close();
   console.log('ok weekly check and visit notes');
 }
+// Sole's own website: sign in with a code, the book and Square payments from Supabase (a stand-in client, made-up data)
+{
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const now = new Date(), early = new Date(now); early.setHours(0, 5, 0, 0);
+  const pay = (id, when, amt, tip, cust) => ({id, created_at:when.toISOString(), updated_at:when.toISOString(), status:'COMPLETED', customer_id:cust, amount_money:{amount:amt}, tip_money:{amount:tip}, total_money:{amount:amt + tip}, processing_fee:[{amount_money:{amount:300}}]});
+  const seed = {items:[{business_id:'B1', col:'clients', id:'nC', data:{name:'Cloud Sample', phone:'', since:2026, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}},
+      {business_id:'B1', col:'appts', id:'aC', data:{c:'nC', s:'sw60', date:iso(now), start:1410, paid:false, tip:0, w:'Kelli'}}],
+    payments:[{business_id:'B1', id:'P1', created_at:'2026-03-02T15:00:00Z', status:'COMPLETED', customer_id:'TESTCUST1', data:pay('P1', new Date('2026-03-02T15:00:00Z'), 11500, 2000, 'TESTCUST1')}],
+    customers:[{business_id:'B1', id:'TESTCUST1', name:'Test Card Person'}]};
+  const fake = fs.readFileSync(fx + 'fake-supabase.js', 'utf8');
+  const q = await open('index.html', `window.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
+  check(/Send me a code/.test(await q.textContent('main')), 'website: asks to sign in');
+  await q.fill('#si-email', 'test@example.com'); await q.click('#si-form button');
+  await q.fill('#si-code', '123456'); await q.click('#si-form button'); await q.waitForSelector('.biz-name');
+  check(/Cloud Sample/.test(await q.textContent('main')), 'website: the book loads from the database');
+  check(await q.evaluate(() => __FAKE.invoked.length === 1), 'website: asks the server to catch up with Square');
+  await q.click('.tab[data-v=money]');
+  check(/\$115/.test(await q.textContent('main')) && /Test Card Person/.test(await q.textContent('#s-clients')), 'website: Square payments and card customers come from the tables');
+  await q.click('#s-books [data-act=addpay]'); await q.fill('#pf-amt', '60'); await q.click('.sheet [data-act=pf-save]'); await q.waitForTimeout(200);
+  check(await q.evaluate(() => __FAKE.T.items.some(r => r.col === 'ledger' && r.data.amount === 60)), 'website: a payment is saved to the database');
+  await q.evaluate(p => __FAKE.emit('square_payments', {eventType:'INSERT', new:{data:p}}), pay('P2', early, 9500, 1500, null));
+  await q.click('.tab[data-v=today]'); await q.waitForTimeout(100);
+  check(/Today so far\s*\$155/.test(await q.textContent('.glance')), 'website: a card payment shows the moment it comes in');
+  check(!(await wide(q)), 'website: wider than the phone');
+  await q.close();
+  console.log('ok website');
+}
 await tour(p, 'private');
 
 // public demo: welcome first, no private business anywhere
