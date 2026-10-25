@@ -1,6 +1,6 @@
 """Builds the public demo: index.html with the private massage business swapped for demo/massage.js.
 Usage: python3 build_demo.py   ->  dist/demo.html. Fails if any private detail is left in the output."""
-import sys, pathlib
+import re, sys, pathlib
 root = pathlib.Path(__file__).parent
 src = (root / 'index.html').read_text()
 a, b = src.index('/* PRIVATE:START */'), src.index('/* PRIVATE:END */') + len('/* PRIVATE:END */')
@@ -18,6 +18,14 @@ print('dist/demo.html', len(out), 'bytes')
 SITE_HEAD = ('<!doctype html>\n<html lang="en">\n<meta charset="utf-8">\n'
   '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
   '<link rel="icon" href="apple-touch-icon.png">\n<link rel="apple-touch-icon" href="apple-touch-icon.png">\n')
+# The website is public: it carries the made-up massage business too, plus the Supabase address (public by design).
+# The real business comes from the database after its owner signs in (supabase/profile.mjs puts it there).
+cloud = re.search(r'^ *cloud:\{.*\},$', src[a:b], re.M)
+if not cloud: sys.exit('no cloud line in the PRIVATE block')
+demo = (root / 'demo/massage.js').read_text().strip().replace('massage: {', 'massage: {\n' + cloud.group(0), 1)
+site = src[:a] + demo + src[b:]
+left = [w for w in PRIVATE if w.lower() in site.lower().replace('brookstelles', '')]   # the site's own address
+if left: sys.exit('private details left in the website: ' + ', '.join(left))
 (root / 'site').mkdir(exist_ok=True)
-(root / 'site/index.html').write_text(SITE_HEAD + src)
-print('site/index.html', len(src), 'bytes')
+(root / 'site/index.html').write_text(SITE_HEAD + site)
+print('site/index.html', len(SITE_HEAD + site), 'bytes')

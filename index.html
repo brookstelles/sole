@@ -2853,9 +2853,11 @@ function liveFromCache(){
 }
 async function cloudGo(){
   cloudScreen('<p class="muted sky-wait">Opening your book…</p>');
-  const { data:biz } = await SB.from('businesses').select('id,name,profile').limit(1);
+  const { data:biz } = await SB.from('businesses').select('id,name,profile,data').limit(1);
   if (!biz || !biz.length) { const { data:u } = await SB.auth.getUser(); cloudScreen(`${signInHTML('email', '', '')}`); $id('si-msg').textContent = `${(u && u.user && u.user.email) || 'This email'} isn’t on a business in Sole yet.`; askSignIn('email', '', `${(u && u.user && u.user.email) || 'That email'} isn’t on a business in Sole yet.`); return; }
   BIZ = biz[0].id;
+  // the website carries a made-up business; the real one (its numbers, services, forms) is read here, members only
+  if (biz[0].data) PROFILES[biz[0].profile || 'massage'] = {...biz[0].data, cloud:CLOUD_CFG};
   try { await loadSquareTables(); } catch (_) { SQ_CACHE = {pays:new Map(), names:{}}; }
   const db = cloudDb(), assets = cloudAssets();
   window.claude = {use:name => Promise.resolve(name === 'db' ? db : name === 'assets' ? assets : null)};

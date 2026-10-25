@@ -1,7 +1,7 @@
 // A stand-in for the Supabase client, enough for the website's sign-in, book and Square tables. Made-up data only.
 window.__SOLE_CLOUD_CLIENT = (() => {
   const seed = window.__FAKE_DB || {};
-  const T = {businesses:[{id:'B1', name:'Test business', profile:'massage'}], items:seed.items || [], square_payments:seed.payments || [], square_customers:seed.customers || []};
+  const T = {businesses:seed.businesses || [{id:'B1', name:'Test business', profile:'massage'}], items:seed.items || [], square_payments:seed.payments || [], square_customers:seed.customers || []};
   const KEYS = {items:['business_id', 'col', 'id'], square_payments:['business_id', 'id'], square_customers:['business_id', 'id']};
   let session = null; const subs = [];
   window.__FAKE = {T, emit:(table, ev) => subs.filter(s => s.table === table).forEach(s => s.cb(ev)), invoked:[]};

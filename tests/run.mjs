@@ -202,12 +202,22 @@ console.log('ok private Square views');
       {business_id:'B1', col:'appts', id:'aC', data:{c:'nC', s:'sw60', date:iso(now), start:1410, paid:false, tip:0, w:'Kelli'}}],
     payments:[{business_id:'B1', id:'P1', created_at:'2026-03-02T15:00:00Z', status:'COMPLETED', customer_id:'TESTCUST1', data:pay('P1', new Date('2026-03-02T15:00:00Z'), 11500, 2000, 'TESTCUST1')}],
     customers:[{business_id:'B1', id:'TESTCUST1', name:'Test Card Person'}]};
+  // the website carries a made-up business; the real one comes from the database after signing in (members only)
+  const demoMassage = new Function('genHist', `return ({${fs.readFileSync(root + 'demo/massage.js', 'utf8')}})`)(() => ({2025:Array(12).fill(30), 2026:Array(9).fill(30)})).massage;
+  seed.businesses = [{id:'B1', name:'Cloud Test Massage', profile:'massage', data:{...demoMassage, biz:'Cloud Test Massage', owner:'Robin', real:true, books:{2024:{take:28000, rent:8000, other:900, kept:19100}, 2025:{take:30000, rent:8000, other:1000, kept:21000}}, booksNote:''}}];
   const fake = fs.readFileSync(fx + 'fake-supabase.js', 'utf8');
-  const q = await open('index.html', `window.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
+  const site = fs.readFileSync(root + 'site/index.html', 'utf8');
+  check(!/Cloud Test Massage/.test(site) && /Tidewater Massage/.test(site), 'website: the page carries only the made-up business');
+  const q = await (await b.newContext({viewport:{width:390, height:844}})).newPage();
+  q.on('pageerror', e => errs.push('site/index.html: ' + e.message));
+  await q.addInitScript(`window.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
+  await q.route('http://sole.test/', r => r.fulfill({contentType:'text/html', body:site}));
+  await q.goto('http://sole.test/', {waitUntil:'networkidle'});
   check(/Send me a code/.test(await q.textContent('main')), 'website: asks to sign in');
   await q.fill('#si-email', 'test@example.com'); await q.click('#si-form button');
   await q.fill('#si-code', '123456'); await q.click('#si-form button'); await q.waitForSelector('.biz-name');
   check(/Cloud Sample/.test(await q.textContent('main')), 'website: the book loads from the database');
+  check(/Cloud Test Massage/.test(await q.textContent('.biz-name')) && /Robin/.test(await q.textContent('#hdr')), 'website: the business comes from the database');
   check(await q.evaluate(() => __FAKE.invoked.length === 1), 'website: asks the server to catch up with Square');
   await q.click('.tab[data-v=money]');
   check(/\$115/.test(await q.textContent('main')) && /Test Card Person/.test(await q.textContent('#s-clients')), 'website: Square payments and card customers come from the tables');

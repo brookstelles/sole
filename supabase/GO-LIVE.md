@@ -38,5 +38,5 @@ Supabase project: **Sole** (organization Sole, free plan, East US (Ohio)), creat
   Credentials: the access token goes into `SQUARE_ACCESS_TOKEN`. Webhooks → Add subscription: URL
   `https://<project ref>.supabase.co/functions/v1/square`, events `payment.created`, `payment.updated`,
   `customer.created`, `customer.updated`; its signature key goes into `SQUARE_WEBHOOK_SIGNATURE_KEY`.
-- **Cloudflare Zero Trust → Access → Applications → sole → Session duration:** 1 month, so Kelli isn't asked for the
-  Cloudflare code every day. (The lock can come off once her yearly numbers move out of the page into the database.)
+- **Cloudflare Zero Trust → Access → Applications → sole:** delete it. The website no longer carries Kelli's numbers
+  (they're in `businesses.data`, members only), so the Sole sign-in is the only lock she needs.

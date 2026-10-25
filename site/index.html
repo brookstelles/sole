@@ -546,12 +546,13 @@ function genHist(y0, base, growth, seed){
   return h;
 }
 const PROFILES = {
-  /* PRIVATE:START */
+  /* Public demo: a made-up massage practice in place of the private edition's real one. */
   massage: {
-    trade:'Massage therapist', short:'Massage', biz:'Heart and Soul Massage', look:'seaglass', owner:'Kelli', team:['Kelli'], now:640,
+    cloud:{url:'https://qfimqsqmxiqiydjexkfc.supabase.co', key:'sb_publishable_jCwOLmgU9N6YzZBf7KdK2A_pSW2f1aj', host:/(^|\.)brookstelles\.com$/},
+    trade:'Massage therapist', short:'Massage', biz:'Tidewater Massage', look:'sole', owner:'Lena', team:['Lena'], now:640,
     unit:'massages', unitOne:'massage', firstVisit:'first massage', treat:'birthday massage', intakeName:'intake form',
-    reviewOn:'MassageBook', booking:'MassageBook and Square', real:true,
-    source:'Massage counts come from your Heart and Soul spreadsheets and card payments from Square. Today’s schedule and the sample clients are placeholders until MassageBook is connected.',
+    reviewOn:'Google', booking:'your booking app and Square', real:false,
+    source:'Everything on this page is sample data.',
     hours:{open:540, close:1080, turn:15, closed:[0,6]},
     services:{
       sw60:{name:'Swedish', min:60, price:95}, dt60:{name:'Deep tissue', min:60, price:110},
@@ -588,34 +589,19 @@ const PROFILES = {
       [['nora','sw60',600],['elena','dt60',705]],
     ],
     req:{c:'kevin', s:'sw60', dow:4, start:1020}, askName:'Maria',
-    // Massages per month, from the "Heart and Soul Breakdown" sheet. 2026 is entered through September.
-    hist:{
-      2022:[0,14,33,31,19,35,16,29,21,19,29,22],
-      2023:[22,28,33,26,28,45,22,41,29,31,40,34],
-      2024:[42,29,29,46,39,31,27,33,32,33,23,26],
-      2025:[32,31,35,37,37,23,31,30,22,38,27,35],
-      2026:[46,33,38,46,33,35,31,33,32],
-    },
-    rate:110, rateNote:'like your spreadsheet',
-    // From the 2024 and 2025 P&L sheets (Zelle + Square in; rent and supplies out).
-    books:{2024:{take:32964.50, rent:8475, other:1482.34, kept:23007.16}, 2025:{take:34420.05, rent:8475, other:993.12, kept:24951.93}},
-    booksNote:'Square payments for September to December 2025 aren’t entered yet, so 2025 is higher than this.',
+    hist:genHist(2022, 30, 0.07, 77), rate:110, rateNote:'your average massage',
     costsYear:2025,
-    costs:[{n:'Rent', v:8475}, {n:'Website', v:551}, {n:'License and CE', v:264.99}, {n:'Supplies', v:177.13}],
-    license:{short:'Aug 2027', next:'August 2027', tile:'next renewal, Florida LMT', title:'Florida licensed massage therapist',
-      text:'Your last renewal was paid to the Department of Health in August 2025, with your continuing education tracked on CE Broker. Florida licenses renew every two years.'},
+    costs:[{n:'Rent', v:9600}, {n:'Supplies', v:1500}, {n:'Insurance', v:450}, {n:'Booking app', v:360}],
+    license:{short:'Aug 2027', next:'August 2027', tile:'next renewal, massage license', title:'Massage therapist license',
+      text:'Sample. Your license, its renewal date and your continuing education hours live here, with a reminder three months ahead.'},
     forms:[
-      {name:'Client intake form', kind:'PDF', intake:true, send:true, fields:'massage', about:'Health history, pressure and signature. Every new client fills it in before the first massage.',
-       url:'https://drive.google.com/file/d/14YTXmko0puXsKz7ZNDlCHBp6RHSl3DPj/view'},
-      {name:'Human trafficking procedure', kind:'Google Doc', about:'What to do if trafficking is suspected, and who to call.',
-       url:'https://docs.google.com/document/d/1-1GPZpJfbton1wTp4ZOqRKUQfdfAS2FmAOUGQVb_ctI/edit',
-       lines:['National hotline: <span class="phone">(888) 373-7888</span>', 'Palm Beach County Sheriff: <span class="phone">(561) 688-3400</span>']},
+      {name:'Client intake form', kind:'Template', intake:true, send:true, fields:'massage', about:'Health history, pressure and signature. Every new client fills it in before the first massage.',
+       sections:['Contact details and emergency contact','Medications and allergies','Health conditions checklist','Pressure and areas to focus on or avoid','Consent and signature']},
+      {name:'Cancellation policy', kind:'Template', about:'Late arrivals, late cancellations and no-shows.',
+       sections:['Late arrivals','Cancelling within 24 hours','No-shows']},
     ],
-    formsNote:'Forms open in Google Drive, where you can print them or share them.',
-    // Sole's own website: the Supabase project's URL and publishable key (safe in the page), and where it runs
-    cloud:{url:'https://qfimqsqmxiqiydjexkfc.supabase.co', key:'sb_publishable_jCwOLmgU9N6YzZBf7KdK2A_pSW2f1aj', host:/(^|\.)brookstelles\.com$/},
+    formsNote:'These are Sole templates. Edit them to match your practice, or add your own.',
   },
-  /* PRIVATE:END */
 
   hair: {
     trade:'Hair stylist', short:'Hair', biz:'Willow Hair Studio', look:'sole', owner:'Jess', team:['Jess'], now:650,
@@ -2859,9 +2845,11 @@ function liveFromCache(){
 }
 async function cloudGo(){
   cloudScreen('<p class="muted sky-wait">Opening your book…</p>');
-  const { data:biz } = await SB.from('businesses').select('id,name,profile').limit(1);
+  const { data:biz } = await SB.from('businesses').select('id,name,profile,data').limit(1);
   if (!biz || !biz.length) { const { data:u } = await SB.auth.getUser(); cloudScreen(`${signInHTML('email', '', '')}`); $id('si-msg').textContent = `${(u && u.user && u.user.email) || 'This email'} isn’t on a business in Sole yet.`; askSignIn('email', '', `${(u && u.user && u.user.email) || 'That email'} isn’t on a business in Sole yet.`); return; }
   BIZ = biz[0].id;
+  // the website carries a made-up business; the real one (its numbers, services, forms) is read here, members only
+  if (biz[0].data) PROFILES[biz[0].profile || 'massage'] = {...biz[0].data, cloud:CLOUD_CFG};
   try { await loadSquareTables(); } catch (_) { SQ_CACHE = {pays:new Map(), names:{}}; }
   const db = cloudDb(), assets = cloudAssets();
   window.claude = {use:name => Promise.resolve(name === 'db' ? db : name === 'assets' ? assets : null)};
