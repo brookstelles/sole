@@ -113,10 +113,50 @@ main{display:flex;flex-direction:column;gap:22px}
 .num.out{color:var(--muted)}
 .rcp-snap{cursor:pointer}
 .rcp-img{display:block;width:100%;max-height:340px;object-fit:contain;border-radius:14px;background:var(--sunk);margin-block:10px}
-.signin{max-width:420px;margin:12vh auto 0;display:grid;gap:14px;text-align:center}
-.signin .brand{display:grid;justify-items:center;gap:6px;color:var(--accent)}
-.signin .brand b{font-family:var(--display);font-size:40px;font-weight:400;color:var(--ink)}
-.signin form{display:grid;gap:10px}
+/* Sign-in on Sole's website: a sunrise over the water, played once as the page opens; the card floats on the sea */
+.signin{--hz:clamp(250px,50vh,460px);position:fixed;inset:0;z-index:30;overflow-x:hidden;overflow-y:auto;background:#14112E;color:#fff;text-align:center}
+.sky{position:fixed;inset:0;overflow:hidden;pointer-events:none}
+.sky .air{position:absolute;inset:0 0 auto;height:var(--hz);overflow:hidden;
+  background:linear-gradient(180deg,#120F2C 0%,#1F1A4D 34%,#3F3680 60%,#9C6E7E 80%,#E9A75C 94%,#F6C46C 100%)}
+.sky .stars i{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;animation:sky-twinkle 4s ease-in-out infinite alternate}
+.sky .glow{position:absolute;left:50%;bottom:-170px;width:560px;height:340px;margin-left:-280px;border-radius:50%;
+  background:radial-gradient(closest-side,rgba(250,216,137,.6),rgba(250,216,137,0));animation:sky-glow 2.4s .2s ease-out both}
+.sky .sun{position:absolute;left:50%;bottom:-52px;width:150px;height:150px;margin-left:-75px;animation:sky-rise 2s .15s cubic-bezier(.2,.7,.2,1) both}
+.sky .sun svg{width:100%;height:100%;animation:sky-turn 120s linear infinite}
+.sky .sun .rays{animation:sky-rays 1s 1.3s ease-out both}
+.sky .sea{position:absolute;inset:var(--hz) 0 0;background:linear-gradient(180deg,#5E4A7E 0%,#2E2862 18%,#1C1844 50%,#120F2C 100%)}
+.sky .sea::before{content:"";position:absolute;inset:0 0 auto;height:2px;background:rgba(255,232,180,.55)}
+.sky .shine{position:absolute;left:0;right:0;top:6px;display:flex;flex-direction:column;align-items:center;gap:9px;animation:fade .9s 1.3s both}
+.sky .shine i{display:block;height:3px;border-radius:3px;background:#F6C46C;opacity:.7;animation:sky-shimmer 2.6s ease-in-out infinite alternate}
+.sky-in{position:relative;min-height:100%;display:flex;flex-direction:column;align-items:center;
+  padding:0 max(16px,env(safe-area-inset-right,0px)) calc(28px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sky-head{height:var(--hz);display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:118px}
+.sky-word{font-family:var(--display);font-weight:300;font-size:64px;line-height:1;letter-spacing:.08em;margin:0 0 0 .08em;color:#fff}
+.sky-word span{display:inline-block;animation:sky-letter .8s cubic-bezier(.2,.7,.2,1) both}
+.sky-tag{margin-top:12px;font-family:var(--display);font-size:13px;letter-spacing:.3em;text-transform:uppercase;color:#FAD889;animation:fade 1s 1.7s both}
+.sky-card{width:100%;max-width:400px;margin-top:34px;padding:22px 20px;border-radius:24px;display:grid;gap:14px;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  box-shadow:0 18px 40px rgba(8,6,24,.35);animation:sky-card .8s 1s cubic-bezier(.2,.7,.2,1) both}
+.sky-card p{font-size:17px;line-height:1.45}
+.sky-card .muted{color:rgba(255,255,255,.78)}
+.sky-card b{color:#FAD889;font-weight:600;word-break:break-all}
+.sky-card form{display:grid;gap:10px}
+.sky-card .text-in{background:#fff;color:#1E1B2E;border-color:transparent;text-align:center;font-size:19px;min-height:54px}
+.sky-card #si-code{font-size:26px;letter-spacing:.3em;font-variant-numeric:tabular-nums}
+.sky-card .btn.primary{background:#F1B75A;color:#2B1F08;min-height:54px;font-size:17px}
+.sky-card .btn.line{border-color:rgba(255,255,255,.35);color:#fff}
+.sky-card :focus-visible{outline-color:#FAD889}
+.sky-wait{display:inline-flex;align-items:center;gap:10px}
+.sky-wait::before{content:"";width:10px;height:10px;border-radius:50%;background:#F6C46C;animation:sky-pulse 1.1s ease-in-out infinite alternate}
+@keyframes sky-rise{from{transform:translateY(105%)}}
+@keyframes sky-glow{from{opacity:0;transform:scale(.6)}}
+@keyframes sky-rays{from{opacity:0;transform:scale(.7)}}
+@keyframes sky-turn{to{transform:rotate(360deg)}}
+@keyframes sky-twinkle{to{opacity:.15}}
+@keyframes sky-shimmer{to{transform:scaleX(.55);opacity:.35}}
+@keyframes sky-letter{from{opacity:0;transform:translateY(22px)}}
+@keyframes sky-card{from{opacity:0;transform:translateY(26px)}}
+@keyframes sky-pulse{to{opacity:.35;transform:scale(.7)}}
 .li.wk{grid-template-columns:62px 1fr auto}
 .wk-btns{display:flex;flex-direction:column;gap:6px}
 .btn.sm{min-height:36px;padding:6px 12px;font-size:14px;border-radius:11px}
@@ -2713,16 +2753,31 @@ if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.g
 const CLOUD_CFG = PROFILES.massage.cloud || {};   // set in the private edition only
 const CLOUD_ON = !!window.__SOLE_CLOUD_CLIENT || (!!CLOUD_CFG.url && !!CLOUD_CFG.host && CLOUD_CFG.host.test(location.hostname));
 let SB = null, BIZ = null, SQ_CACHE = null;
-function cloudScreen(html){ document.documentElement.dataset.look = 'sole'; $id('hdr').innerHTML = ''; $id('tabs').innerHTML = ''; $id('main').innerHTML = `<section class="signin">${html}</section>`; }
+// the sunrise is drawn once; later screens (code, opening the book) only change the card, so the intro doesn't replay
+function cloudScreen(html){
+  document.documentElement.dataset.look = 'sole'; $id('hdr').innerHTML = ''; $id('tabs').innerHTML = '';
+  if (!$id('sky-card')) {
+    let seed = 7; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    const stars = Array.from({length:44}, () => `<i style="left:${(rnd()*100).toFixed(1)}%;top:${(rnd()*72).toFixed(1)}%;opacity:${(.3 + rnd()*.6).toFixed(2)};animation-delay:-${(rnd()*4).toFixed(1)}s"></i>`).join('');
+    const shine = [64, 92, 54, 78, 40, 58, 28, 40, 18].map((w, i) => `<i style="width:${w}px;animation-delay:-${(i*.37).toFixed(2)}s"></i>`).join('');
+    $id('main').innerHTML = `<section class="signin">
+      <div class="sky" aria-hidden="true"><div class="air"><div class="stars">${stars}</div><div class="glow"></div>
+        <div class="sun"><svg viewBox="-32 -32 64 64"><circle r="10" fill="#F6C46C"/><g class="rays" fill="none" stroke="#FAD889" stroke-width="2.2" stroke-linecap="round">${Array.from({length:8}, (_, i) => `<path transform="rotate(${i*45})" d="M0 -15V-23"/>`).join('')}</g></svg></div></div>
+        <div class="sea"><div class="shine">${shine}</div></div></div>
+      <div class="sky-in"><div class="sky-head"><h1 class="sky-word" aria-label="Sole">${[...'Sole'].map((ch, i) => `<span aria-hidden="true" style="animation-delay:${(1 + i*.12).toFixed(2)}s">${ch}</span>`).join('')}</h1>
+        <p class="sky-tag">For the one-person business</p></div>
+        <div class="sky-card" id="sky-card"></div></div></section>`;
+  }
+  $id('sky-card').innerHTML = html;
+}
 const $id = id => document.getElementById(id);
 const cloudEsc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function signInHTML(step, email, msg){
-  const mark = `<svg viewBox="-32 -32 64 64" width="56" height="56" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle r="10" fill="currentColor"/>${Array.from({length:8}, (_, i) => `<path transform="rotate(${i*45})" d="M0 -16V-25"/>`).join('')}</g></svg>`;
-  return `<div class="brand">${mark}<b>Sole</b></div>
-    ${step === 'email' ? `<p>Sign in with your email. We’ll send you a code.</p>
+  return `${step === 'email' ? `<p>Sign in with your email. We’ll send you a code.</p>
       <form id="si-form"><input class="text-in" id="si-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" value="${cloudEsc(email || '')}" required>
       <button class="btn primary" style="width:100%">Send me a code</button></form>`
     : `<p>We sent a code to <b>${cloudEsc(email)}</b>. Type it here.</p>
+      <p class="small muted">Not there in a minute? Look in Spam or Junk.</p>
       <form id="si-form"><input class="text-in" id="si-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="10" required>
       <button class="btn primary" style="width:100%">Sign in</button></form>
       <button class="btn line" style="width:100%;margin-top:10px" id="si-back">Use a different email</button>`}
@@ -2797,7 +2852,7 @@ function liveFromCache(){
   SQ.live = {payments:pays, from:isoDay(from), at:new Date(), sig:pays.length + ':' + pays.map(p => p.id + p.status + (p.updated_at || '')).join().length};
 }
 async function cloudGo(){
-  cloudScreen('<p class="muted">Opening your book…</p>');
+  cloudScreen('<p class="muted sky-wait">Opening your book…</p>');
   const { data:biz } = await SB.from('businesses').select('id,name,profile').limit(1);
   if (!biz || !biz.length) { const { data:u } = await SB.auth.getUser(); cloudScreen(`${signInHTML('email', '', '')}`); $id('si-msg').textContent = `${(u && u.user && u.user.email) || 'This email'} isn’t on a business in Sole yet.`; askSignIn('email', '', `${(u && u.user && u.user.email) || 'That email'} isn’t on a business in Sole yet.`); return; }
   BIZ = biz[0].id;
@@ -2817,7 +2872,7 @@ async function cloudGo(){
   }).catch(() => {});
 }
 async function cloudStart(){
-  cloudScreen('<p class="muted">Opening Sole…</p>');
+  cloudScreen('<p class="muted sky-wait">Opening Sole…</p>');
   if (window.__SOLE_CLOUD_CLIENT) SB = window.__SOLE_CLOUD_CLIENT;   // tests: a stand-in for Supabase
   else { await new Promise((ok, fail) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/dist/umd/supabase.min.js'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc); });
     SB = window.supabase.createClient(CLOUD_CFG.url, CLOUD_CFG.key, {auth:{persistSession:true, autoRefreshToken:true}}); }
