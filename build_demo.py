@@ -12,7 +12,12 @@ if left: sys.exit('private details left in the demo: ' + ', '.join(left))
 (root / 'dist').mkdir(exist_ok=True)
 (root / 'dist/demo.html').write_text(out)
 print('dist/demo.html', len(out), 'bytes')
-# the website (sole.brookstelles.com, Cloudflare): publish only the app, never the rest of the repository
+# the website (sole.brookstelles.com, Cloudflare): publish only the app, never the rest of the repository.
+# index.html is a page body for claude.ai, which adds the document around it; the website needs its own, or Safari
+# reads the text with the wrong encoding (Howâ€™s for How’s) and lays the page out for a desktop.
+SITE_HEAD = ('<!doctype html>\n<html lang="en">\n<meta charset="utf-8">\n'
+  '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
+  '<link rel="icon" href="apple-touch-icon.png">\n<link rel="apple-touch-icon" href="apple-touch-icon.png">\n')
 (root / 'site').mkdir(exist_ok=True)
-(root / 'site/index.html').write_text(src)
+(root / 'site/index.html').write_text(SITE_HEAD + src)
 print('site/index.html', len(src), 'bytes')

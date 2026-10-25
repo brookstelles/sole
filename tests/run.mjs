@@ -179,6 +179,20 @@ console.log('ok private Square views');
   await r.close();
   console.log('ok weekly check and visit notes');
 }
+// the website copy is served as it is (no charset from the server): it must be a whole page of its own
+{
+  const p = await (await b.newContext({viewport:{width:390, height:844}})).newPage();
+  p.on('pageerror', e => errs.push('site/index.html: ' + e.message));
+  await p.route('http://sole.test/', r => r.fulfill({contentType:'text/html', body:fs.readFileSync(root + 'site/index.html')}));
+  await p.route('http://sole.test/apple-touch-icon.png', r => r.fulfill({contentType:'image/png', body:fs.readFileSync(root + 'site/apple-touch-icon.png')}));
+  await p.goto('http://sole.test/', {waitUntil:'networkidle'});
+  check(await p.evaluate(() => document.characterSet) === 'UTF-8' && /How’s my year going\?/.test(await p.textContent('main')), 'site: text reads as UTF-8');
+  check(await p.evaluate(() => document.compatMode === 'CSS1Compat' && !!document.querySelector('meta[name=viewport]')), 'site: a full page with a phone viewport');
+  check(await p.evaluate(() => fetch('/apple-touch-icon.png').then(r => r.ok)), 'site: home screen icon');
+  await p.close();
+  console.log('ok website page');
+}
+
 // Sole's own website: sign in with a code, the book and Square payments from Supabase (a stand-in client, made-up data)
 {
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
