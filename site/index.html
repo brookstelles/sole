@@ -1819,6 +1819,7 @@ function viewToday(){
   ${needs.length ? `<section class="sec"><div class="sec-h"><h2>Needs you</h2><span class="aside">${needs.length}</span></div>${needs.join('')}</section>` : ''}
   <section class="sec" ${ap.length ? '' : 'hidden'}><div class="sec-h"><h2>Today’s ${WN}</h2><button class="chip" data-act="tab" data-v="schedule">Full schedule</button></div>
     <div class="list">${dayRows(0)}</div></section>
+  ${mondayCard()}
   ${remindCard()}
   <section class="glance">${glanceCard(td)}  </section>`;
 }
@@ -2116,6 +2117,20 @@ function glanceCard(td){
     <div class="seg gl-seg" role="group" aria-label="Money for">${GLANCE.map(([k, l]) => `<button data-act="glance" data-v="${k}" aria-pressed="${g === k}">${l}</button>`).join('')}</div>
     <button class="mt-body" ${act}><span class="mt-row">${half(L)}${half(R)}</span>
       <span class="mt-bar" aria-hidden="true"><i style="width:${Math.min(100, pct * 100).toFixed(0)}%"></i></span>${note ? `<span class="small muted">${note}</span>` : ''}</button></div>`;
+}
+// Mondays: how last week went and what this week holds, in one look
+function mondayCard(){
+  if (dateOf(0).getDay() !== 1 || P.fresh || lsGet('sole-monday') === isoDay(T0)) return '';
+  const wk = m => Array.from({length:7}, (_, i) => m + i), lw = wk(-7), pw = wk(-14), tw = wk(0), unit = n => n === 1 ? P.unitOne : P.unit;
+  const sumIn = L => L.reduce((t, x) => ({net:t.net + x.net, tips:t.tips + x.tips, n:t.n + x.n}), {net:0, tips:0, n:0});
+  const a = sumIn(lw.map(inOn)), b = sumIn(pw.map(inOn)), seen = booked(lw), t = booked(tw), open = tw.reduce((u, d) => u + openMin(d, S.who), 0), diff = a.net - b.net;
+  const best = lw.map(d => [d, inOn(d).net]).sort((x, y) => y[1] - x[1])[0], w = weekInfo(-1), lds = new Set(lw.map(d => isoDay(dateOf(d))));
+  seen.n = new Set([...AP.filter(x => lw.includes(x.off) && !noShow(x)).map(x => x.c + isoDay(dateOf(x.off))), ...Object.values(VISITS).filter(v => v.from && v.c && lds.has(v.date)).map(v => v.c + v.date)]).size;   // the old app's visits count too
+  return `<section class="sec monday"><div class="sec-h"><h2>Your week</h2><span class="aside">Monday note</span></div>
+    <div class="card"><div class="stat3 two"><button data-act="wkcheck" data-v="-1"><b>${money(a.net)}</b><span>last week · ${seen.n} ${unit(seen.n)}${a.tips ? ` · + ${money(a.tips)} tips` : ''}</span></button>
+      <button data-act="glgo" data-v="week"><b>${t.n ? money(t.$) : '—'}</b><span>booked this week · ${t.n} ${unit(t.n)}</span></button></div>
+    <p class="small muted" style="margin-top:8px">${b.net ? `${diff >= 0 ? 'Up' : 'Down'} ${money(Math.abs(diff))} from the week before. ` : ''}${best && best[1] ? `Best day: ${DOW[dateOf(best[0]).getDay()]}, ${money(best[1])}. ` : ''}${open ? `${dur(open)} still open this week.` : 'This week is full.'}</p>
+    <div class="btn-row" style="margin-top:10px">${!w.rec.checked && w.todo ? `<button class="btn" data-act="wkcheck" data-v="-1">${w.todo} to check</button>` : ''}<button class="btn line" data-act="mon-ok">Got it</button></div></div></section>`;
 }
 function remindCard(){
   const o = [1,2,3].find(d => apptsOn(d).length); if (o == null) return '';
@@ -3310,6 +3325,7 @@ on('click', e => {
     case 'glance': S.glance = v; render(); break;
     case 'rm-sent': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), reminded:new Date().toISOString()}; setTimeout(render, 400); } break; }
     case 'rm-ok': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), confirmed:new Date().toISOString()}; render(); toast(`${first(a.c)} is confirmed.`); } break; }
+    case 'mon-ok': lsSet('sole-monday', isoDay(T0)); render(); break;
     case 'glgo': S.tab = 'schedule'; S.view = 'week'; S.day = monOf(0) + (v === 'next' ? 7 : 0); render(); window.scrollTo(0, 0); break;
     case 'snav': schedNav(+v); break;
     case 'sday': S.tab = 'schedule'; S.day = +v; S.view = 'day'; render(); window.scrollTo(0, 0); break;
