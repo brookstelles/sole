@@ -425,6 +425,14 @@ html[data-look="sole"][data-theme="dark"]{
 .biz-mark svg{width:24px;height:24px}
 .biz-name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .biz svg.chev{width:14px;height:14px;flex:none}
+.hdr-right{display:flex;align-items:center;gap:10px;flex:none}
+.hdr-top .biz{flex:1 1 auto;min-width:0;max-width:none}
+.me{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:14px;letter-spacing:.02em;flex:none;box-shadow:var(--shadow)}
+.me.big{width:56px;height:56px;font-size:20px}
+.me-who{display:flex;align-items:center;gap:14px}
+.me-who div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.me-who b{font-size:18px}
+.danger-line{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
 .hdr-date{font-size:12.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
 /* setup */
 .ob{display:flex;flex-direction:column;gap:16px}
@@ -1240,6 +1248,7 @@ let KEEP = null;   // the tab to return to when the page rebuilds itself
 const SOLE_COLS = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks', 'days'];
 const SOLE_MAPS = ['clients', 'visits', 'weeks', 'days'];   // kept by id; the others are lists of items with a uid
 let REAL_SAVED = null, SOLE_VER = 0, SOLE_Q = Promise.resolve();
+const PREFS_MEM = {};   // the built-in businesses keep their account choices for the visit
 const LEDGER_MEM = {}, NOTES_MEM = {}, VISITS_MEM = {}, WEEKS_MEM = {}, DAYS_MEM = {};   // the built-in businesses keep what's added for the visit
 const uidOf = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const sortKeys = x => Array.isArray(x) ? x.map(sortKeys) : x && typeof x === 'object' ? Object.fromEntries(Object.keys(x).sort().filter(k => x[k] !== undefined).map(k => [k, sortKeys(x[k])])) : x;
@@ -1304,14 +1313,14 @@ async function loadSquare(key){
     if (window.__SOLE_SQUARE) { SQ = window.__SOLE_SQUARE; watchSquare(key); boot(key); return; }   // test hook: tests/fixtures/square-sample.json
     if (!window.claude || !window.claude.use) return;
     const db = await window.claude.use('db'); if (!db) return;
-    const [a, b, fr, mg, ...book] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false})),
+    const [a, b, fr, mg, pf, ...book] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false})), db.doc('people/prefs').get().catch(() => ({exists:false})),
       ...SOLE_COLS.map(c => db.collection(c).get().catch(() => ({docs:[]})))]);
     const responses = fr.docs.filter(d => d.exists).map(d => JSON.parse(JSON.stringify(d.data())));
     const sole = {appts:[], blocks:[], clients:{}, ledger:[], visits:{}, weeks:{}, days:{}};
     REAL_SAVED = Object.fromEntries(SOLE_COLS.map(c => [c, {}]));
     SOLE_COLS.forEach((c, i) => book[i].docs.filter(d => d.exists).forEach(d => { const x = JSON.parse(JSON.stringify(d.data()));
       REAL_SAVED[c][d.id] = canon(x); if (SOLE_MAPS.includes(c)) sole[c][d.id] = x; else sole[c].push({...x, uid:d.id}); }));
-    SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses, merges:mg.exists ? JSON.parse(JSON.stringify(mg.data())) : null, sole};
+    SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses, merges:mg.exists ? JSON.parse(JSON.stringify(mg.data())) : null, prefs:pf.exists ? JSON.parse(JSON.stringify(pf.data())) : {}, sole};
     if (!document.querySelector('.sheet')) boot(key);
     watchSole(db);
     watchSquare(key);
@@ -1782,10 +1791,14 @@ const SUNMARK = `<svg viewBox="-32 -32 64 64" aria-hidden="true"><g fill="none" 
 const S = {tab:'today', week:0, day:0, range:'week', bar:0, answer:null, search:'', yr:2026, wiC:0, wiP:0, money:'home', who:ME, ...(KEEP || {})};
 KEEP = null; CUR_S = S; CUR_KEY = KEY; if (LIVEBOOK) LIVE_DRAWN = liveSig();
 const TABS = [['today','Today'],['schedule','Schedule'],['money','Snapshot'],['clients',cap(WN)],['forms','Forms']];
-const TITLES = {today:`Good ${NOW < 720 ? 'morning' : NOW < 1020 ? 'afternoon' : 'evening'}, ${P.owner}`, schedule:'Schedule', money:'Snapshot', clients:`Your ${WN}`, forms:'Forms'};
+// the business's own choices (people/prefs in the book: thank-you texts, everyone's name) and who's looking
+const PREFS = P.real && SQ ? (SQ.prefs = SQ.prefs || {}) : (PREFS_MEM[KEY] = PREFS_MEM[KEY] || {});
+const MY_NAME = (PREFS.names || {})[USER_EMAIL] || (USER_EMAIL ? '' : P.owner);
+const MY_INITIALS = (MY_NAME ? MY_NAME.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]) : [USER_EMAIL[0] || P.owner[0]]).join('').toUpperCase();
+const TITLES = {today:`Good ${NOW < 720 ? 'morning' : NOW < 1020 ? 'afternoon' : 'evening'}, ${(MY_NAME || P.owner).split(' ')[0]}`, schedule:'Schedule', money:'Snapshot', clients:`Your ${WN}`, forms:'Forms'};
 
 function render(){
-  $('#hdr').innerHTML = `${MOTIF}<div><div class="hdr-top">${EDITION === 'private' ? `<div class="biz"><span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span></div>` : `<button class="biz" data-act="trade" aria-label="Switch business"><span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span>${I.down.replace('<svg', '<svg class="chev"')}</button>`}<span class="hdr-date">${dayShort(0).slice(0,3)}, ${MON[T0.getMonth()].slice(0,3)} ${T0.getDate()}</span></div><h1>${TITLES[S.tab]}</h1></div>`;
+  $('#hdr').innerHTML = `${MOTIF}<div><div class="hdr-top">${EDITION === 'private' ? `<div class="biz"><span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span></div>` : `<button class="biz" data-act="trade" aria-label="Switch business"><span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span>${I.down.replace('<svg', '<svg class="chev"')}</button>`}<span class="hdr-right"><span class="hdr-date" title="${DOW[T0.getDay()]}">${MON[T0.getMonth()].slice(0,3)} ${T0.getDate()}</span><button class="me" data-act="me" aria-label="Your account">${esc(MY_INITIALS)}</button></span></div><h1>${TITLES[S.tab]}</h1></div>`;
   $('#main').innerHTML = ({today:viewToday, schedule:viewSchedule, money:viewMoney, clients:viewClientsTab, forms:viewForms})[S.tab]();
   const owes = unpaid().length > 0;
   saveState();
@@ -2140,7 +2153,7 @@ function glanceCard(td){
 }
 // the day after: a thank-you text to each person who came in (with the review link when there is one). Off with P.thanks false.
 function thanksTodo(){
-  if (P.thanks === false) return null;
+  if (P.thanks === false || PREFS.thanks === false) return null;
   const o = [-1, -2, -3].find(d => !isOff(d) && apptsOn(d).some(a => !noShow(a))); if (o == null) return null;
   const st = a => VISITS[visitKey(a)] || {}, L = apptsOn(o).filter(a => !noShow(a) && !st(a).noshow && String(CL[a.c].phone || '').replace(/[^0-9+]/g, '').length >= 10).sort((x, y) => x.start - y.start);
   const left = L.filter(a => !st(a).thanked); if (!left.length) return null;
@@ -2148,6 +2161,22 @@ function thanksTodo(){
     <div class="list flat">${left.map(a => `<div class="li rm"><button class="who" data-act="appt" data-id="${a.id}"><b>${esc(CL[a.c].name)}</b><span>${clock(a.start)} · ${esc(SV[a.s].name)}</span></button>
       <a class="btn sm primary" href="sms:${String(CL[a.c].phone).replace(/[^0-9+]/g, '')}&body=${encodeURIComponent(messageFor(a.c, 'thanks', a))}" target="_top" data-act="ty-sent" data-id="${a.id}">Text</a></div>`).join('')}</div>
     <p class="small muted">${P.reviewUrl ? 'A thank-you with your review link.' : 'A short thank-you.'} Tap Text, hit send. <button class="linkish" data-act="ty-skip" data-v="${o}">Skip these</button></p>`};
+}
+// the account: who's signed in, light or dark on this phone, Face ID, the business's texts, sign out
+function meHTML(){
+  const th = (() => { try { return localStorage.getItem('sole-theme') || ''; } catch (_) { return ''; } })(), face = CLOUD_ON && typeof pkOk === 'function' && pkOk();
+  const seg = (act, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
+  return `${top('Your account', esc(P.biz))}
+    <div class="me-who"><span class="me big">${esc(MY_INITIALS)}</span><div><b>${esc(MY_NAME || (USER_EMAIL ? 'Add your name' : P.owner))}</b><span class="small muted">${esc(USER_EMAIL || `Owner of ${P.biz}`)}</span></div></div>
+    ${USER_EMAIL ? `<div class="field"><span class="label">Your name</span><input class="text-in" id="me-name" value="${esc(MY_NAME)}" placeholder="First and last" autocomplete="name"></div>` : ''}
+    <div class="field"><span class="label">Light or dark</span>${seg('me-theme', th, [['', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']])}<span class="small muted">Automatic follows your phone’s setting. Just on this phone.</span></div>
+    ${face ? `<div class="field"><span class="label">${FACE}</span>${lsGet('sole-face') ? `<p class="small muted">On. Sole opens with a glance.</p><button class="btn line" data-act="me-face-off">Turn off ${FACE} on this phone</button>` : `<button class="btn line" data-act="me-face-on">${FACE_ICON}Turn on ${FACE}</button>`}</div>` : ''}
+    <div class="field"><span class="label">Thank-you texts the day after</span>${seg('me-thanks', PREFS.thanks === false ? 'off' : 'on', [['on', 'On'], ['off', 'Off']])}<span class="small muted">For everyone on ${esc(P.biz)}.</span></div>
+    ${CLOUD_ON && USER_EMAIL ? `<button class="btn line danger-line" data-act="me-out" style="width:100%;margin-top:8px">Sign out</button>` : ''}`;
+}
+async function savePrefs(){
+  try { const db = P.real && window.claude && window.claude.use ? await window.claude.use('db') : null; if (db) await db.doc('people/prefs').set(JSON.parse(JSON.stringify(PREFS))); }
+  catch (_) { toast('Saved on this phone. It couldn’t reach your account just now.'); }
 }
 // Mondays: how last week went and what this week holds, in one look
 function mondayTodo(){
@@ -2762,7 +2791,7 @@ function sheet(html, cls){
   $('#layer').innerHTML = `<div class="scrim" data-act="close"></div><div class="sheet ${cls || ''}" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
   const f = $('.sheet .close'); if (f) f.focus({preventScroll:true});
 }
-const closeSheet = () => { $('#layer').innerHTML = ''; if (LIVEBOOK) setTimeout(redrawLive, 0); };   // a change that came in while a sheet was open shows now
+const closeSheet = () => { $('#layer').innerHTML = ''; if (ME_DIRTY) { ME_DIRTY = false; KEEP = {...S}; boot(KEY); return; } if (LIVEBOOK) setTimeout(redrawLive, 0); };   // a change that came in while a sheet was open shows now
 const top = (h, sub) => `<div class="sh-top"><div><h2>${h}</h2>${sub?`<p>${sub}</p>`:''}</div><button class="close" data-act="close">Done</button></div>`;
 
 function notesHTML(k){
@@ -3402,6 +3431,14 @@ on('click', e => {
     case 'ty-skip': apptsOn(+v).forEach(a => { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), thanked:'skipped'}; }); render(); break;
     case 'rm-sent': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), reminded:new Date().toISOString()}; setTimeout(render, 400); } break; }
     case 'rm-ok': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), confirmed:new Date().toISOString()}; render(); toast(`${first(a.c)} is confirmed.`); } break; }
+    case 'me': if (CLOUD_ON && typeof pkOk === 'function' && pkOk() && !lsGet('sole-face')) pkFetch('reg'); sheet(meHTML()); break;
+    case 'me-theme': setTheme(v || null); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
+    case 'me-thanks': PREFS.thanks = v !== 'off'; savePrefs(); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
+    case 'me-face-off': try { localStorage.removeItem('sole-face'); } catch (_) {} $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; toast(`${FACE} is off on this phone. Next time, sign in with a code.`); break;
+    case 'me-face-on': el.disabled = true; pkCeremony('reg').then(() => true, err => err && (err.code === 'webauthn_credential_exists' || err.name === 'InvalidStateError'))
+      .then(ok => { if (ok) { lsSet('sole-face', '1'); toast(`${FACE} is on. Next time, Sole opens with a glance.`); } else { pkFetch('reg'); toast(`${FACE} didn’t turn on. Try again.`); } if ($('.sheet')) $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; }); break;
+    case 'me-out': (async () => { const q = await idbGet('pending'); if (q && q.length) { toast('Some changes are still waiting for signal. Sign out once they’re saved.'); return; }
+      await idbSet('book', null); try { await SB.auth.signOut(); } catch (_) {} location.reload(); })(); break;
     case 'td-open': S.td = S.td === v ? null : v; render(); break;
     case 'mon-ok': lsSet('sole-monday', isoDay(T0)); render(); break;
     case 'glgo': S.tab = 'schedule'; S.view = 'week'; S.day = monOf(0) + (v === 'next' ? 7 : 0); render(); window.scrollTo(0, 0); break;
@@ -3432,6 +3469,7 @@ on('input', e => {
   if (e.target.id === 'cl-search') { S.search = e.target.value; $('#cl-list').innerHTML = clientRows(); }
   if (e.target.id === 'clt-search') { S.clq = e.target.value; $('#clt-list').innerHTML = clientTabRows(); }
   if (e.target.id === 'snap-search') { S.search = e.target.value; $('#snap-res').innerHTML = S.search.trim() ? `<div class="list">${clientRows()}</div>` : ''; }
+  if (e.target.id === 'me-name') { PREFS.names = {...(PREFS.names || {}), [USER_EMAIL]:e.target.value.trim()}; clearTimeout(window.__meT); ME_DIRTY = true; window.__meT = setTimeout(() => { savePrefs(); }, 800); }
   if (e.target.id === 'cw-find' && CW) { CW.find = e.target.value; $('#cw-list').innerHTML = cardWhoList(); }
   if (e.target.id === 'b-find' && B) { B.find = e.target.value; $('#b-who').innerHTML = whoChips(); }
   if (e.target.id === 'b-name' && B) { B.name = e.target.value; const g = $('#book-go'); if (g) g.textContent = bookLabel(); }
@@ -3481,7 +3519,9 @@ if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.g
    and reads Square payments that the square Edge Function writes. It does this by standing in for window.claude, so
    the rest of the app is the same on both. On claude.ai nothing here runs. */
 const CLOUD_CFG = PROFILES.massage.cloud || {};   // set in the private edition only
-let FORM_LINK = null, CLIENT_NAME = () => '', TOAST = () => {};   // the texted form being filled in (formStart); a client's name, for formLink
+let FORM_LINK = null, CLIENT_NAME = () => '', TOAST = () => {}, USER_EMAIL = '', ME_DIRTY = false;
+const setTheme = t => { try { if (t) localStorage.setItem('sole-theme', t); else localStorage.removeItem('sole-theme'); } catch (_) {} if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
+try { const t = localStorage.getItem('sole-theme'); if (t) document.documentElement.dataset.theme = t; } catch (_) {}   // the texted form being filled in (formStart); a client's name, for formLink
 const CLOUD_ON = !!window.__SOLE_CLOUD_CLIENT || (!!CLOUD_CFG.url && !!CLOUD_CFG.host && CLOUD_CFG.host.test(location.hostname));
 let SB = null, BIZ = null, SQ_CACHE = null;
 let NAV_KEY = '', NAV_POP = false;   // the page the browser's history is on (see navNote)
@@ -3663,7 +3703,7 @@ async function idbSet(k, v){ try { const d = await idb(); await new Promise(ok =
 function bookSaveSoon(){ clearTimeout(BOOK_T); BOOK_T = setTimeout(bookSave, 2500); }
 async function bookSave(){
   if (!BIZ || OFFLINE || !BOOK_BIZ) return;
-  await idbSet('book', {at:new Date().toISOString(), biz:BOOK_BIZ, rows:BOOK_ROWS, pays:SQ_CACHE ? [...SQ_CACHE.pays.values()] : [], names:SQ_CACHE ? SQ_CACHE.names : {}});
+  await idbSet('book', {at:new Date().toISOString(), who:USER_EMAIL, biz:BOOK_BIZ, rows:BOOK_ROWS, pays:SQ_CACHE ? [...SQ_CACHE.pays.values()] : [], names:SQ_CACHE ? SQ_CACHE.names : {}});
 }
 function offlineDb(c){
   const snap = (id, data) => ({id, exists:data != null, data:() => data}), rows = c.rows;
@@ -3682,7 +3722,7 @@ async function offlineBar(){
   bar.innerHTML = `<b>No signal.</b> Your book as of ${at.toDateString() === new Date().toDateString() ? '' : at.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ', '}${h % 12 || 12}:${String(at.getMinutes()).padStart(2,'0')} ${h >= 12 ? 'pm' : 'am'}.${q.length ? ` ${q.length} change${q.length === 1 ? '' : 's'} will save when you’re back.` : ''}`;
 }
 async function cloudOffline(c){
-  OFFLINE = c; BIZ = c.biz.id;
+  OFFLINE = c; BIZ = c.biz.id; USER_EMAIL = c.who || '';
   if (c.biz.data) PROFILES[c.biz.profile || 'massage'] = {...c.biz.data, cloud:CLOUD_CFG};
   SQ_CACHE = {pays:new Map((c.pays || []).map(p => [p.id, p])), names:c.names || {}};
   const db = offlineDb(c); window.claude = {use:name => Promise.resolve(name === 'db' ? db : null)};
@@ -3721,6 +3761,7 @@ async function cloudGo(){
   catch (_) { const c = await idbGet('book'); if (c) return cloudOffline(c); }
   if (!biz || !biz.length) { const { data:u } = await SB.auth.getUser(); cloudScreen(`${signInHTML('email', '', '')}`); $id('si-msg').textContent = `${(u && u.user && u.user.email) || 'This email'} isn’t on a business in Sole yet.`; askSignIn('email', '', `${(u && u.user && u.user.email) || 'That email'} isn’t on a business in Sole yet.`); return; }
   BIZ = biz[0].id; BOOK_BIZ = biz[0]; BOOK_ROWS = {};
+  try { const { data:ss } = await SB.auth.getSession(); USER_EMAIL = ((ss && ss.session && ss.session.user && ss.session.user.email) || '').toLowerCase(); } catch (_) {}
   try { await savePending(); } catch (_) { const c = await idbGet('book'); if (c && c.biz.id === BIZ) return cloudOffline(c); }
   // the website carries a made-up business; the real one (its numbers, services, forms) is read here, members only
   if (biz[0].data) PROFILES[biz[0].profile || 'massage'] = {...biz[0].data, cloud:CLOUD_CFG};

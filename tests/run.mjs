@@ -340,6 +340,15 @@ console.log('ok private Square views');
   check(await q.evaluate(() => __FAKE.T.items.some(r => r.col === 'appts' && r.data.c === 'mb:holly')), 'website: booking works for a one-word name found by search');
   if (await q.locator('.sheet .close').count()) await q.click('.sheet .close');
   await q.click('.tab[data-v=today]');
+  // the account: initials at the top; light or dark on this phone; a name; thank-you texts on or off for the business
+  check((await q.textContent('.me')).trim() === 'T', 'account: initials of who is signed in');
+  await q.click('[data-act=me]'); await q.click('.sheet [data-act=me-theme][data-v=dark]');
+  check(await q.evaluate(() => document.documentElement.dataset.theme === 'dark' && localStorage.getItem('sole-theme') === 'dark'), 'account: dark on this phone');
+  await q.click('.sheet [data-act=me-theme][data-v=""]'); check(await q.evaluate(() => !document.documentElement.dataset.theme), 'account: back to the phone setting');
+  await q.fill('#me-name', 'Test Owner'); await q.click('.sheet [data-act=me-thanks][data-v=off]'); await q.waitForTimeout(1000); await q.click('.sheet .close'); await q.waitForTimeout(300);
+  check((await q.textContent('.me')).trim() === 'TO' && /Good \w+, Test/.test(await q.textContent('h1')), 'account: the name shows at the top');
+  check(await q.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'people' && x.id === 'prefs'); return r && r.data.thanks === false && r.data.names['test@example.com'] === 'Test Owner'; }), 'account: choices saved for the business');
+  check(!(await wide(q)), 'account: the top row fits the phone');
   check(!(await wide(q)), 'website: wider than the phone');
   // signed out (a new day, a cleared session): Face ID comes first and opens the book without a code
   await q.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('sb-')) localStorage.removeItem(k); });

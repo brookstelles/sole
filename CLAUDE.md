@@ -6,7 +6,7 @@ Sole (spelled S-O-L-E, as in sole proprietor; never "Soleil") is a phone app for
 
 - The business's identity comes first inside the app (its logo, name and colors); Sole appears on the welcome screen, setup and the business switcher.
 - Every business gets the same framework: five tabs, Today, Schedule, Snapshot (raised in the middle), Clients (named for the trade: `cap(WN)`), Forms; the open tab glows. What changes per business lives in data: words (clients/customers/students, appointments/jobs/lessons), services, client-note fields, forms, hours. Don't hard-code one trade's wording in the engine; use `P.who`, `P.whoOne`, `P.unit`, `P.unitOne`, `W1`, `WN`.
-- Keep it simple for non-technical owners: big targets, plain words, no settings screens.
+- Keep it simple for non-technical owners: big targets, plain words, no settings screens. The one exception (asked for Oct 26, 2026) is the small account sheet behind the initials at the top right (`meHTML`): your name, light or dark on this phone (`setTheme`, `sole-theme`), Face ID, thank-you texts on or off for the business, sign out. Business choices live in the book's `people/prefs` (`PREFS`: `thanks`, `names` by email).
 - `index.html` holds Heart and Soul Massage's real yearly numbers and P&L. Keep the repo and the published page private; anything shown to outsiders uses a made-up massage business.
 - Never put private details outside the `PRIVATE:START` / `PRIVATE:END` block in `index.html`, including comments and placeholders. `build_demo.py` refuses to build if any are left.
 - Run `python3 build_demo.py && node tests/run.mjs` before every publish and push (Playwright; set `CHROMIUM` if needed). Check the page at 390px wide in light and dark.
