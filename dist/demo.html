@@ -2431,6 +2431,14 @@ function mondayTodo(){
     <p class="small muted" style="margin-top:8px">${b.net ? `${diff >= 0 ? 'Up' : 'Down'} ${money(Math.abs(diff))} from the week before. ` : ''}${best && best[1] ? `Best day: ${DOW[dateOf(best[0]).getDay()]}, ${money(best[1])}. ` : ''}${open ? `${dur(open)} still open this week.` : 'This week is full.'}</p>
     <div class="btn-row" style="margin-top:10px">${!w.rec.checked && w.todo ? `<button class="btn" data-act="wkcheck" data-v="-1">${w.todo} to check</button>` : ''}<button class="btn line" data-act="mon-ok">Got it</button></div></div>`};
 }
+function remindEdit(id){
+  const a = AP.find(x => x.id === id) || AP.find(x => x.off > 0), tpl = PREFS.remind || REMIND_DEFAULT;
+  sheet(`${top('Confirmation text', 'What Messages opens with when you tap Text. Nothing sends until you press send.')}
+    <label class="field"><span class="label">The wording</span><textarea class="text-in" id="rm-tpl" style="min-height:130px">${esc(tpl)}</textarea></label>
+    <p class="small muted">Words in brackets fill themselves in: [name] is their first name, [service] what they booked, [when] the day and time, [me] ${esc(P.owner)}, [business] ${esc(P.biz)}.</p>
+    ${a ? `<div class="field"><span class="label">How it reads for ${esc(first(a.c))}</span><div class="callout" id="rm-prev" data-id="${a.id}">${esc(messageFor(a.c, 'remind', a))}</div></div>` : ''}
+    <div class="btn-row">${PREFS.remind ? '<button class="btn" data-act="rm-reset">Back to the original</button>' : '<span></span>'}<button class="btn primary" data-act="rm-save">Save</button></div>`);
+}
 function remindTodo(){
   const o = [1,2,3].find(d => apptsOn(d).length); if (o == null) return null;
   const L = apptsOn(o).sort((x, y) => x.start - y.start), st = a => VISITS[visitKey(a)] || {};
@@ -2443,7 +2451,8 @@ function remindTodo(){
         : tel.length >= 10 ? `<a class="btn sm primary" href="sms:${tel}&body=${encodeURIComponent(messageFor(a.c, 'remind', a))}" target="_top" data-act="rm-sent" data-id="${a.id}">Text</a>`
         : `<button class="btn sm" data-act="editnotes" data-c="${esc(a.c)}">Add phone</button>`;
       return `<div class="li rm"><button class="who" data-act="appt" data-id="${a.id}"><b>${esc(c.name)}</b><span>${clock(a.start)} · ${esc(SV[a.s].name)}${x.reminded && !x.confirmed ? ' · texted' : ''}</span></button>${act}</div>`; }).join('')}</div>
-    ${!sent && L.length ? `<p class="small muted">Tap Text and Messages opens with it written. Hit send, come back for the next.</p>` : ''}`};
+    ${!sent && L.length ? `<p class="small muted">Tap Text and Messages opens with it written. Nothing sends until you press send. Come back for the next.</p>` : ''}
+    <button class="linkbtn" data-act="rm-edit" data-id="${L[0].id}">See or change what the text says</button>`};
 }
 function otherToday(){ const td = isoDay(T0), L = LEDGER.filter(x => x.kind === 'pay' && x.date === td && (SQX && SQX.today ? true : !x.matched));
   return {net:L.reduce((t, x) => t + x.amount, 0), tips:L.reduce((t, x) => t + (x.tip || 0), 0), n:L.length}; }
@@ -3210,6 +3219,10 @@ function msgSheet(title, text, phone){
     : `<button class="btn primary" data-act="copy">Copy the text</button>
     <p class="small muted">In this sample, copy it into Messages. The real app would send it from your number and show the reply here.</p>`}`);
 }
+// tomorrow's confirmation text: the business's own wording (PREFS.remind) or this one; [name], [service], [when],
+// [me] and [business] fill themselves in
+const REMIND_DEFAULT = 'Hi [name]! Just confirming your [service] with me [when]. Reply C to confirm, or let me know if you need to change. See you then! [me], [business]';
+const fillMsg = (tpl, x) => tpl.replace(/\[(name|service|when|me|business)\]/gi, (m, w) => x[w.toLowerCase()]).replace(/[ \t]+/g, ' ').trim();
 function messageFor(k, kind){
   const f = first(k), sl = soonSlots(2);
   const offer = sl.length > 1 ? `${sl[0]} or ${sl[1]}` : sl[0] || 'some openings this week';
@@ -3222,7 +3235,7 @@ function messageFor(k, kind){
   if (kind === 'confirm' || kind === 'remind' || kind === 'moved') { const a = arguments[2] || nextAppt(k), when = a ? `${dayName(a.off)}${a.off > 6 ? ', ' + dayShort(a.off).slice(4) : ''} at ${clock(a.start)}` : 'soon';
     return kind === 'confirm' ? `Hi ${f}! You’re booked for ${a ? svLabel(a.s) : P.unitOne} ${when}. See you then! ${P.owner}, ${P.biz}`
       : kind === 'moved' ? `Hi ${f}, your ${P.unitOne} is now ${when}. See you then! ${P.owner}`
-      : `Hi ${f}! Just confirming your ${a ? svText(a.s) : P.unitOne} with me ${when}. Reply C to confirm, or let me know if you need to change. See you then! ${P.owner}, ${P.biz}`; }
+      : fillMsg(PREFS.remind || REMIND_DEFAULT, {name:f, service:a ? svText(a.s) : P.unitOne, when, me:P.owner, business:P.biz}); }
   if (kind === 'intake') { const a = nextAppt(k); return `Hi ${f}, I’m looking forward to seeing you ${a ? dayName(a.off) + ' at ' + clock(a.start) : 'soon'}! Before you come, please fill in this short form so I can plan your session: ${arguments[2] || INTAKE_URL}`; }
   return `Hi ${f}! `;
 }
@@ -3789,6 +3802,10 @@ on('click', e => {
     case 'ty-sent': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), thanked:new Date().toISOString()}; setTimeout(render, 400); } break; }
     case 'ty-skip': apptsOn(+v).forEach(a => { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), thanked:'skipped'}; }); render(); break;
     case 'rm-sent': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), reminded:new Date().toISOString()}; setTimeout(render, 400); } break; }
+    case 'rm-edit': remindEdit(id); break;
+    case 'rm-save': { const t = ($('#rm-tpl').value || '').trim(); if (!t) { toast('Write something first, or tap Back to the original.'); break; }
+      if (t === REMIND_DEFAULT) delete PREFS.remind; else PREFS.remind = t; savePrefs(); closeSheet(); render(); toast('Saved. Your confirmation texts will say this.'); break; }
+    case 'rm-reset': delete PREFS.remind; savePrefs(); remindEdit(+($('#rm-prev') || {dataset:{}}).dataset.id); toast('Back to the original wording.'); break;
     case 'rm-ok': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), confirmed:new Date().toISOString()}; render(); toast(`${first(a.c)} is confirmed.`); } break; }
     case 'me': if (CLOUD_ON && typeof pkOk === 'function' && pkOk() && !lsGet('sole-face')) pkFetch('reg'); sheet(meHTML()); break;
     case 'me-theme': setTheme(v || null); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
@@ -3827,6 +3844,7 @@ on('change', e => {
     if (e.target.id === 'b-from') { B.off = o; B.to = Math.max(B.to, o); } else B.to = Math.max(o, B.off); rerenderBook(); }
 });
 on('input', e => {
+  if (e.target.id === 'rm-tpl') { const pv = $('#rm-prev'), a = pv && AP.find(x => x.id === +pv.dataset.id); if (a) { const keep = PREFS.remind; PREFS.remind = e.target.value; pv.textContent = messageFor(a.c, 'remind', a); if (keep === undefined) delete PREFS.remind; else PREFS.remind = keep; } }
   if (OB && e.target.id === 'ob-biz') OB.biz = e.target.value;
   if (OB && e.target.id === 'ob-owner') OB.owner = e.target.value;
   if (OB && e.target.id === 'ob-mate') OB.mate = e.target.value;

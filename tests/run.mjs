@@ -582,6 +582,22 @@ await p.click('.tab[data-v=money]'); await p.click('[data-act=snapgo][data-sec=y
   check(n1 === n0 - 1 && hasUndo === 1 && await L().count() === n0 && /Undone/.test(await p.textContent('.toast')), 'undo: a canceled visit comes back'); }
 console.log('ok digital forms');
 
+// tomorrow's confirmation text: she reads and changes the wording; the Text button then uses hers, and nothing sends by itself
+{ const html = '<!doctype html><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1">' + fs.readFileSync(root + 'dist/demo.html', 'utf8');
+  const c = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); c.on('pageerror', e => errs.push('confirm wording: ' + e.message));
+  await c.route('http://sole.test/', r => r.fulfill({contentType:'text/html; charset=utf-8', body:html})); await c.goto('http://sole.test/', {waitUntil:'networkidle'});
+  if (await c.locator('[data-act=welcome-look]').count()) await c.click('[data-act=welcome-look]');
+  await c.click('[data-act=td-open][data-v=rm]'); await c.click('[data-act=rm-edit]');
+  check(/Just confirming your/.test(await c.inputValue('#rm-tpl')) && !/\[name\]/.test(await c.textContent('#rm-prev')), 'confirm wording: she sees the wording and how it reads for a real client');
+  await c.fill('#rm-tpl', 'Hello [name], see you [when]. Test wording from [me]');
+  check(/^Hello \w+, see you tomorrow at .+ Test wording from Lena$/.test(await c.textContent('#rm-prev')), 'confirm wording: the preview follows what she types');
+  check(!(await wide(c)), 'confirm wording: fits the phone');
+  await c.click('[data-act=rm-save]');
+  check(/Test%20wording%20from/.test(await c.getAttribute('[data-act=rm-sent] >> nth=0', 'href')), 'confirm wording: the Text button uses her wording');
+  await c.click('[data-act=rm-edit]'); await c.click('[data-act=rm-reset]');
+  check(/Just confirming your/.test(await c.inputValue('#rm-tpl')), 'confirm wording: back to the original');
+  await c.close(); console.log('ok confirmation wording'); }
+
 // on a computer: the sidebar, Today in two columns, the week as a calendar, clients beside their page, sheets from the right,
 // and back to the phone layout when the window narrows
 for (const [file, init, name] of [['dist/demo.html', null, null], ['index.html', `window.__SOLE_SQUARE = ${sq};`, 'Heart and Soul Massage']]) {
