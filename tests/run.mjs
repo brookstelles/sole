@@ -29,6 +29,10 @@ async function tour(p, label, keys = ['massage','hair','barber','tattoo','landsc
       check(!(await wide(p)), `${label} ${k}: the money bar fits the phone`);
       await p.click('[data-act=glance][data-v=today]'); }
     // To do: tomorrow's confirmations and the thank-yous open in place
+    // a long To do shows the four that matter most, the rest behind "Show more"
+    if (await p.locator('[data-act=td-all]').count() && /more/.test(await p.textContent('[data-act=td-all]'))) {
+      check(await p.locator('.todo .li.td').count() === 4, `${label} ${k}: a long To do shows four`);
+      await p.click('[data-act=td-all]'); check(await p.locator('.todo .li.td').count() > 4 && /Show less/.test(await p.textContent('[data-act=td-all]')), `${label} ${k}: Show more opens the rest`); }
     if (await p.locator('[data-act=td-open][data-v=rm]').count()) await p.click('[data-act=td-open][data-v=rm]');
     if (await p.locator('.li.rm').count()) { const h = await p.getAttribute('[data-act=rm-sent] >> nth=0', 'href');
       check(/^sms:/.test(h) && /Just%20confirming%20your/.test(h), `${label} ${k}: the confirmation text is written for her`);
@@ -587,6 +591,7 @@ console.log('ok digital forms');
   const c = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); c.on('pageerror', e => errs.push('confirm wording: ' + e.message));
   await c.route('http://sole.test/', r => r.fulfill({contentType:'text/html; charset=utf-8', body:html})); await c.goto('http://sole.test/', {waitUntil:'networkidle'});
   if (await c.locator('[data-act=welcome-look]').count()) await c.click('[data-act=welcome-look]');
+  if (await c.locator('[data-act=td-all]').count() && /more/.test(await c.textContent('[data-act=td-all]'))) await c.click('[data-act=td-all]');
   await c.click('[data-act=td-open][data-v=rm]'); await c.click('[data-act=rm-edit]');
   check(/Just confirming your/.test(await c.inputValue('#rm-tpl')) && !/\[name\]/.test(await c.textContent('#rm-prev')), 'confirm wording: she sees the wording and how it reads for a real client');
   await c.fill('#rm-tpl', 'Hello [name], see you [when]. Test wording from [me]');

@@ -97,6 +97,9 @@ main{display:flex;flex-direction:column;gap:22px}
 .td-i{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:var(--accent-soft);color:var(--accent);flex:none}
 .td-i svg{width:18px;height:18px}
 .li.td[aria-expanded="true"] > svg:last-child{transform:rotate(90deg)}
+.td-more{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;border:0;border-top:1px solid var(--line);background:transparent;color:var(--accent);font-weight:600;font-size:15px;padding:12px;min-height:48px}
+.td-more svg{width:16px;height:16px}
+.see-notes{color:var(--bad);white-space:nowrap}
 .td-body{padding:4px 14px 14px;display:flex;flex-direction:column;gap:8px}
 .td-body .list.flat{box-shadow:none;background:transparent}
 .need{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;background:var(--warm-soft);border:1px solid color-mix(in srgb,var(--gold) 45%,transparent);border-radius:18px;padding:14px 14px 14px 16px}
@@ -540,6 +543,7 @@ body.offline .app{padding-top:34px}
 .form-h h3{font-size:20px;font-weight:400}
 .form-h p{color:var(--muted);font-size:15px;margin-top:2px}
 .form .btns3{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.form-more{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:-4px}
 .form .btns3 .btn.primary{grid-column:1 / -1}
 a.btn{text-decoration:none}
 .callout{background:var(--sunk);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;font-size:15px}
@@ -713,7 +717,8 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
 .tab .badge::after{content:"";position:absolute;top:-1px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--warm);border:2px solid var(--surface)}
 
 .toast:has(.undo){display:flex;align-items:center;justify-content:space-between;gap:10px}
-.toast .undo{margin-left:12px;border:0;background:none;color:inherit;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px;padding:6px 2px;min-height:32px}
+.toast{pointer-events:none}
+.toast .undo{pointer-events:auto;margin-left:12px;border:0;background:none;color:inherit;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px;padding:6px 2px;min-height:32px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:30;
   width:min(calc(100% - 32px),440px);background:var(--ink);color:var(--bg);border-radius:14px;padding:13px 16px;font-size:15px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.2);animation:rise .2s ease-out}
 
@@ -1445,6 +1450,7 @@ let CTL;
 const WIDE_MQ = window.matchMedia('(min-width: 1024px)'); let WIDE = WIDE_MQ.matches;
 let SQ = null;    // Square payments and card customers, written into this page's database by the daily refresh
 let KEEP = null;   // the tab to return to when the page rebuilds itself
+let TOAST_T = null; const UNDO = {arm:null, snap:null};   // the message on screen and what Undo puts back: both outlive a rebuild
 // the real business's own book (appointments, time off, clients, payments and costs), one database document per item;
 // REAL_SAVED mirrors what the database holds so only changed items are written
 const SOLE_COLS = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks', 'days'];
@@ -2046,8 +2052,8 @@ function viewToday(){
     if (dn.length) row(dn.length === 1 ? `Write ${esc(first(dn[0].c))}’s ${ft}` : `Write ${today ? 'today’s' : 'your'} ${ft}`,
       `${dn.length === 1 ? 'About a minute' : `${dn.length} ${WN}, about ${Math.max(2, Math.ceil(dn.length / 2))} minutes`} · ${[...new Set(dn.map(a => esc(first(a.c))))].slice(0, 4).join(', ')}`, I.forms, `data-act="vn-run"`); }
   ap.filter(a => !CL[a.c].intake && a.start >= NOW).forEach(a => row(`${esc(first(a.c))}’s ${P.intakeName} is missing`, `First visit today at ${clock(a.start)}`, I.forms, `data-act="fillfor" data-c="${a.c}"`));
-  [remindTodo(), thanksTodo(), mondayTodo()].filter(Boolean).forEach(x => todo.push(`<button class="li td" data-act="td-open" data-v="${x.key}" aria-expanded="${S.td === x.key}"><span class="td-i">${x.icon}</span><span class="who"><b>${x.t}</b><span>${x.s}</span></span>${I.chev}</button>${S.td === x.key ? `<div class="td-body">${x.body}</div>` : ''}`));
   PAPERS.filter(p => ppDays(p) != null && ppDays(p) <= 30).forEach(p => row(`${esc(p.name)} ${ppDays(p) < 0 ? 'has expired' : 'is due for renewal'}`, ppDays(p) < 0 ? `Expired ${ppDate(p.expires)}` : `Expires ${ppDate(p.expires)}`, I.badge, `data-act="pp-open" data-v="${p.uid}"`));
+  [remindTodo(), thanksTodo(), mondayTodo()].filter(Boolean).forEach(x => todo.push(`<button class="li td" data-act="td-open" data-v="${x.key}" aria-expanded="${S.td === x.key}"><span class="td-i">${x.icon}</span><span class="who"><b>${x.t}</b><span>${x.s}</span></span>${I.chev}</button>${S.td === x.key ? `<div class="td-body">${x.body}</div>` : ''}`));
   { const w = weekInfo(-1); if (!w.rec.checked && w.todo) row('Check last week', `${w.todo} thing${w.todo === 1 ? '' : 's'} to look at, about two minutes`, I.check, `data-act="wkcheck" data-v="-1"`); }
   const c = next && CL[next.c];
   const mins = next ? next.start - NOW : 0;
@@ -2068,7 +2074,8 @@ function viewToday(){
   <section class="sec" ${ap.length ? '' : 'hidden'}><div class="sec-h"><h2>Today’s ${WN}</h2><button class="chip" data-act="tab" data-v="schedule">Full schedule</button></div>
     <div class="list">${dayRows(0)}</div></section>
   </div><div class="dash-b">
-  ${todo.length ? `<section class="sec todo"><div class="sec-h"><h2>To do</h2><span class="aside">${todo.filter(x => !x.startsWith('<div')).length}</span></div><div class="list">${todo.join('')}</div></section>` : ''}
+  ${todo.length ? (() => { const open = todo.findIndex(x => x.includes('aria-expanded="true"')), all = S.tdAll || todo.length <= TD_SHOW + 1 || open >= TD_SHOW, rest = todo.length - TD_SHOW;
+    return `<section class="sec todo"><div class="sec-h"><h2>To do</h2><span class="aside">${todo.length}</span></div><div class="list">${(all ? todo : todo.slice(0, TD_SHOW)).join('')}${todo.length > TD_SHOW + 1 ? `<button class="td-more" data-act="td-all">${all ? 'Show less' : `Show ${rest} more`}${all ? I.down.replace('<svg', '<svg style="transform:rotate(180deg)"') : I.down}</button>` : ''}</div></section>`; })() : ''}
   <section class="glance">${glanceCard(td)}  </section>
   <section class="sec">
     <form class="ask" id="ask-form"><input id="ask-in" placeholder="Ask anything about your day…" autocomplete="off" aria-label="Ask a question"><button aria-label="Ask">${I.send}</button></form>
@@ -2076,6 +2083,7 @@ function viewToday(){
     ${S.answer ? `<div class="answer"><p class="q">${esc(S.answer.q)}</p><div class="a">${S.answer.a}</div></div>` : ''}
   </section></div></div>`;
 }
+const TD_SHOW = 4;   // To do shows the four that matter most; the rest open with "Show more"
 const pressureWord = p => ['Not known','Light','Light','Medium','Firm','Firm'][p];   // her intake form: Light, Medium, Firm
 const pressureLvl = p => [0,1,1,2,3,3][p];
 /* the getting-started list a new business sees until it's done */
@@ -2126,7 +2134,7 @@ function dayRows(off){
       else if (a.pending) tag = '<span class="tag new">Request</span>';
       else if (!c.intake) tag = '<span class="tag warn">Form missing</span>';
       else if (c.isNew) tag = '<span class="tag new">New</span>';
-      out += `<button class="li${done?' done':''}" data-act="appt" data-id="${a.id}"><span class="t">${clockS(a.start)}<small>${SV[a.s].min} min</small></span><span class="who"><b>${c.name}</b><span>${SV[a.s].name}${MULTI && S.tab !== 'schedule' ? ` · <span class="who-tag">${a.w}</span>` : ''}${rowsOf(c).some(r => r.bad)?' · <span style="color:var(--bad)">see notes</span>':''}</span></span>${tag || I.chev}</button>`;
+      out += `<button class="li${done?' done':''}" data-act="appt" data-id="${a.id}"><span class="t">${clockS(a.start)}<small>${SV[a.s].min} min</small></span><span class="who"><b>${c.name}</b><span>${SV[a.s].name}${MULTI && S.tab !== 'schedule' ? ` · <span class="who-tag">${a.w}</span>` : ''}${rowsOf(c).some(r => r.bad)?' · <span class="see-notes">see notes</span>':''}</span></span>${tag || I.chev}</button>`;
     } else if (it.b) {
       out += `<button class="li block" data-act="block" data-id="${it.b.id}"><span class="t">${allDay(it.b) ? 'All day' : clockS(it.b.start)}<small>${allDay(it.b) ? '' : dur(it.b.min)}</small></span><span class="who"><b>${esc(it.b.label)}</b><span>${it.b.grp ? 'Time off · part of a series' : 'Time off'}</span></span>${I.chev}</button>`;
     } else {
@@ -2782,12 +2790,8 @@ function viewForms(){
     <div class="form-h"><span class="doc">${I.forms}</span><div><h3>${f.name}</h3><p>${f.kind} · ${f.about}</p></div></div>
     ${f.lines ? `<div class="callout">${f.lines.map(l => `<span>${l}</span>`).join('')}</div>` : ''}
     ${RESP.filter(r => r.form === f.name).length ? `<button class="linkbtn" data-act="resps" data-i="${i}">${RESP.filter(r => r.form === f.name).length} filled in · see them</button>` : ''}
-    <div class="btns3">
-      ${f.url ? `<a class="btn primary" href="${f.url}" target="_blank" rel="noopener">Open to print or share</a>` : `<button class="btn primary" data-act="formview" data-i="${i}">${f.upload ? 'Open' : 'Preview'}</button>`}
-      <button class="btn" data-act="fill" data-i="${i}">Fill in now</button>
-      ${f.send ? `<button class="btn" data-act="formsend" data-i="${i}">Text a link</button>` : ''}
-      <button class="btn" data-act="copylink" data-i="${i}" ${f.send ? '' : 'style="grid-column:1 / -1"'}>Copy link</button>
-    </div>
+    <div class="btn-row"><button class="btn primary" data-act="fill" data-i="${i}">Fill in now</button>${f.send ? `<button class="btn" data-act="formsend" data-i="${i}">Text a link</button>` : `<button class="btn" data-act="copylink" data-i="${i}">Copy link</button>`}</div>
+    <div class="form-more">${f.url ? `<a class="linkbtn" href="${f.url}" target="_blank" rel="noopener">Open to print or share</a>` : `<button class="linkbtn" data-act="formview" data-i="${i}">${f.upload ? 'Open it' : 'See the whole form'}</button>`}${f.send ? `<button class="linkbtn" data-act="copylink" data-i="${i}">Copy link</button>` : ''}</div>
   </article>`).join('')}
   </section>
   <button class="btn line" data-act="addform">${I.plus}Add a form</button>
@@ -2860,7 +2864,7 @@ function openPaper(uid){
   const p = PAPERS.find(x => x.uid === uid); if (!p) return;
   sheet(`${top(esc(p.name), ppWhen(p))}
     <div id="pp-view">${p.type === 'pdf' ? `<div class="card facts2"><p>A PDF.</p></div>` : `<img class="rcp-img" id="pp-img" alt="${esc(p.name)}">`}</div>
-    <div class="btn-row"><a class="btn primary" id="pp-openlink" target="_blank" rel="noopener">${p.type === 'pdf' ? 'Open the PDF' : 'Open full size'}</a><button class="btn" data-act="pp-share" data-v="${p.uid}">Save a copy</button></div>
+    <div class="btn-row"><a class="btn primary" id="pp-openlink" target="_blank" rel="noopener">${p.type === 'pdf' ? 'Open the PDF' : 'Open full size'}</a><button class="btn" data-act="pp-share" data-v="${p.uid}">Share or save</button></div>
     <div class="btn-row" style="margin-top:8px"><button class="btn" data-act="pp-new" data-v="${p.uid}">Replace with a newer one</button><button class="btn" data-act="pp-edit" data-v="${p.uid}">Change the date</button></div>
     ${(p.older || []).length ? `<p class="small muted">${p.older.length} earlier cop${p.older.length === 1 ? 'y' : 'ies'} kept.</p>` : ''}
     <button class="btn line danger-line" data-act="pp-del" data-v="${p.uid}" style="width:100%;margin-top:8px">Take it off the list</button>`);
@@ -3602,14 +3606,13 @@ function respHTML(r){
 }
 
 /* ---------- toast ---------- */
-let tt;
-function toast(m){ clearTimeout(tt); let el = $('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role','status'); document.body.appendChild(el); }
+function toast(m){ clearTimeout(TOAST_T); let el = $('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role','status'); document.body.appendChild(el); }
   const u = UNDO.arm && Date.now() - UNDO.arm.at < 2000 ? UNDO.arm : null; UNDO.arm = null; UNDO.snap = u ? u.snap : null;
   el.textContent = m; if (u) { const b = document.createElement('button'); b.className = 'undo'; b.dataset.act = 'undo'; b.textContent = 'Undo'; el.appendChild(b); }
-  tt = setTimeout(() => { el.remove(); UNDO.snap = null; }, u ? 7000 : 3600); }
+  TOAST_T = setTimeout(() => { el.remove(); UNDO.snap = null; }, u ? 7000 : 3600); }
 // Undo: a copy of the book is taken before booking, moving, canceling, a payment or a no-show; the toast that follows
 // offers to put it back for a few seconds (saving the book again undoes it in the database too)
-const UNDO = {arm:null, snap:null}, UNDOABLE = ['b-go', 'cancel-yes', 'pf-save', 'wk-noshow', 'charge-card', 'ac-save'];
+const UNDOABLE = ['b-go', 'cancel-yes', 'pf-save', 'wk-noshow', 'charge-card', 'ac-save'];
 const bookCopy = () => JSON.parse(JSON.stringify({AP, BL, LEDGER, VISITS, CL}));
 function bookPut(c){
   AP.splice(0, AP.length, ...c.AP); BL.splice(0, BL.length, ...c.BL); LEDGER.splice(0, LEDGER.length, ...c.LEDGER);
@@ -3686,6 +3689,7 @@ on('click', e => {
       if (i >= 0) L.splice(i, 1); else { if (one) L.length = 0; L.push(v); }
       document.querySelectorAll(`[data-act=vn-c][data-g="${g}"]`).forEach(b => b.setAttribute('aria-pressed', L.includes(b.dataset.v))); break; }
     case 'vn-save': saveVisit(); break;
+    case 'td-all': S.tdAll = !S.tdAll; render(); break;
     case 'vn-run': { const [id, ...ids] = notesDue().map(a => a.id); if (id != null) openVisit(id, {ids, done:0, saved:0}); break; }
     case 'vn-skip': vnNext(false); break;
     case 'vn-last': { vnRead(); const L = VN.last, F = visitForm(); F.chips.forEach(g => { VN.picks[g.k] = [...(L[g.k] || [])]; }); F.text.forEach(t => { VN.text[t.k] = L[t.k] || ''; }); drawVisit(); toast('Filled in from last time. Change anything that was different.'); break; }
