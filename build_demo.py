@@ -17,7 +17,7 @@ print('dist/demo.html', len(out), 'bytes')
 # reads the text with the wrong encoding (Howâ€™s for How’s) and lays the page out for a desktop.
 SITE_HEAD = ('<!doctype html>\n<html lang="en">\n<meta charset="utf-8">\n'
   '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
-  '<link rel="icon" href="apple-touch-icon.png">\n<link rel="apple-touch-icon" href="apple-touch-icon.png">\n<meta name="apple-mobile-web-app-title" content="Sole">\n<link rel="manifest" href="manifest.json">\n')
+  '<style id="pre-bg">html{background:#14112E}</style>\n<link rel="icon" href="apple-touch-icon.png">\n<link rel="apple-touch-icon" href="apple-touch-icon.png">\n<meta name="apple-mobile-web-app-title" content="Sole">\n<link rel="manifest" href="manifest.json">\n')
 # The website is public: it carries the made-up massage business too, plus the Supabase address (public by design).
 # The real business comes from the database after its owner signs in (supabase/profile.mjs puts it there).
 cloud = re.search(r'^ *cloud:\{.*\},$', src[a:b], re.M)

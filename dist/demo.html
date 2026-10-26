@@ -731,7 +731,7 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
 .tab.center .ti{width:56px;height:56px;margin-top:-26px;background:var(--accent);color:var(--accent-ink);border:4px solid var(--surface);
   box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 35%,transparent)}
 .tab.center svg{width:26px;height:26px}
-.tab.center[aria-current="page"] .ti{background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft),0 0 22px 6px color-mix(in srgb,var(--accent) 45%,transparent);animation:tab-glow 3.2s ease-in-out infinite alternate}
+.tab.center[aria-current="page"] .ti{background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft),0 0 22px 6px color-mix(in srgb,var(--accent) 45%,transparent);animation:tab-glow 3.2s ease-in-out infinite alternate;animation-delay:var(--glow-at,0s)}
 .tab.center[aria-current="page"] svg{filter:none}
 @keyframes tab-glow{to{box-shadow:0 0 0 4px var(--accent-soft),0 0 30px 10px color-mix(in srgb,var(--accent) 30%,transparent)}}
 .tab .badge{position:relative}
@@ -1646,6 +1646,7 @@ async function allowLive(){
 }
 function boot(KEY){
 CTL && CTL.abort(); CTL = new AbortController();
+{ const pre = document.getElementById('pre-bg'); if (pre) pre.remove(); }   // the night-sky first paint (website) gives way to the app's own colors
 const on = (t, f) => document.addEventListener(t, f, {signal:CTL.signal});
 const P = PROFILES[KEY] || makeProfile(KEY);
 document.documentElement.dataset.look = P.look;
@@ -2059,6 +2060,7 @@ function render(){
   document.body.dataset.page = S.tab === 'money' ? 'money-' + S.money : S.tab === 'schedule' ? 'schedule-' + sView() : S.tab;
   const owes = unpaid().length > 0;
   saveState();
+  document.documentElement.style.setProperty('--glow-at', `-${((performance.now() % 6400) / 1000).toFixed(2)}s`);   // the glow carries on its rhythm across redraws
   $('#tabs').innerHTML = (WIDE ? `<div class="side-biz">${biz}</div>` : '') + TABS.map(([k,l]) => `<button class="tab${k==='money'?' center':''}" data-act="tab" data-v="${k}" aria-current="${S.tab===k?'page':'false'}"><span class="ti${k==='money'&&owes?' badge':''}">${I[k]}</span>${l}</button>`).join('') + (WIDE ? sideNext() : '');
   navNote();
 }
@@ -4113,7 +4115,7 @@ on('click', e => {
     case 'me-face-on': if (!pkOk()) { toast(`${FACE} isn’t ready on this address yet. Try again later.`); break; } el.disabled = true; pkCeremony('reg').then(() => true, err => err && (err.code === 'webauthn_credential_exists' || err.name === 'InvalidStateError'))
       .then(ok => { if (ok) { lsSet('sole-face', '1'); toast(`${FACE} is on. Next time, Sole opens with a glance.`); } else { pkFetch('reg'); toast(`${FACE} didn’t turn on. Try again.`); } if ($('.sheet')) $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; }); break;
     case 'me-out': (async () => { const q = await idbGet('pending'); if (q && q.length) { toast('Some changes are still waiting for signal. Sign out once they’re saved.'); return; }
-      await idbSet('book', null); try { await SB.auth.signOut(); } catch (_) {} location.reload(); })(); break;
+      await idbSet('book', null); lsSet('sole-biz-name', ''); try { await SB.auth.signOut(); } catch (_) {} location.reload(); })(); break;
     case 'pp-add': PPF = {name:v || '', expires:'', file:null, url:null}; sheet(ppHTML()); break;
     case 'pp-save': savePaper(); break;
     case 'pp-open': openPaper(v); break;
@@ -4231,12 +4233,21 @@ function edgeShow(dx){ const el = gestureEl('edge', '<svg viewBox="0 0 24 24" fi
 // the opening plays every time Sole opens: the book loads behind it, then the scene hands over
 const INTRO_MS = window.__SOLE_INTRO_MS != null ? window.__SOLE_INTRO_MS : matchMedia('(prefers-reduced-motion: reduce)').matches ? 1200 : 3400;
 let INTRO_AT = 0;
-function introVeil(){ const sc = document.querySelector('#main > .signin'); if (sc) { sc.classList.add('veil'); document.body.appendChild(sc); } }
+function introVeil(){
+  const sc = document.querySelector('#main > .signin'); if (!sc) return;
+  // moving it to the page's top layer would restart every animation in it (the sun would sink and rise again), so
+  // each one is put back at the moment it had reached
+  const all = () => sc.getAnimations ? sc.getAnimations({subtree:true}) : [], id = a => [a.effect && a.effect.target, a.effect && a.effect.pseudoElement, a.animationName];
+  const was = all().map(a => [...id(a), a.currentTime]);
+  sc.classList.add('veil'); document.body.appendChild(sc);
+  all().forEach(a => { const [t, ps, n] = id(a), w = was.find(x => x[0] === t && x[1] === ps && x[2] === n); if (w && w[3] != null) try { a.currentTime = w[3]; } catch (_) {} });
+}
 async function introDone(){
   const sc = document.querySelector('body > .signin.veil'); if (!sc) return;
   const wait = INTRO_MS - (Date.now() - INTRO_AT); if (wait > 0) await new Promise(r => setTimeout(r, wait));
   sc.classList.add('leaving'); setTimeout(() => sc.remove(), INTRO_MS ? 1150 : 0);
 }
+const welcomeHTML = name => `<p class="sky-hello">${lsGet('sole-been') ? 'Welcome back' : 'Welcome'}</p><p class="sky-biz">${cloudEsc(name)}</p><p class="muted sky-wait small">Opening your book…</p>`;
 // the sunrise is drawn once; later screens (code, opening the book) only change the card, so the intro doesn't replay
 function cloudScreen(html){
   document.documentElement.dataset.look = 'sole'; $id('hdr').innerHTML = ''; $id('tabs').innerHTML = '';
@@ -4252,7 +4263,7 @@ function cloudScreen(html){
         <p class="sky-tag">For the one-person business</p></div>
         <div class="sky-card" id="sky-card"></div></div></section>`;
   }
-  $id('sky-card').innerHTML = html;
+  if ($id('sky-card').dataset.html !== html) { $id('sky-card').innerHTML = html; $id('sky-card').dataset.html = html; }
 }
 const $id = id => document.getElementById(id);
 const cloudEsc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -4461,7 +4472,7 @@ function liveFromCache(){
   SQ.live = {payments:pays, from:isoDay(from), at:new Date(), sig:pays.length + ':' + pays.map(p => p.id + p.status + (p.updated_at || '')).join().length};
 }
 async function cloudGo(){
-  cloudScreen('<p class="muted sky-wait">Opening your book…</p>');
+  if (!lsGet('sole-biz-name')) cloudScreen('<p class="muted sky-wait">Opening your book…</p>');
   let biz = null; try { const r = await SB.from('businesses').select('id,name,profile,data').limit(1); if (r.error) throw r.error; biz = r.data; }
   catch (_) { const c = await idbGet('book'); if (c) return cloudOffline(c); }
   if (!biz || !biz.length) { const { data:u } = await SB.auth.getUser(); cloudScreen(`${signInHTML('email', '', '')}`); $id('si-msg').textContent = `${(u && u.user && u.user.email) || 'This email'} isn’t on a business in Sole yet.`; askSignIn('email', '', `${(u && u.user && u.user.email) || 'That email'} isn’t on a business in Sole yet.`); return; }
@@ -4470,7 +4481,8 @@ async function cloudGo(){
   try { await savePending(); } catch (_) { const c = await idbGet('book'); if (c && c.biz.id === BIZ) return cloudOffline(c); }
   // the website carries a made-up business; the real one (its numbers, services, forms) is read here, members only
   if (biz[0].data) PROFILES[biz[0].profile || 'massage'] = {...biz[0].data, cloud:CLOUD_CFG};
-  cloudScreen(`<p class="sky-hello">${lsGet('sole-been') ? 'Welcome back' : 'Welcome'}</p><p class="sky-biz">${cloudEsc((biz[0].data && biz[0].data.biz) || biz[0].name)}</p><p class="muted sky-wait small">Opening your book…</p>`);
+  const bizName = (biz[0].data && biz[0].data.biz) || biz[0].name; lsSet('sole-biz-name', bizName);
+  cloudScreen(welcomeHTML(bizName));
   try { await loadSquareTables(); } catch (_) { SQ_CACHE = {pays:new Map(), names:{}}; }
   const db = cloudDb(), assets = cloudAssets();
   window.claude = {use:name => Promise.resolve(name === 'db' ? db : name === 'assets' ? assets : null)};
@@ -4512,7 +4524,8 @@ async function formLink(k){
 }
 async function cloudStart(){
   INTRO_AT = Date.now();
-  cloudScreen('<p class="muted sky-wait">Opening Sole…</p>');
+  // a phone that has opened the book before says welcome back from the first moment (it changes if no one is signed in)
+  cloudScreen(lsGet('sole-biz-name') ? welcomeHTML(lsGet('sole-biz-name')) : '<p class="muted sky-wait">Opening Sole…</p>');
   if ('serviceWorker' in navigator && !window.__SOLE_CLOUD_CLIENT) navigator.serviceWorker.register('/sw.js').catch(() => {});
   if (!online()) { const c = await idbGet('book'); if (c) return cloudOffline(c); }
   try { await sbMake(); } catch (e) { const c = await idbGet('book'); if (c) return cloudOffline(c); throw e; }

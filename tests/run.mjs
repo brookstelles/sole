@@ -498,6 +498,19 @@ console.log('ok private Square views');
   check(await on.evaluate(() => window.__FAKE.T.items.some(r => r.col === 'clients' && r.data && r.data.name.trim() === 'Offline Person')), 'back online: the change made with no signal is saved');
   check(/Offline Person/.test(await (async () => { await on.click('.tab[data-v=clients]'); return on.textContent('main'); })()), 'back online: and shows in the book');
   await on.close();
+  // the opening plays once: the sun rises steadily while the book loads under it (moving the scene above the book used
+  // to start every animation over), and a phone that has opened the book before says welcome back from the start
+  { const o = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); o.on('pageerror', e => errs.push('opening: ' + e.message));
+    const slow = fake.replace('then:(ok, no) => Promise.resolve(run()).then(ok, no)', 'then:(ok, no) => new Promise(r => setTimeout(r, 250)).then(() => run()).then(ok, no)');
+    await o.addInitScript(`localStorage.setItem('sole-been','1'); localStorage.setItem('sole-face-later', String(Date.now())); localStorage.setItem('sole-biz-name','Cloud Test Massage');\nwindow.__FAKE_DB = ${JSON.stringify(seed)};\n${slow}\nwindow.__SOLE_CLOUD_CLIENT.auth.verifyOtp({email:'test@example.com', token:'123456'});`);
+    await o.route('https://sole.test/', r => r.fulfill({contentType:'text/html', body:site})); o.goto('https://sole.test/').catch(() => {});
+    const ys = [], cards = new Set();
+    for (let i = 0; i < 30; i++) { const r = await o.evaluate(() => { const s = document.querySelector('.sky .sun'), c = document.getElementById('sky-card');
+        return s ? {y:new DOMMatrix(getComputedStyle(s).transform).m42, card:c ? c.textContent : '', veil:!!document.querySelector('.signin.veil')} : null; }).catch(() => null);
+      if (r) { ys.push(r.y); cards.add(r.card); } await o.waitForTimeout(80); }
+    check(ys.length > 10 && ys.every((y, i) => !i || y <= ys[i - 1] + 0.5), 'opening: the sun rises once, without starting over');
+    check([...cards].every(c => /Welcome back\s*Cloud Test Massage/.test(c)), 'opening: a returning phone says welcome back from the start');
+    await o.close(); }
   console.log('ok website');
 }
 // the family's days and holidays show on the schedule

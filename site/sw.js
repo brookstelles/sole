@@ -1,6 +1,7 @@
 // Sole's service worker: keeps a copy of the app on the phone so it opens with no signal (the book itself is kept
-// by the page, in IndexedDB). The page: the newest when online, the last copy when not. Libraries and fonts: the
-// copy, fetched once. Everything else (the database, Square) goes straight to the network.
+// by the page, in IndexedDB). The page: the newest when the network answers within a second and a half, else the
+// copy on the phone straight away (the newest is still saved for next time), so a weak signal never holds up the
+// opening. Libraries and fonts: the copy, fetched once. Everything else (the database, Square) goes straight to the network.
 // It also shows notifications (a message from the website, sent by supabase/functions/push) and opens Sole on that
 // message when one is tapped.
 const V = 'sole-1';
@@ -10,7 +11,10 @@ self.addEventListener('fetch', e => {
   const r = e.request, u = new URL(r.url);
   if (r.method !== 'GET') return;
   if (u.origin === location.origin && r.mode === 'navigate') {
-    e.respondWith(fetch(r).then(res => { if (res.ok) { const cp = res.clone(); caches.open(V).then(c => c.put('/', cp)); } return res; }).catch(() => caches.match('/')));
+    const net = fetch(r).then(res => { if (res.ok) { const cp = res.clone(); return caches.open(V).then(c => c.put('/', cp)).then(() => res, () => res); } return res; });
+    const slow = new Promise(ok => setTimeout(ok, 1500)).then(() => caches.match('/'));
+    e.waitUntil(net.catch(() => {}));
+    e.respondWith(Promise.race([net, slow]).then(res => res || net).catch(() => caches.match('/').then(hit => hit || net)));
     return;
   }
   if (u.origin === location.origin || /^(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)$/.test(u.hostname)) {
