@@ -545,6 +545,9 @@ a.btn{text-decoration:none}
 .rc b{font-weight:600}
 .rc .btn{min-height:44px;font-size:15px}
 .li.client{grid-template-columns:44px 1fr auto}
+.li.rm{grid-template-columns:1fr auto}
+.li.rm .who{border:0;background:transparent;text-align:left;padding:0;color:var(--ink);display:flex;flex-direction:column}
+.btn.sm.primary{min-height:40px;padding:6px 16px}
 /* Clients tab */
 .cl-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .cl-stats button{border:0;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:12px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;color:var(--ink)}
@@ -1420,6 +1423,9 @@ const prevWork = () => { let o = -1; while (P.hours.closed.includes(dateOf(o).ge
 /* ---------- this business (from its profile) ---------- */
 const SV = {...P.services};
 const offOf = d => { const [y, m, dd] = d.split('-').map(Number); return Math.round((new Date(y, m-1, dd) - T0) / 864e5); };
+// a service as you'd say it in a text: "Swedish massage", "deep tissue massage", "CBD massage"
+const svText = id => { const n = SV[id].name, w = new RegExp(`\\b(${P.unitOne}|massage|session|lesson|appointment|cut|facial)\\b`, 'i').test(n) ? n : `${n} ${P.unitOne}`;
+  return /^[A-Z][a-z]/.test(w) && !/^(Swedish|Thai|Reiki)\b/.test(w) ? w[0].toLowerCase() + w.slice(1) : w; };
 const svLabel = id => `${SV[id].min < 120 ? SV[id].min + ' min' : dur(SV[id].min)} ${SV[id].name.toLowerCase()}`;
 const LAST = prevWork();
 const CL = JSON.parse(JSON.stringify(P.clients));
@@ -1774,6 +1780,7 @@ function viewToday(){
   ${needs.length ? `<section class="sec"><div class="sec-h"><h2>Needs you</h2><span class="aside">${needs.length}</span></div>${needs.join('')}</section>` : ''}
   <section class="sec" ${ap.length ? '' : 'hidden'}><div class="sec-h"><h2>Today’s ${WN}</h2><button class="chip" data-act="tab" data-v="schedule">Full schedule</button></div>
     <div class="list">${dayRows(0)}</div></section>
+  ${remindCard()}
   <section class="glance">${glanceCard(td)}  </section>`;
 }
 const pressureWord = p => ['Not known','Light','Light','Medium','Firm','Firm'][p];   // her intake form: Light, Medium, Firm
@@ -2070,6 +2077,19 @@ function glanceCard(td){
     <div class="seg gl-seg" role="group" aria-label="Money for">${GLANCE.map(([k, l]) => `<button data-act="glance" data-v="${k}" aria-pressed="${g === k}">${l}</button>`).join('')}</div>
     <button class="mt-body" ${act}><span class="mt-row">${half(L)}${half(R)}</span>
       <span class="mt-bar" aria-hidden="true"><i style="width:${Math.min(100, pct * 100).toFixed(0)}%"></i></span>${note ? `<span class="small muted">${note}</span>` : ''}</button></div>`;
+}
+function remindCard(){
+  const o = [1,2,3].find(d => apptsOn(d).length); if (o == null) return '';
+  const L = apptsOn(o).sort((x, y) => x.start - y.start), st = a => VISITS[visitKey(a)] || {};
+  const ok = L.filter(a => st(a).confirmed).length, sent = L.filter(a => st(a).reminded).length;
+  return `<section class="sec"><div class="sec-h"><h2>${o === 1 ? 'Tomorrow' : DOW[dateOf(o).getDay()]}</h2><span class="aside">${ok ? `${ok} of ${L.length} confirmed` : sent ? `${sent} of ${L.length} texted` : `${L.length} to confirm`}</span></div>
+    <div class="list">${L.map(a => { const c = CL[a.c], tel = String(c.phone || '').replace(/[^0-9+]/g, ''), x = st(a);
+      const act = x.confirmed ? `<span class="tag ok">Confirmed</span>`
+        : x.reminded ? `<button class="chip sm" data-act="rm-ok" data-id="${a.id}">Confirmed?</button>`
+        : tel.length >= 10 ? `<a class="btn sm primary" href="sms:${tel}&body=${encodeURIComponent(messageFor(a.c, 'remind', a))}" target="_top" data-act="rm-sent" data-id="${a.id}">Text</a>`
+        : `<button class="btn sm" data-act="editnotes" data-c="${esc(a.c)}">Add phone</button>`;
+      return `<div class="li rm"><button class="who" data-act="appt" data-id="${a.id}"><b>${esc(c.name)}</b><span>${clock(a.start)} · ${esc(SV[a.s].name)}${x.reminded && !x.confirmed ? ' · texted' : ''}</span></button>${act}</div>`; }).join('')}</div>
+    ${!sent && L.length ? `<p class="small muted">Tap Text and Messages opens with it written. Hit send, come back for the next.</p>` : ''}</section>`;
 }
 function otherToday(){ const td = isoDay(T0), L = LEDGER.filter(x => x.kind === 'pay' && x.date === td && (SQX && SQX.today ? true : !x.matched));
   return {net:L.reduce((t, x) => t + x.amount, 0), tips:L.reduce((t, x) => t + (x.tip || 0), 0), n:L.length}; }
@@ -2728,7 +2748,7 @@ function messageFor(k, kind){
   if (kind === 'confirm' || kind === 'remind' || kind === 'moved') { const a = arguments[2] || nextAppt(k), when = a ? `${dayName(a.off)}${a.off > 6 ? ', ' + dayShort(a.off).slice(4) : ''} at ${clock(a.start)}` : 'soon';
     return kind === 'confirm' ? `Hi ${f}! You’re booked for ${a ? svLabel(a.s) : P.unitOne} ${when}. See you then! ${P.owner}, ${P.biz}`
       : kind === 'moved' ? `Hi ${f}, your ${P.unitOne} is now ${when}. See you then! ${P.owner}`
-      : `Hi ${f}! A reminder that I’ll see you ${when}. Reply if you need to change it. ${P.owner}`; }
+      : `Hi ${f}! Just confirming your ${a ? svText(a.s) : P.unitOne} with me ${when}. Reply C to confirm, or let me know if you need to change. See you then! ${P.owner}, ${P.biz}`; }
   if (kind === 'intake') { const a = nextAppt(k); return `Hi ${f}, I’m looking forward to seeing you ${a ? dayName(a.off) + ' at ' + clock(a.start) : 'soon'}! Before you come, please fill in this short form so I can plan your session: ${INTAKE_URL}`; }
   return `Hi ${f}! `;
 }
@@ -3206,6 +3226,8 @@ on('click', e => {
     case 'dh-usual': { const o = +v; delete DAYS[isoDay(dateOf(o))]; closeSheet(); render(); toast(`${cap(dayName(o))}: back to your usual hours.`); break; }
     case 'sview': S.view = v; render(); window.scrollTo(0, 0); break;
     case 'glance': S.glance = v; render(); break;
+    case 'rm-sent': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), reminded:new Date().toISOString()}; setTimeout(render, 400); } break; }
+    case 'rm-ok': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), confirmed:new Date().toISOString()}; render(); toast(`${first(a.c)} is confirmed.`); } break; }
     case 'glgo': S.tab = 'schedule'; S.view = 'week'; S.day = monOf(0) + (v === 'next' ? 7 : 0); render(); window.scrollTo(0, 0); break;
     case 'snav': schedNav(+v); break;
     case 'sday': S.tab = 'schedule'; S.day = +v; S.view = 'day'; render(); window.scrollTo(0, 0); break;
