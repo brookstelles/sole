@@ -23,7 +23,7 @@ window.__SOLE_CLOUD_CLIENT = (() => {
       return {data:one ? (L[0] || null) : L, error:null};
     };
     const api = {select:() => api, order:() => api, eq:(k, v) => { filters.push(r => r[k] === v); return api; }, limit:n => { lim = n; return api; }, range:(a, b) => { rng = [a, b]; return api; },
-      maybeSingle:() => { one = true; return api; }, upsert:r => { mode = 'upsert'; rows = r; return api; }, insert:r => { mode = 'insert'; rows = r; return api; }, is:(k, v) => { filters.push(r => (r[k] ?? null) === v); return api; }, delete:() => { mode = 'delete'; return api; },
+      in:(k, vs) => { filters.push(r => vs.includes(r[k])); return api; }, maybeSingle:() => { one = true; return api; }, upsert:r => { mode = 'upsert'; rows = r; if (Array.isArray(r)) (window.__FAKE.batches = window.__FAKE.batches || []).push(r.length); return api; }, insert:r => { mode = 'insert'; rows = r; return api; }, is:(k, v) => { filters.push(r => (r[k] ?? null) === v); return api; }, delete:() => { mode = 'delete'; return api; },
       then:(ok, no) => Promise.resolve(run()).then(ok, no)};
     return api;
   };

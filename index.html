@@ -624,6 +624,22 @@ a.btn{text-decoration:none}
 .cl-stats b{font-family:var(--display);font-size:30px;font-weight:400;line-height:1;font-variant-numeric:tabular-nums}
 .cl-stats small{font-size:13px;color:var(--muted)}
 .cl-stats button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--accent),var(--shadow)}
+/* bringing in clients from another app */
+.im-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px}
+.im-sum div{background:var(--sunk);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:2px}
+.im-sum b{font-family:var(--display);font-size:28px;font-weight:400;line-height:1;font-variant-numeric:tabular-nums}
+.im-sum span{font-size:13px;color:var(--muted)}
+.im-err{color:var(--bad);background:var(--bad-soft);border-radius:12px;padding:10px 12px;margin:0;font-size:15px}
+.im-how,.im-map{border-radius:16px;background:var(--sunk);padding:4px 14px}
+.im-how summary,.im-map summary{min-height:44px;display:flex;align-items:center;font-weight:600;color:var(--accent);cursor:pointer;list-style:none}
+.im-how summary::-webkit-details-marker,.im-map summary::-webkit-details-marker{display:none}
+.im-how ul{margin:0 0 12px;padding-left:18px;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.4}
+.im-map[open]{padding-bottom:14px}.im-map .field{margin-top:10px}.im-map select{width:100%;min-width:0}
+.im-list .li{cursor:default}
+.im-sum,.im-list,.im-how,.im-map,.im-err{flex-shrink:0}
+.im-link{align-self:center;text-align:center}
+.im-empty{display:flex;flex-direction:column;gap:12px;align-items:stretch;text-align:center;position:relative;overflow:hidden}
+.im-empty h2{margin:0}.im-empty p{margin:0 0 4px}
 .cl-chips{flex-wrap:nowrap;overflow-x:auto;margin:0 -16px;padding:2px 16px 4px;scrollbar-width:none}
 .cl-chips::-webkit-scrollbar{display:none}
 .cl-chips .chip{flex:none}
@@ -1534,9 +1550,14 @@ function persistReal(st){
   if (!REAL_SAVED) return;   // no database in this view
   const jobs = [];
   SOLE_COLS.forEach(col => {
-    const now = SOLE_MAPS.includes(col) ? st[col] : Object.fromEntries(st[col].map(x => [x.uid, x])), was = REAL_SAVED[col];
-    Object.entries(now).forEach(([id, x]) => { const j = canon(x); if (was[id] !== j) { was[id] = j; jobs.push(db => db.collection(col).doc(id).set(JSON.parse(j))); } });
-    Object.keys(was).filter(id => !(id in now)).forEach(id => { delete was[id]; jobs.push(db => db.collection(col).doc(id).delete()); });
+    const now = SOLE_MAPS.includes(col) ? st[col] : Object.fromEntries(st[col].map(x => [x.uid, x])), was = REAL_SAVED[col], sets = [], dels = [];
+    Object.entries(now).forEach(([id, x]) => { const j = canon(x); if (was[id] !== j) { was[id] = j; sets.push([id, JSON.parse(j)]); } });
+    Object.keys(was).filter(id => !(id in now)).forEach(id => { delete was[id]; dels.push(id); });
+    // many at once (a list of clients brought in, or Undo of it) go in batches where the database takes them
+    const many = (L, n, all, one) => { if (L.length <= 3) L.forEach(x => jobs.push(db => one(db.collection(col), x)));
+      else for (let i = 0; i < L.length; i += n) { const part = L.slice(i, i + n); jobs.push(async db => { const c = db.collection(col); if (c[all]) await c[all](part); else for (const x of part) await one(c, x); }); } };
+    many(sets, 200, 'setMany', (c, [id, d]) => c.doc(id).set(d));
+    many(dels, 100, 'delMany', (c, id) => c.doc(id).delete());
   });
   if (jobs.length) SOLE_Q = SOLE_Q.then(async () => { const db = await dbOf(); if (!db) return;
     for (const j of jobs) { try { await j(db); } catch (_) { const t = document.querySelector('.toast'); if (!t) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = 'Saved on this phone. It couldn’t reach your account just now.'; document.body.appendChild(el); setTimeout(() => el.remove(), 3600); } } } });
@@ -1854,6 +1875,8 @@ if (LIVEBOOK) {
 // payments logged in Sole mark that day's visit paid
 LEDGER.filter(x => x.kind === 'pay').forEach(x => { x.matched = false; if (!x.c) return; const off = offOf(x.date), a = AP.find(y => y.c === x.c && y.off === off && !y.paid);
   if (a) { a.paid = true; a.auto = true; a.tip = x.tip || 0; a.method = x.method; a.paidAmt = x.amount; x.matched = true; } });
+// clients brought in from another app keep the day they were last in, so "last in" counts on from it
+Object.values(CL).forEach(c => { if (c.lastOn) c.last = Math.max(0, Math.round((T0 - new Date(c.lastOn + 'T00:00:00')) / 864e5)); });
 // visits brought over from an old booking app (MassageBook): when each person came and what it cost, so "last in",
 // how many, how often and what they've spent are right. Kept apart from the schedule: they're never "not paid".
 Object.entries(Object.values(VISITS).reduce((o, v) => { if (v.from && v.c && v.date && CL[v.c] && v.date <= isoDay(T0)) (o[v.c] = o[v.c] || []).push(v); return o; }, {})).forEach(([k, vs]) => {
@@ -1873,7 +1896,7 @@ function saveState(){
   if (!ACC && !SOLE) return;
   const appts = AP.filter(a => a.mine).map(a => ({uid:a.uid || (a.uid = uidOf('a')), c:a.c, s:a.s, date:isoDay(dateOf(a.off)), start:a.start, paid:!!a.paid && !a.auto, tip:a.auto ? 0 : a.tip || 0, w:a.w, method:a.auto ? undefined : a.method}));
   const blocks = BL.filter(b => b.mine).map(b => ({uid:b.uid || (b.uid = uidOf('b')), date:isoDay(dateOf(b.off)), start:b.start, min:b.min, label:b.label, w:b.w, grp:b.grp}));
-  const own = ([k, c]) => [k, JSON.parse(JSON.stringify({...c, ...(c._saved || {}), _saved:undefined, old:undefined, birthday:undefined, edited:undefined, cardAuto:undefined, ...(c.cardAuto ? {sq:undefined} : {})}))];
+  const own = ([k, c]) => [k, JSON.parse(JSON.stringify({...c, ...(c._saved || {}), _saved:undefined, old:undefined, birthday:undefined, edited:undefined, cardAuto:undefined, ...(c.cardAuto ? {sq:undefined} : {}), ...(c.lastOn ? {last:null} : {})}))];
   const ledger = LEDGER.map(x => ({...x, matched:undefined, photoUrl:undefined}));
   if (SOLE) {
     const clients = Object.fromEntries([...Object.entries(CL).filter(([, c]) => c.mine).map(own),
@@ -2073,6 +2096,7 @@ const I = {
   down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 9l5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>',
 };
 
 /* line-drawn flower, after the one on her card */
@@ -2198,7 +2222,7 @@ const pressureLvl = p => [0,1,1,2,3,3][p];
 /* the getting-started list a new business sees until it's done */
 function setupSteps(){
   if (P.real) return [   // a new business on the website: its own book from day one
-    {done:Object.keys(CL).length > 0, t:`Add your first ${W1}`, s:'Name and phone. Notes can come later.', act:'addc'},
+    {done:Object.keys(CL).length > 0, t:`Bring in your ${WN}`, s:'From the app you use now or your phone’s contacts, or add them one at a time.', act:'im-open'},
     {done:AP.length > 0, t:`Book your first ${P.unitOne}`, s:'Pick who, what and when.', act:'book'},
     {done:!!DONE_STEPS.svc, t:'Check your services and prices', s:'Add what you offer, change a length or a price.', act:'gs-svc'},
     {done:!!DONE_STEPS.forms, t:`Check your ${P.intakeName}`, s:'Make sure it says what you need before you send it.', act:'checkforms'},
@@ -3450,7 +3474,10 @@ function viewClientsTab(){
   const list = `${az}<input class="search" id="clt-search" type="search" placeholder="Find a ${W1}" value="${esc(S.clq || '')}" autocomplete="off" aria-label="Find a ${W1}">
   <div class="chips cl-chips">${CL_FILTERS.filter(([x]) => x === 'all' || count(x) || x === f).map(([x, l]) => `<button class="chip" data-act="cl-f" data-v="${x}" aria-pressed="${f === x}">${l}<span>${count(x)}</span></button>`).join('')}</div>
   <div id="clt-list" style="display:flex;flex-direction:column;gap:16px">${clientTabRows()}</div>
-  <button class="btn line" data-act="addc">${I.plus}Add a ${W1}</button>`;
+  <button class="btn line" data-act="addc">${I.plus}Add a ${W1}</button>
+  <button class="linkbtn im-link" data-act="im-open">Bring in a list from another app</button>`;
+  if (!ks.length) return `<section class="card sec im-empty"><h2>No ${WN} yet</h2><p class="muted">Bring them in from the app you use now or your phone’s contacts, or add them one at a time.</p>
+    <button class="btn primary" data-act="im-open">${I.up}Bring in your ${WN}</button><button class="btn line" data-act="addc">${I.plus}Add a ${W1}</button></section>`;
   // on a computer the list stays on the left and the person opens beside it
   if (WIDE) return `<div class="split"><div class="split-l">${list}</div><div class="split-r">${S.cl && CL[S.cl] ? clientPage(S.cl)
     : `${stats}<div class="split-hint">${MOTIF}<b>Pick someone on the left</b><span>Their notes, every visit, what they’ve spent and their forms open here.</span></div>`}</div></div>`;
@@ -3465,6 +3492,161 @@ function clientTabRows(){
   return Object.entries(groups).map(([L, g]) => `<div class="cl-group" id="clg-${L === '#' ? 'num' : L}"><span class="cl-letter">${L}</span><div class="list">${g.map(k => { const n = nextAppt(k), x = clFlags(k);
     return `<button class="li client" data-act="cl-open" data-c="${esc(k)}"${S.cl === k ? ' aria-current="true"' : ''}><span class="av${avTint(k)}">${esc(initials(k))}</span><span class="who"><b>${esc(CL[k].name)}</b><span>${n ? 'Next: ' + whenText(n) : CL[k].last != null ? 'Last in ' + lastText(k).toLowerCase() : CL[k].from && CL[k].since ? `${cap(W1)} since ${CL[k].since}` : 'Not in yet'}</span></span>
       <span class="cl-marks">${x.flags ? '<i class="mk bad" title="Health notes">!</i>' : ''}${x.form ? `<i class="mk warn" title="${esc(cap(P.intakeName))} not filled in">${I.forms.replace('<svg', '<svg width="13" height="13"')}</i>` : ''}${I.chev}</span></button>`; }).join('')}</div></div>`).join('');
+}
+/* ---------- bringing in clients from the app used before ----------
+   A file exported from another app (Square, Vagaro, Booksy, MassageBook, Google or iPhone contacts) or a list typed or
+   pasted in. Sole works out which column is which from the headings and what's in them, shows who it found, leaves
+   out anyone already here, and brings the rest in at once (Undo takes them out again). Nobody is texted. */
+let IM = null;
+const IM_HEADS = {
+  first:/^(first|given|fore)( ?name)?$|^first name/, last:/^(last|family|sur)( ?name)?$|^surname|^last name/,
+  name:/^(full |display |customer |client |contact |patient |student )?name$|^(customer|client|contact|patient|student)$/,
+  phone:/\b(phone|mobile|cell|tel|telephone|phonenumber|cellphone)\b/, email:/\be ?mail\b|emailaddress/, born:/\b(birth|birthday|bday|dob|birthdate)\b/,
+  address:/^(street )?address( line)?( 1)?$|^street( 1)?$|^address 1 street$/, city:/(^| )city$|town$/, state:/(^| )(state|province|region)$/, zip:/\b(zip|postal|postcode|zipcode)\b/,
+  note:/\b(notes?|memo|comments?)\b/, since:/first (visit|appointment|seen|booking)|(customer|client) since|^created|date added|creation date|joined/,
+  lastv:/last (visit|appointment|seen|booking|service)|most recent/, visits:/^(total )?(visits|appointments|bookings)$|visit count|transaction count|number of (visits|appointments)|times visited/,
+};
+const IM_SHOW = [['name', 'Name'], ['first', 'First name'], ['last', 'Last name'], ['phone', 'Phone'], ['email', 'Email'], ['born', 'Birthday'], ['address', 'Street address'], ['note', 'Notes'], ['since', 'First visit'], ['lastv', 'Last visit'], ['visits', 'Number of visits']];
+const imNorm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const isEmail = s => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(String(s).trim());
+const isPhone = s => /^[\d\s().+\-]{7,}$/.test(String(s).trim()) && String(s).replace(/\D/g, '').length >= 10;
+function phoneIn(s){
+  const m = String(s || '').match(/\+?[\d(][\d\s().\-]{6,}\d/); if (!m) return '';
+  let d = m[0].replace(/\D/g, ''); if (d.length === 11 && d[0] === '1') d = d.slice(1);
+  return d.length === 10 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}` : d.length >= 7 ? m[0].trim() : '';
+}
+// a day in any of the usual ways (2024-03-05, 3/5/2024, 3/5/24, Mar 5, 2024) as YYYY-MM-DD; '' if it isn't one
+function dateIn(s, noYear){
+  s = String(s || '').trim(); let y, m, d, r;
+  if ((r = s.match(/^(\d{4})-?(\d{1,2})-?(\d{1,2})(?:$|[T\s])/))) [y, m, d] = [+r[1], +r[2], +r[3]];
+  else if ((r = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/))) { [m, d, y] = [+r[1], +r[2], +r[3]]; if (y < 100) y += y <= T0.getFullYear() % 100 ? 2000 : 1900; }
+  else if (noYear && (r = s.match(/^(?:--)?(\d{1,2})[\/\-]?(\d{1,2})$/))) [y, m, d] = [1604, +r[1], +r[2]];   // a birthday with no year (1604, as phones keep it)
+  else if (/\d{4}/.test(s) && /[a-z]/i.test(s) && !isNaN(Date.parse(s))) { const t = new Date(s); [y, m, d] = [t.getFullYear(), t.getMonth() + 1, t.getDate()]; }
+  else return '';
+  return m >= 1 && m <= 12 && d >= 1 && d <= 31 && y > 1600 ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : '';
+}
+function csvRows(t){
+  t = t.replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+  const l1 = t.split('\n').find(l => l.trim()) || '', sep = ['\t', ';', ','].map(c => [c, l1.split(c).length]).sort((a, b) => b[1] - a[1])[0];
+  const by = sep[1] > 1 ? sep[0] : ',', rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < t.length; i++) { const ch = t[i];
+    if (q) { if (ch === '"') { if (t[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"' && !cell.trim()) { q = true; cell = ''; }
+    else if (ch === by) { row.push(cell); cell = ''; }
+    else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch; }
+  row.push(cell); rows.push(row);
+  return rows.map(r => r.map(x => x.trim())).filter(r => r.some(Boolean));
+}
+// contacts from a phone (vCard): the same table a spreadsheet gives
+function vcfRows(t){
+  const out = []; let c = null; const val = s => s.replace(/\\n/gi, ' ').replace(/\\([,;\\])/g, '$1').trim();
+  t.replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n').forEach(l => { const i = l.indexOf(':'); if (i < 0) return;
+    const key = l.slice(0, i).toUpperCase(), v = l.slice(i + 1), nm = key.split(';')[0].split('.').pop();
+    if (nm === 'BEGIN') c = {}; else if (nm === 'END') { if (c) out.push(c); c = null; }
+    else if (!c) return;
+    else if (nm === 'FN') c.name = val(v);
+    else if (nm === 'N') { const [f, g] = v.split(';'); c.n = `${val(g || '')} ${val(f || '')}`.trim(); }
+    else if (nm === 'TEL' && (!c.phone || /CELL|MOBILE|IPHONE/.test(key))) c.phone = val(v).replace(/^tel:/i, '');
+    else if (nm === 'EMAIL' && !c.email) c.email = val(v);
+    else if (nm === 'BDAY') c.born = val(v);
+    else if (nm === 'NOTE') c.note = val(v);
+    else if (nm === 'ADR' && !c.address) c.address = v.split(';').map(val).filter(Boolean).join(', '); });
+  return [['Name', 'Phone', 'Email', 'Birthday', 'Notes', 'Address'], ...out.map(c => [c.name || c.n || '', c.phone || '', c.email || '', c.born || '', c.note || '', c.address || ''])];
+}
+// a typed line ("Jamie Rivera 555 201 3344 jamie@example.com, likes firm pressure"): the email and phone found in it,
+// the first part left is the name and anything after it a note
+function imLine(s){
+  const em = (s.match(/[^\s,;<>()]+@[^\s,;<>()]+\.[a-z]{2,}/i) || [''])[0], rest = s.replace(em, ' ');
+  const ph = (rest.match(/(\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]*\d{3}[\s.\-]*\d{4}/) || [''])[0];
+  const parts = rest.replace(ph, ' ').replace(/[<>()]/g, ' ').split(/[,;\t|]| - | – /).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  return [parts[0] || '', ph, em, parts.slice(1).join(', ')];
+}
+function imGuess(head, body){
+  const S = body.slice(0, 60), used = new Set(), map = {};
+  const fit = {phone:isPhone, email:isEmail, born:x => !!dateIn(x, true), since:x => !!dateIn(x), lastv:x => !!dateIn(x), visits:x => /^\d+$/.test(x.replace(/,/g, ''))};
+  ['email', 'phone', 'born', 'since', 'lastv', 'visits', 'first', 'last', 'name', 'address', 'city', 'state', 'zip', 'note'].forEach(f => {
+    const score = i => S.filter(r => r[i] && (!fit[f] || fit[f](r[i]))).length + (f === 'phone' && /mobile|cell/.test(imNorm(head[i])) ? .5 : 0);
+    const best = head.map((h, i) => i).filter(i => !used.has(i) && IM_HEADS[f].test(imNorm(head[i]))).sort((a, b) => score(b) - score(a))[0];
+    map[f] = best != null && score(best) >= 1 ? best : -1; if (map[f] >= 0) used.add(map[f]); });
+  // no heading says which is the name: the first column of words
+  if (map.name < 0 && map.first < 0) { const i = head.map((h, i) => i).find(i => !used.has(i) && S.filter(r => /^[^\d@]{2,}$/.test(r[i] || '')).length > S.length / 2); if (i != null) map.name = i; }
+  return map;
+}
+function imRead(t, file){
+  let rows = /BEGIN:VCARD/i.test(t) ? vcfRows(t) : csvRows(t);
+  const hasHead = rows.length > 0 && rows[0].some(h => Object.values(IM_HEADS).some(re => re.test(imNorm(h)))) && !rows[0].some(x => isPhone(x) || isEmail(x));
+  let head = rows[0] || [], body = rows.slice(1);
+  if (!hasHead) { head = ['Name', 'Phone', 'Email', 'Notes']; body = rows.map(r => imLine(r.join(', '))); }
+  body = body.filter(r => r.some(Boolean));
+  if (!body.length) { IM = {err:file ? `There was nobody in ${file}. Is it the list of ${WN}?` : `Type or paste at least one ${W1}.`}; return; }
+  IM = {file:file || 'Your list', head, rows:body, map:imGuess(head, body)};
+}
+function imPeople(){
+  const {rows, map} = IM, at = (r, f) => map[f] >= 0 ? String(r[map[f]] || '').trim() : '';
+  const tidy = s => s === s.toUpperCase() || s === s.toLowerCase() ? s.toLowerCase().replace(/(^|[\s\-'])([a-z])/g, (_, a, b) => a + b.toUpperCase()) : s;
+  return rows.map(r => {
+    let name = (at(r, 'name') || `${at(r, 'first')} ${at(r, 'last')}`).replace(/\s+/g, ' ').trim();
+    if (/^[^,]+,\s*[^,]+$/.test(name)) { const [l, f] = name.split(/,\s*/); name = `${f} ${l}`; }   // "Rivera, Jamie"
+    if (/[a-z]/i.test(name)) name = tidy(name); else name = '';
+    const em = at(r, 'email').split(/[\s,;]+/).find(isEmail) || '';
+    return {name, phone:phoneIn(at(r, 'phone')), email:em.toLowerCase(), born:dateIn(at(r, 'born'), true), note:at(r, 'note'),
+      address:[at(r, 'address'), at(r, 'city'), [at(r, 'state'), at(r, 'zip')].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+      since:dateIn(at(r, 'since')), lastOn:dateIn(at(r, 'lastv')), visits:parseInt(at(r, 'visits').replace(/,/g, ''), 10) || 0};
+  });
+}
+// who's new, who's already here (same phone, or same name), and rows left out (no name, or listed twice)
+function imSort(){
+  const dig = p => String(p || '').replace(/\D/g, '').slice(-10), nm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const phones = new Set(Object.values(CL).map(c => dig(c.phone)).filter(d => d.length === 10)), names = new Set(Object.values(CL).map(c => nm(c.name)));
+  const out = {nw:[], have:[], none:0, twice:0};
+  imPeople().forEach(p => { const d = dig(p.phone);
+    if (!p.name) out.none++;
+    else if ((d.length === 10 && phones.has(d)) || names.has(nm(p.name))) ([...out.nw, ...out.have].some(x => nm(x.name) === nm(p.name) || (d.length === 10 && dig(x.phone) === d)) ? out.twice++ : out.have.push(p));
+    else { out.nw.push(p); if (d.length === 10) phones.add(d); names.add(nm(p.name)); } });
+  return out;
+}
+function imClient(p){
+  const yr = s => +s.slice(0, 4), days = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
+  const every = p.since && p.lastOn && p.visits >= 3 ? Math.round(days(p.since, p.lastOn) / (p.visits - 1)) : 0;
+  return {name:p.name.includes(' ') ? p.name : p.name + ' ', phone:p.phone || 'Not added yet', ...(p.email ? {email:p.email} : {}), ...(p.born ? {born:p.born} : {}), ...(p.address ? {address:p.address} : {}),
+    note:p.note, since:p.since ? yr(p.since) : p.lastOn ? yr(p.lastOn) : T0.getFullYear(), visits:p.visits || (p.lastOn ? 1 : 0), last:p.lastOn ? Math.max(0, days(p.lastOn, isoDay(T0))) : null, ...(p.lastOn ? {lastOn:p.lastOn} : {}),
+    ...(every >= 5 && every <= 120 ? {every} : {}), isNew:!p.visits && !p.lastOn, intake:false, rows:[], mine:true, from:'import'};
+}
+function imHTML(){
+  if (!IM || !IM.rows) return `${top(`Bring in your ${WN}`, 'From the app you use now, or your phone’s contacts. Nobody is texted or emailed.')}
+    <label class="btn primary" style="width:100%">${I.up}Choose the file<input type="file" id="im-file" accept=".csv,.vcf,.txt,text/csv,text/vcard,text/x-vcard,text/plain" hidden></label>
+    ${IM && IM.err ? `<p class="im-err" role="alert">${esc(IM.err)}</p>` : ''}
+    <details class="im-how"><summary>How to get the file</summary><ul>
+      <li><b>Square:</b> Customers, then Export customers.</li>
+      <li><b>Vagaro, Booksy, MassageBook, Fresha, Schedulicity:</b> look for Export under Customers or Clients, or under Reports. Pick CSV if it asks.</li>
+      <li><b>iPhone contacts:</b> on icloud.com open Contacts, select the people, then Export vCard.</li>
+      <li><b>Google contacts:</b> on contacts.google.com choose Export, then Google CSV.</li>
+      <li><b>A spreadsheet:</b> save it as CSV first (File, Save as, CSV).</li></ul></details>
+    <div class="field"><span class="label">Or type or paste a list, one ${W1} a line</span><textarea class="text-in" id="im-paste" rows="5" placeholder="Jamie Rivera, (555) 201-3344&#10;Sam Lee, sam@example.com">${esc((IM && IM.paste) || '')}</textarea></div>
+    <button class="btn line" style="width:100%" data-act="im-paste">Read the list</button>
+    <button class="linkbtn" data-act="addc">Add one at a time instead</button>`;
+  const {nw, have, none, twice} = imSort(), shown = IM.all ? nw : nw.slice(0, 6), ws = n => n === 1 ? W1 : WN;
+  const sample = i => { const r = IM.rows.find(r => r[i]); return r ? String(r[i]).slice(0, 22) : ''; };
+  return `${top(nw.length ? `${nw.length} ${ws(nw.length)} to bring in` : `No new ${WN} in it`, esc(IM.file))}
+    <div class="im-sum"><div><b>${nw.length}</b><span>new</span></div><div><b>${have.length}</b><span>already here</span></div>${none + twice ? `<div><b>${none + twice}</b><span>left out</span></div>` : ''}</div>
+    ${nw.length ? `<div class="list im-list">${shown.map(p => `<div class="li client"><span class="av">${esc(p.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase())}</span><span class="who"><b>${esc(p.name)}</b><span>${esc([p.phone, p.email].filter(Boolean).join(' · ') || 'No phone or email')}${p.lastOn ? ` · last in ${esc(shortDate(p.lastOn))}` : ''}</span></span></div>`).join('')}</div>
+      ${nw.length > shown.length ? `<button class="linkbtn" data-act="im-all">See all ${nw.length}</button>` : ''}` : ''}
+    ${have.length ? `<p class="small muted">Already here, left as they are: ${esc(have.slice(0, 3).map(p => p.name).join(', '))}${have.length > 3 ? ` and ${have.length - 3} more` : ''}.</p>` : ''}
+    ${none ? `<p class="small muted">${none} row${none === 1 ? '' : 's'} had no name, so ${none === 1 ? 'it was' : 'they were'} left out.</p>` : ''}
+    ${twice ? `<p class="small muted">${twice} ${ws(twice)} listed twice, brought in once.</p>` : ''}
+    <details class="im-map"${IM.fix ? ' open' : ''}><summary>Something in the wrong place?</summary>
+      <p class="small muted">Pick the column that holds each one.</p>
+      ${IM_SHOW.map(([f, l]) => `<label class="field"><span class="label">${l}</span><select class="text-in" data-im="${f}"><option value="-1">Not in the file</option>${IM.head.map((h, i) => `<option value="${i}"${IM.map[f] === i ? ' selected' : ''}>${esc(h || `Column ${i + 1}`)}${sample(i) ? ` (${esc(sample(i))})` : ''}</option>`).join('')}</select></label>`).join('')}
+    </details>
+    <button class="btn primary" style="width:100%" data-act="im-go"${nw.length ? '' : ' disabled'}>${nw.length ? `Bring in ${nw.length} ${ws(nw.length)}` : 'Nothing new to bring in'}</button>
+    <button class="linkbtn" data-act="im-again">Choose a different file</button>`;
+}
+const rerenderIm = () => { const sh = $('.sheet'); if (sh) { const sc = sh.scrollTop; sh.innerHTML = `<div class="grab"></div>${imHTML()}`; sh.scrollTop = sc; } };
+async function imFile(f){
+  if (/\.(xlsx?|numbers|xlsm)$/i.test(f.name)) IM = {err:'That’s a spreadsheet file. Save it as CSV first (File, Save as, CSV), then choose that one.'};
+  else { try { imRead(await f.text(), f.name); } catch (_) { IM = {err:'That file couldn’t be read. Try saving it as CSV.'}; } }
+  rerenderIm();
 }
 // every visit with this person, newest first: appointments, plus notes from visits outside the schedule's reach
 function clientVisits(k){
@@ -3492,7 +3674,7 @@ function clientPage(k){
   <section class="cl-hero">${MOTIF}
     <span class="av">${esc(initials(k))}</span>
     <h2>${esc(c.name)}</h2>
-    <p>${c.since ? `${cap(W1)} since ${c.since}` : `New ${W1}`}${sp.a.v ? ` · ${sp.a.v} ${sp.a.v === 1 ? P.unitOne : P.unit}` : ''}${c.every ? ` · every ${Math.round(c.every / 7)} week${c.every >= 14 ? 's' : ''}` : ''}</p>
+    <p>${c.since ? `${cap(W1)} since ${c.since}` : `New ${W1}`}${sp.a.v ? ` · ${sp.a.v} ${sp.a.v === 1 ? P.unitOne : P.unit}` : c.from === 'import' && c.visits ? ` · ${c.visits} ${c.visits === 1 ? P.unitOne : P.unit} before Sole` : ''}${c.every ? ` · every ${Math.round(c.every / 7)} week${c.every >= 14 ? 's' : ''}` : ''}</p>
     ${x.flags || x.form || x.new || x.due ? `<div class="cl-tags">${x.flags ? '<span class="tag" style="background:var(--bad-soft);color:var(--bad)">Health notes</span>' : ''}${x.form ? `<span class="tag warn">${esc(cap(P.intakeName))} needed</span>` : ''}${x.new ? `<span class="tag new">New</span>` : ''}${x.due ? '<span class="tag warn">Due back</span>' : ''}</div>` : ''}
     <div class="cl-acts">
       <button class="cl-act primary" data-act="book" data-c="${esc(k)}">${I.schedule}Book</button>
@@ -3558,7 +3740,7 @@ function printRecord(k){
   const c = CL[k], F = visitForm(), vs = Object.values(VISITS).filter(v => v.c === k && v.date).sort((a, b) => b.date.localeCompare(a.date));
   const kv = (l, v) => v ? [['kv', l, v]] : [];
   printDoc(c.name, [['h1', c.name],
-    ...kv('Phone', c.phone && c.phone !== 'Not added yet' ? c.phone : ''), ...kv('Email', c.email), ...kv('Address', c.address), ...kv('Birthday', c.born ? shortDate(c.born) : ''), ...kv(cap(W1) + ' since', c.since ? String(c.since) : ''),
+    ...kv('Phone', c.phone && c.phone !== 'Not added yet' ? c.phone : ''), ...kv('Email', c.email), ...kv('Address', c.address), ...kv('Birthday', c.born ? (c.born.startsWith('1604') ? shortDate(c.born).replace(/, 1604$/, '') : shortDate(c.born)) : ''), ...kv(cap(W1) + ' since', c.since ? String(c.since) : ''),
     ...rowsOf(c).filter(x => !x.meter).flatMap(x => kv(x.l, x.v)), ...kv('Pressure', c.pressure ? pressureWord(c.pressure) : ''),
     ['h2', `${F.title} (${vs.filter(v => v.at).length})`],
     ...vs.flatMap(v => [['h3', `${shortDate(v.date)}${v.start != null ? ' · ' + clock(v.start) : ''}${(v.svc || (SV[v.s] || {}).name) ? ' · ' + (v.svc || SV[v.s].name) : ''}`],
@@ -4062,7 +4244,7 @@ function toast(m){ clearTimeout(TOAST_T); let el = $('.toast'); if (!el) { el = 
   TOAST_T = setTimeout(() => { el.remove(); UNDO.snap = null; }, u ? 7000 : 3600); }
 // Undo: a copy of the book is taken before booking, moving, canceling, a payment or a no-show; the toast that follows
 // offers to put it back for a few seconds (saving the book again undoes it in the database too)
-const UNDOABLE = ['b-go', 'cancel-yes', 'pf-save', 'wk-noshow', 'charge-card', 'ac-save'];
+const UNDOABLE = ['b-go', 'cancel-yes', 'pf-save', 'wk-noshow', 'charge-card', 'ac-save', 'im-go'];
 const bookCopy = () => JSON.parse(JSON.stringify({AP, BL, LEDGER, VISITS, CL}));
 function bookPut(c){
   AP.splice(0, AP.length, ...c.AP); BL.splice(0, BL.length, ...c.BL); LEDGER.splice(0, LEDGER.length, ...c.LEDGER);
@@ -4254,6 +4436,14 @@ on('click', e => {
       <div class="field"><span class="label">Phone</span><input class="text-in" id="ac-phone" inputmode="tel" autocomplete="off" placeholder="(555) 555-0123"></div>
       <div class="field"><span class="label">Notes</span><textarea class="text-in" id="ac-note" placeholder="Anything to remember before they come in" style="min-height:90px"></textarea></div>
       <button class="btn primary" data-act="ac-save">Save ${W1}</button>`); setTimeout(() => { const n = $('#ac-name'); n && n.focus(); }, 50); break;
+    case 'im-open': IM = null; sheet(imHTML()); break;
+    case 'im-paste': { const t = ($('#im-paste') || {}).value || ''; imRead(t, ''); if (IM.err) IM.paste = t; rerenderIm(); break; }
+    case 'im-all': IM.all = true; rerenderIm(); break;
+    case 'im-again': IM = null; rerenderIm(); break;
+    case 'im-go': { const L = imSort().nw, base = 'i' + Date.now().toString(36); if (!L.length) break;
+      L.forEach((p, i) => { CL[base + i.toString(36)] = imClient(p); });
+      IM = null; closeSheet(); S.tab = 'clients'; S.cl = null; S.clf = 'all'; S.clq = ''; render(); window.scrollTo(0,0);
+      toast(`${L.length} ${L.length === 1 ? W1 : WN} brought in.`); break; }
     case 'ac-save': { const nm = ($('#ac-name').value || '').trim(); if (!nm) { toast('Add a name first.'); break; }
       const k = 'm' + Date.now().toString(36); CL[k] = {name:nm.includes(' ') ? nm : nm + ' ', phone:($('#ac-phone').value || '').trim() || 'Not added yet', since:T0.getFullYear(), visits:0, last:null,
         isNew:true, intake:false, rows:[], note:($('#ac-note').value || '').trim(), mine:true};
@@ -4348,6 +4538,8 @@ on('change', e => {
   if (e.target.id === 'ob-logo' && OB) obLogo(e.target.files[0]);
   if (e.target.id === 'ob-docs' && OB) obDocs(e.target.files);
   if (e.target.id === 'rc-file' && RC && e.target.files[0]) takeReceipt(e.target.files[0]);
+  if (e.target.id === 'im-file' && e.target.files[0]) imFile(e.target.files[0]);
+  if (e.target.dataset && e.target.dataset.im && IM && IM.map) { IM.map[e.target.dataset.im] = +e.target.value; IM.fix = true; rerenderIm(); }
   if (e.target.id === 'pp-file' && PPF && e.target.files[0]) { const fl = e.target.files[0]; PPF.name = ($('#pp-name') || {}).value || PPF.name; PPF.expires = ($('#pp-exp') || {}).value || PPF.expires; PPF.file = fl; PPF.url = URL.createObjectURL(fl); rerenderPaper(); }
   if (e.target.id === 'pv-c') { const f = $('#pv-new-f'); if (f) f.hidden = e.target.value !== 'new'; }
   if (B && (e.target.id === 'b-from' || e.target.id === 'b-to') && e.target.value) { const o = Math.max(0, offOfIso(e.target.value));
@@ -4634,6 +4826,8 @@ function cloudDb(){
       async get(){ if (!itemCols.includes(col)) return {docs:[]}; const rows = await loadAll(() => SB.from('items').select('id,data').eq('business_id', BIZ).eq('col', col));
         BOOK_ROWS[col] = Object.fromEntries(rows.map(r => [r.id, r.data])); return {docs:rows.map(r => snap(r.id, r.data))}; },
       onSnapshot(next){ (listeners[col] = listeners[col] || []).push(next); return () => { listeners[col] = listeners[col].filter(f => f !== next); }; },
+      async setMany(L){ const at = new Date().toISOString(), { error } = await SB.from('items').upsert(L.map(([id, data]) => ({business_id:BIZ, col, id, data, updated_at:at}))); if (error) throw error; L.forEach(([id, d]) => keep(col, id, d)); },
+      async delMany(ids){ const { error } = await SB.from('items').delete().eq('business_id', BIZ).eq('col', col).in('id', ids); if (error) throw error; ids.forEach(id => keep(col, id, null)); },
     }),
   };
 }

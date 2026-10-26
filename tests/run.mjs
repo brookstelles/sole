@@ -585,6 +585,44 @@ console.log('ok private Square views');
     { const t = await n.evaluate(() => ['#hdr', '#main', '#tabs', '#layer'].map(q => document.querySelector(q).textContent).join(' ')); check(/Fade Street Barbers/.test(await n.textContent('.biz-name')) && /Get set up/.test(t) && !/sample data|Tidewater|Cloud Test Massage|Cloud Sample/.test(t), 'new business: opens its own empty book, nobody else’s'); }
     await n.click('main [data-act=gs-svc]'); check(/\$42/.test(await n.textContent('.sheet')), 'new business: its prices from setup');
     check(await n.evaluate(id => { const r = window.__FAKE.T.items.find(x => x.business_id === id && x.col === 'people' && x.id === 'prefs'); return !!(r && r.data.steps && r.data.steps.svc); }, nb && nb.id), 'new business: setup steps are saved with the business');
+    // bringing in clients from the app used before: a file, a typed list and phone contacts; anyone already here is left out
+    await n.click('.sheet .close');
+    { const nid = nb && nb.id, rowsOf = () => n.evaluate(id => window.__FAKE.T.items.filter(x => x.business_id === id && x.col === 'clients').map(x => x.data), nid);
+      check(/Bring in your/.test(await n.textContent('main .getstarted')), 'import: the first setup step brings in the client list');
+      await n.click('main .getstarted [data-act=im-open]');
+      await n.setInputFiles('#im-file', {name:'clients.xlsx', mimeType:'application/vnd.ms-excel', buffer:Buffer.from('x')}); await n.waitForSelector('.im-err');
+      check(/Save it as CSV/.test(await n.textContent('.im-err')), 'import: a spreadsheet file is asked for as CSV');
+      const csv = 'First Name,Surname,Email Address,Phone Number,Email Subscription Status,Birthday,Memo,First Visit,Last Visit,Transaction Count\n'
+        + 'Jamie,Rivera,jamie@example.com,+1 555-201-3344,subscribed,1990-03-05,"Likes a low fade, no beard trim",2023-01-10,2026-10-01,22\n'
+        + 'SAM,LEE,,555.777.1212,,,,,,\n,,nobody@example.com,,,,,,,\nJamie,Rivera,jamie@example.com,5552013344,,,,,,\n'
+        + '"Dana","Ortiz","dana@example.com","(555) 300-4000","","03/07/1985","","","2026-09-15","3"\nLee Anne,Park,,,,,,,,\n';
+      await n.setInputFiles('#im-file', {name:'customers.csv', mimeType:'text/csv', buffer:Buffer.from('﻿' + csv)}); await n.waitForSelector('.im-sum');
+      { const t = await n.textContent('.sheet'); check(/4 \w+ to bring in/.test(t) && /Jamie Rivera/.test(t) && /Sam Lee/.test(t) && /\(555\) 201-3344/.test(t) && /2\s*left out/.test(t) && /listed twice/.test(t) && /had no name/.test(t), 'import: a Square-style file is read, column by column'); }
+      check(!(await wide(n)), 'import: the preview fits the phone');
+      await n.click('.im-map summary'); await n.selectOption('.sheet select[data-im=phone]', '-1');
+      check(/Sam Lee\s*No phone or email/.test(await n.textContent('.im-list')), 'import: a column can be changed by hand');
+      await n.selectOption('.sheet select[data-im=phone]', '3'); check(/555\) 777-1212/.test(await n.textContent('.im-list')), 'import: and put back');
+      await n.click('.sheet [data-act=im-go]'); await n.waitForTimeout(400);
+      { const t = await n.textContent('main'); check(/Jamie Rivera/.test(t) && /Lee Anne Park/.test(t) && /Last in/.test(t) && /brought in/.test(await n.textContent('.toast')), 'import: everyone shows on the Clients tab'); }
+      { const L = await rowsOf(), j = L.find(c => /Jamie/.test(c.name)) || {};
+        check(L.length === 4 && j.phone === '(555) 201-3344' && j.email === 'jamie@example.com' && j.born === '1990-03-05' && /low fade/.test(j.note) && j.since === 2023 && j.visits === 22 && j.lastOn === '2026-10-01' && j.last == null && j.every > 30 && j.mine, 'import: saved with phone, email, birthday, notes and history');
+        check(await n.evaluate(() => (window.__FAKE.batches || []).includes(4)), 'import: saved in one go, not one at a time'); }
+      await n.click('main .li.client:has-text("Jamie Rivera")'); check(/22 \w+ before Sole/.test(await n.textContent('main .cl-hero')), 'import: the visits before Sole show on the client page'); await n.click('main [data-act=cl-back]');
+      await n.click('.toast .undo'); await n.waitForTimeout(400);
+      check((await rowsOf()).length === 0 && /No \w+ yet/.test(await n.textContent('main')), 'import: Undo takes them all out again');
+      await n.click('main .im-empty [data-act=im-open]');
+      await n.fill('#im-paste', 'Jamie Rivera, (555) 201-3344\nsam lee sam@example.com 555 777 1212, walk-in\n'); await n.click('.sheet [data-act=im-paste]');
+      check(/2 \w+ to bring in/.test(await n.textContent('.sheet .sh-top')), 'import: a typed list is read line by line');
+      await n.click('.sheet [data-act=im-go]'); await n.waitForTimeout(400);
+      { const s = (await rowsOf()).find(c => c.name === 'Sam Lee') || {}; check(s.email === 'sam@example.com' && s.phone === '(555) 777-1212' && s.note === 'walk-in', 'import: the name, phone, email and note found in a typed line'); }
+      const vcf = 'BEGIN:VCARD\r\nVERSION:3.0\r\nN:Rivera;Jamie;;;\r\nFN:Jamie Rivera\r\nTEL;type=CELL:+1 (555) 201-3344\r\nEND:VCARD\r\n'
+        + 'BEGIN:VCARD\r\nVERSION:3.0\r\nN:Nguyen;Kim;;;\r\nFN:Kim Nguyen\r\nEMAIL;type=INTERNET:kim@example.com\r\nTEL;type=HOME:555-000-1111\r\nTEL;type=CELL:555-000-2222\r\nBDAY;X-APPLE-OMIT-YEAR=1604:1604-07-04\r\nEND:VCARD\r\n';
+      await n.click('main [data-act=im-open]'); await n.setInputFiles('#im-file', {name:'Contacts.vcf', mimeType:'text/vcard', buffer:Buffer.from(vcf)}); await n.waitForSelector('.im-sum');
+      { const t = await n.textContent('.sheet'); check(/1 \w+ to bring in/.test(t) && /1\s*already here/.test(t) && /Kim Nguyen/.test(t) && /Already here, left as they are: Jamie Rivera/.test(t), 'import: phone contacts, with anyone already here left out'); }
+      await n.click('.sheet [data-act=im-go]'); await n.waitForTimeout(400);
+      { const k = (await rowsOf()).find(c => c.name === 'Kim Nguyen') || {}; check(k.phone === '(555) 000-2222' && k.born === '1604-07-04' && (await rowsOf()).length === 3, 'import: the mobile number and a birthday with no year'); }
+      await n.click('main .li.client:has-text("Kim Nguyen")'); check(/July 4/.test(await n.textContent('main')) && !/1604/.test(await n.textContent('main')), 'import: the birthday shows without a made-up year');
+    }
     await n.close(); }
   console.log('ok website');
 }
