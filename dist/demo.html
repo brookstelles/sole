@@ -542,6 +542,7 @@ a.btn{text-decoration:none}
 .li.rm{grid-template-columns:1fr auto}
 .li.rm .who{border:0;background:transparent;text-align:left;padding:0;color:var(--ink);display:flex;flex-direction:column}
 .btn.sm.primary{min-height:40px;padding:6px 16px}
+.linkish{border:0;background:none;padding:0;color:var(--accent);font:inherit;font-weight:600;text-decoration:underline;text-underline-offset:2px}
 /* Clients tab */
 .cl-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .cl-stats button{border:0;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:12px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;color:var(--ink)}
@@ -1243,7 +1244,7 @@ function mergeCards(list, merges){
     const cs = g.ids.map(i => byId[i]).filter(Boolean); if (!cs.length) return;
     cs.forEach(c => used.add(c.id));
     const add = (k, f) => cs.reduce((t, c) => t + ((c[k] || {})[f] || 0), 0);
-    out.push({id:cs[0].id, ids:cs.map(c => c.id), name:g.name || (cs.find(c => c.name) || {}).name || null,
+    out.push({id:cs[0].id, ids:cs.map(c => c.id), c:g.c, name:g.name || (cs.find(c => c.name) || {}).name || null,
       all:{n:add('all','n'), net:add('all','net'), tips:add('all','tips')}, year:{n:add('year','n'), net:add('year','net'), tips:add('year','tips')},
       month:{n:add('month','n'), net:add('month','net')}, last:cs.map(c => c.last).sort().pop()});
   });
@@ -1447,8 +1448,10 @@ if (ACC && ACC.state) {
   (ACC.state.blocks || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number); BL.push({id:seq++, off:Math.round((new Date(y, m-1, d) - T0) / 864e5), start:x.start, min:x.min, label:x.label, w:x.w || ME, uid:x.uid, grp:x.grp, mine:true}); });
 }
 if (NOTES) Object.entries(NOTES).forEach(([k, x]) => { if (CL[k]) Object.assign(CL[k], x, {edited:true}); });
-const PAYS = ((SQ && SQ.live && SQ.live.payments) || []).filter(p => p.status === 'COMPLETED').map(p => { const d = new Date(p.created_at);
-  return {id:p.id, day:isoDay(d), at:d.getHours() * 60 + d.getMinutes(), cust:p.customer_id, net:((p.amount_money || {}).amount || 0) / 100, tip:((p.tip_money || {}).amount || 0) / 100}; });
+const payOf = p => { const d = new Date(p.created_at);
+  return {id:p.id, day:isoDay(d), at:d.getHours() * 60 + d.getMinutes(), cust:p.customer_id, net:((p.amount_money || {}).amount || 0) / 100, tip:((p.tip_money || {}).amount || 0) / 100}; };
+const PAYS = ((SQ && SQ.live && SQ.live.payments) || []).filter(p => p.status === 'COMPLETED').map(payOf);
+let CARD_GROUPS = null, CARDS_OF = {};   // card profiles by client (see cardGroups)
 const PAY_USED = new Set();   // card payments matched to a visit
 if (LIVEBOOK) {
   AP.length = 0; BL.length = 0; REQ.open = false;
@@ -1475,9 +1478,27 @@ if (LIVEBOOK) {
     if (b.customer_note && !CL[c].note) CL[c].note = b.customer_note;
     add(c, s, off, at.getHours() * 60 + at.getMinutes(), {sq:b.id, pending:b.status === 'PENDING'});
   });
+  // Square has no name for most cards: each one belongs to the client who had a visit the days it paid (by price,
+  // then time, when several did). The owner's own answers in people/merges come first (`c`: whose card, null for nobody's).
+  const all = SQ.all ? SQ.all.filter(p => p.status === 'COMPLETED').map(payOf) : pays, onDay = {};
+  Object.values(VISITS).forEach(v => { if (v.date && v.c && CL[v.c]) (onDay[v.date] = onDay[v.date] || []).push({c:v.c, price:v.price || 0, start:v.start || 0}); });
+  SOLE.appts.forEach(x => { if (CL[x.c] && SV[x.s]) (onDay[x.date] = onDay[x.date] || []).push({c:x.c, price:SV[x.s].price, start:x.start}); });
+  const guess = {}, payBy = {}; all.forEach(p => { if (p.cust) (payBy[p.cust] = payBy[p.cust] || []).push(p); });
+  Object.entries(payBy).forEach(([id, ps]) => { if (CL['sq:' + id]) return; const votes = {};
+    ps.forEach(p => { let L = onDay[p.day] || []; const near = v => Math.abs(p.at - v.start - 75);
+      if (L.length > 1) { const pr = L.filter(v => Math.abs(v.price - p.net) < 1); if (pr.length) L = pr; }
+      if (L.length > 1) { L = [...L].sort((a, b) => near(a) - near(b)); if (near(L[0]) + 30 >= near(L[1])) return; }
+      if (L.length) votes[L[0].c] = (votes[L[0].c] || 0) + 1; });
+    const top = Object.entries(votes).sort((a, b) => b[1] - a[1]); if (top.length && (top.length < 2 || top[0][1] > top[1][1])) guess[id] = top[0][0]; });
+  const gs = (SQ.merges && SQ.merges.groups) || [], keyed = {};
+  const keyOf = id => { const g = gs.find(x => x.ids.includes(id)); if (g && 'c' in g) return g.c && CL[g.c] ? g.c : '';
+    const L = g ? g.ids : [id]; return L.map(i => CL['sq:' + i] ? 'sq:' + i : '').find(Boolean) || L.map(i => guess[i]).find(Boolean) || (g ? 'g:' + g.ids[0] : ''); };
+  [...new Set([...(SQ.customers || []).map(c => c.id), ...Object.keys(payBy)])].forEach(id => { const k = keyOf(id); if (k) (keyed[k] = keyed[k] || []).push(id); });
+  CARD_GROUPS = Object.entries(keyed).map(([k, ids]) => k.startsWith('g:') ? {ids, name:(gs.find(g => g.ids.includes(ids[0])) || {}).name || null} : {ids, c:k, name:CL[k].name});
+  CARD_GROUPS.forEach(g => { if (!g.c) return; CARDS_OF[g.c] = new Set(g.ids); const c = CL[g.c]; if (c.sq === undefined) { c.sq = g.ids[0]; c.cardAuto = true; } });
   // a visit is paid when a card payment from that person, or for that price, came in that day
   AP.filter(a => a.off <= 0 && !a.paid).sort((x, y) => (x.c.startsWith('sq:') ? 0 : 1) - (y.c.startsWith('sq:') ? 0 : 1)).forEach(a => {
-    const dk = isoDay(dateOf(a.off)), cust = CL[a.c].sq, p = pays.find(x => !used.has(x.id) && x.day === dk && cust && x.cust === cust) || pays.find(x => !used.has(x.id) && x.day === dk && x.net === SV[a.s].price);
+    const dk = isoDay(dateOf(a.off)), mine = CARDS_OF[a.c] || new Set(CL[a.c].sq ? [CL[a.c].sq] : []), p = pays.find(x => !used.has(x.id) && x.day === dk && mine.has(x.cust)) || pays.find(x => !used.has(x.id) && x.day === dk && x.net === SV[a.s].price);
     if (p) { used.add(p.id); a.paid = true; a.auto = true; a.tip = p.tip; a.method = 'Card'; } });
 }
 // payments logged in Sole mark that day's visit paid
@@ -1502,7 +1523,7 @@ function saveState(){
   if (!ACC && !SOLE) return;
   const appts = AP.filter(a => a.mine).map(a => ({uid:a.uid || (a.uid = uidOf('a')), c:a.c, s:a.s, date:isoDay(dateOf(a.off)), start:a.start, paid:!!a.paid && !a.auto, tip:a.auto ? 0 : a.tip || 0, w:a.w, method:a.auto ? undefined : a.method}));
   const blocks = BL.filter(b => b.mine).map(b => ({uid:b.uid || (b.uid = uidOf('b')), date:isoDay(dateOf(b.off)), start:b.start, min:b.min, label:b.label, w:b.w, grp:b.grp}));
-  const own = ([k, c]) => [k, JSON.parse(JSON.stringify({...c, ...(c._saved || {}), _saved:undefined, old:undefined, birthday:undefined, edited:undefined}))];
+  const own = ([k, c]) => [k, JSON.parse(JSON.stringify({...c, ...(c._saved || {}), _saved:undefined, old:undefined, birthday:undefined, edited:undefined, cardAuto:undefined, ...(c.cardAuto ? {sq:undefined} : {})}))];
   const ledger = LEDGER.map(x => ({...x, matched:undefined, photoUrl:undefined}));
   if (SOLE) {
     const clients = Object.fromEntries([...Object.entries(CL).filter(([, c]) => c.mine).map(own),
@@ -1667,9 +1688,10 @@ const SQX = P.real && SQ && SQ.summary ? (() => {
   const yr = y => Object.entries(mo).filter(([k]) => k.startsWith(y + '-')).reduce((t, [, v]) => ({net:t.net + v.net, tips:t.tips + v.tips, collected:t.collected + v.collected, orders:t.orders + v.orders}), {net:0, tips:0, collected:0, orders:0});
   const years = {}; [...new Set(Object.keys(mo).map(k => k.slice(0,4)))].forEach(y => { const t = yr(y); years[y] = {...t, fees:fees[y] || 0, deposited:t.collected - (fees[y] || 0)}; });
   const updated = new Date(SQ.summary.updated);
-  return {years, month:mo[mk] || {net:0, tips:0, orders:0}, months:mo, customers:mergeCards(customers, SQ.merges), updated, today, byDay, live:!!lv,
+  return {years, month:mo[mk] || {net:0, tips:0, orders:0}, months:mo, customers:mergeCards(customers, CARD_GROUPS ? {groups:CARD_GROUPS} : SQ.merges), updated, today, byDay, live:!!lv,
     updatedText:lv ? liveText(lv.at) : `${MON[updated.getMonth()].slice(0,3)} ${updated.getDate()}, ${clock(updated.getHours() * 60 + updated.getMinutes())}`};
 })() : null;
+if (window.__SOLE_PEEK) window.__SOLE_PEEK = {CL, SQX, AP, VISITS};   // tests look inside
 // a business whose 2025 books are missing Square for September to December gets them filled in from Square itself
 let BOOKS_NOTE = P.booksNote;
 if (SQX && BOOKS[2025] && P.booksNote) {
@@ -1677,7 +1699,7 @@ if (SQX && BOOKS[2025] && P.booksNote) {
   BOOKS[2025] = {...BOOKS[2025], take:BOOKS[2025].take + add, kept:BOOKS[2025].kept + add};
   BOOKS_NOTE = `Includes ${money(add)} of Square payments from September to December 2025 that weren’t in the sheet. Card tips aren’t counted here: ${money((SQX.years['2024'] || {tips:0}).tips)} in 2024 and ${money((SQX.years['2025'] || {tips:0}).tips)} in 2025.`;
 }
-const sqName = c => c.name || `Card customer ${c.id.slice(-4)}`;
+const sqName = c => c.name || 'Card with no name';
 const unitCap = cap(P.unit);
 
 /* ---------- icons ---------- */
@@ -2321,9 +2343,9 @@ function clientsCard(){
       <div class="stat3"><button data-act="sqall"><b>${cs.length}</b><span>card customers</span></button><button data-act="sqall"><b>${active.length}</b><span>this year</span></button><button data-act="sqall"><b>${cs.filter(c => c.all.n > 1 && c.year.n > 0).length}</b><span>came back</span></button></div>
       <span class="label">Top ${WN} this year</span>
       <div class="tops">${sqClientRows(top.map((c,i) => ({...c, rank:i+1, val:c.year.net, bar:c.year.net/mx*100})))}</div>
-      ${(() => { const cut = isoDay(dateOf(-60)), gone = cs.filter(c => c.all.n >= 4 && c.last < cut).sort((a, b) => b.all.n - a.all.n).slice(0, 3);
-        return gone.length ? `<span class="label">Regulars who haven’t been back</span><div class="tops">${gone.map(c => `<button class="topc" data-act="sqclient" data-v="${c.id}"><span class="n">${I.clients.replace('<svg', '<svg width="16" height="16"')}</span><span class="nm"><b>${esc(sqName(c))}</b><span class="small muted">${c.all.n} visits · last paid ${MON[+c.last.slice(5,7)-1].slice(0,3)} ${c.last.slice(0,4)}</span></span>${I.chev}</button>`).join('')}</div>` : ''; })()}
-      <p class="small muted">From Square. Only ${cs.filter(c => c.name).length} of ${cs.length} card customers have a name there; names, notes and schedules come in from MassageBook.</p>
+      ${(() => { const cut = isoDay(dateOf(-60)), lastIn = c => c.c && CL[c.c] && CL[c.c].last != null ? isoDay(dateOf(-CL[c.c].last)) : c.last, gone = cs.filter(c => c.all.n >= 4 && lastIn(c) < cut && !(c.c && nextAppt(c.c))).sort((a, b) => b.all.n - a.all.n).slice(0, 3);
+        return gone.length ? `<span class="label">Regulars who haven’t been back</span><div class="tops">${gone.map(c => `<button class="topc" data-act="sqclient" data-v="${c.id}"><span class="n">${I.clients.replace('<svg', '<svg width="16" height="16"')}</span><span class="nm"><b>${esc(sqName(c))}</b><span class="small muted">${c.c && CL[c.c] ? CL[c.c].visits : c.all.n} visits · last in ${MON[+lastIn(c).slice(5,7)-1].slice(0,3)} ${lastIn(c).slice(0,4)}</span></span>${I.chev}</button>`).join('')}</div>` : ''; })()}
+      <p class="small muted">${CARD_GROUPS ? `From Square, matched to your ${WN} by the days they came in.${cs.some(c => !c.name) ? ` ${cs.filter(c => !c.name).length} card${cs.filter(c => !c.name).length === 1 ? '' : 's'} couldn’t be matched: <button class="linkish" data-act="sqall">say who</button>.` : ''}` : `From Square. Only ${cs.filter(c => c.name).length} of ${cs.length} card customers have a name there; names, notes and schedules come in from MassageBook.`}</p>
     </section>`;
   }
 
@@ -2568,7 +2590,10 @@ function clientPage(k){
     <div><span>This month</span><b>${money(sp.m.$)}</b><span>${sp.m.v} visit${sp.m.v === 1 ? '' : 's'}</span></div>
     <div><span>This year</span><b>${money(sp.y.$)}</b><span>${sp.y.v} visit${sp.y.v === 1 ? '' : 's'}</span></div>
     <div><span>All time</span><b>${money(sp.a.$)}</b><span>${sp.a.v} visit${sp.a.v === 1 ? '' : 's'}</span></div></div>
-    <p class="small muted">${sp.tipsY || sp.tipsA ? `Tips on top: <b>${money(sp.tipsY)}</b> this year, ${money(sp.tipsA)} all time.` : 'Tips aren’t counted here. They show once card payments with tips come in.'} The amounts above are sales only.</p></section>
+    <p class="small muted">${sp.tipsY || sp.tipsA ? `Tips on top: <b>${money(sp.tipsY)}</b> this year, ${money(sp.tipsA)} all time.` : 'Tips aren’t counted here. They show once card payments with tips come in.'} The amounts above are sales only.</p>${(() => { const g = SQX && SQX.customers.find(x => x.c === k); if (!g) return '';
+      const ids = g.ids || [g.id], mg = (SQ && SQ.merges && SQ.merges.groups) || [], guessed = ids.filter(i => !CL['sq:' + i] && !mg.some(m => m.ids.includes(i))), joined = mg.some(m => m.ids.includes(g.id) && m.ids.length > 1);
+      return `<p class="small muted cards-line">${guessed.length ? `${guessed.length === 1 ? 'A card' : guessed.length + ' cards'} with no name in Square matched to ${esc(first(k))} by the days they came in. <button class="linkish" data-act="cardnot" data-v="${guessed.join(',')}">Not ${esc(first(k))}?</button>` : `Pays with ${ids.length === 1 ? 'one card' : ids.length + ' cards'} in Square.`}
+        ${joined ? `<button class="linkish" data-act="sqsplit" data-v="${g.id}">Separate the cards</button>` : `<button class="linkish" data-act="sqmerge" data-v="${g.id}">Same person as another card?</button>`}</p>`; })()}</section>
   <section class="sec"><div class="sec-h"><h2>Visits</h2><span class="aside">${visitForm().title} on each</span></div>
     ${vs.length ? `<ol class="tl">${[...coming.reverse(), ...(S.clAll === k ? past : past.slice(0, 12))].map(visitItem).join('')}</ol>
       ${past.length > 12 && S.clAll !== k ? `<button class="btn line" data-act="cl-all" data-c="${esc(k)}">Show all ${past.length} visits</button>` : ''}` : `<p class="muted">No visits in Sole yet. Each one you book shows here with its notes.</p>`}
@@ -2752,6 +2777,22 @@ const recent = () => Object.keys(CL).filter(k => (CL[k].visits > 0 || CL[k].mine
 // first name and last initial; a one-word name stays as it is
 const shortName = k => { const w = CL[k].name.trim().split(/\s+/); return w.length > 1 ? `${w[0]} ${w[w.length - 1][0]}.` : w[0]; };
 // who to offer when booking: what was typed, otherwise the people seen most recently (and whoever is picked)
+// a card Square has no name for: the people who came in the days it paid first, then anyone by name
+let CW = null;
+function cardWhoList(){
+  const c = SQX.customers.find(x => x.id === CW.id), ids = new Set(c.ids || [c.id]), days = new Set(SQ.all.filter(p => ids.has(p.customer_id) && p.status === 'COMPLETED').map(p => isoDay(new Date(p.created_at))));
+  const q = CW.find.trim().toLowerCase(), seen = {};
+  Object.values(VISITS).forEach(v => { if (v.c && CL[v.c] && days.has(v.date)) seen[v.c] = (seen[v.c] || 0) + 1; });
+  AP.forEach(a => { if (days.has(isoDay(dateOf(a.off)))) seen[a.c] = (seen[a.c] || 0) + 1; });
+  const ks = q ? Object.keys(CL).filter(k => CL[k].name.toLowerCase().includes(q)).sort((a, b) => CL[a].name.localeCompare(CL[b].name)).slice(0, 12)
+    : Object.keys(seen).sort((a, b) => seen[b] - seen[a]).slice(0, 8);
+  return ks.map(k => `<button class="li" data-act="cardis" data-v="${c.id}" data-c="${esc(k)}"><span class="who"><b>${esc(CL[k].name)}</b><span>${seen[k] ? `came in ${seen[k] === 1 ? 'a day' : seen[k] + ' days'} this card paid` : 'no visit the days this card paid'}</span></span>${I.chev}</button>`).join('')
+    || `<p class="small muted">${q ? `No one named “${esc(CW.find)}”.` : 'No visits on the days this card paid. Search for them by name.'}</p>`;
+}
+const cardWhoHTML = c => { const ld = new Date(c.last + 'T12:00:00');
+  return `${top('Who is this?', `A card with no name in Square: paid ${c.all.n} time${c.all.n === 1 ? '' : 's'}, ${money(c.all.net)} in all, last on ${MON[ld.getMonth()].slice(0,3)} ${ld.getDate()}, ${ld.getFullYear()}.`)}
+    <input class="search" id="cw-find" type="search" placeholder="Find a ${W1}" autocomplete="off" aria-label="Find a ${W1}">
+    <div class="list" id="cw-list" style="margin-top:10px">${cardWhoList()}</div>`; };
 function whoChips(){
   const q = (B.find || '').trim().toLowerCase(), qd = q.replace(/\D/g, '');
   const pool = recent().filter(k => !q || CL[k].name.toLowerCase().includes(q) || (qd.length >= 3 && String(CL[k].phone || '').replace(/\D/g, '').includes(qd)));
@@ -3148,6 +3189,8 @@ on('click', e => {
     case 'resps': { const f = FORMS[+el.dataset.i], rs = RESP.filter(r => r.form === f.name).slice().reverse();
       sheet(`${top(esc(f.name), `${rs.length} filled in`)}<div class="list">${rs.map(r => `<button class="li" data-act="resp" data-v="${r.id}"><span class="t">${MON[+r.date.slice(5,7)-1].slice(0,3)}<small>${+r.date.slice(8,10)}</small></span><span class="who"><b>${esc(CL[r.client] ? CL[r.client].name : r.name)}</b><span>${r.sig ? 'Signed' : 'Not signed'}</span></span>${I.chev}</button>`).join('')}</div>`); break; }
     case 'sqclient': { const c = SQX.customers.find(x => x.id === v); if (!c) break; const ld = new Date(c.last + 'T12:00:00');
+      if (c.c && CL[c.c]) { closeSheet(); S.tab = 'clients'; S.clRec = false; S.cl = c.c; render(); window.scrollTo(0,0); break; }   // a client: their page
+      if (!c.name && SQ.all) { CW = {id:c.id, find:''}; sheet(cardWhoHTML(c)); break; }
       sheet(`${top(esc(sqName(c)), `Last paid ${MON[ld.getMonth()]} ${ld.getDate()}, ${ld.getFullYear()} · from Square`)}
       <div class="field"><span class="label">Spent with you</span><div class="spend">
         <div><span>This month</span><b>${money(c.month.net)}</b><span>${c.month.n} visit${c.month.n===1?'':'s'}</span></div>
@@ -3165,6 +3208,11 @@ on('click', e => {
       const ids = [...new Set([...(a.ids || [a.id]), ...(b.ids || [b.id])])], groups = ((SQ.merges && SQ.merges.groups) || []).filter(g => !g.ids.some(i => ids.includes(i)));
       const names = [a.name, b.name].filter(Boolean), name = names.find(n => !/^dr\b/i.test(n)) || names[0] || null;
       closeSheet(); saveMerges([...groups, {ids, name}], KEY); setTimeout(() => toast(`Combined into ${name || 'one person'}.`), 60); break; }
+    case 'cardis': { const c = SQX.customers.find(x => x.id === v), k = el.dataset.c; if (!c || !CL[k]) break;
+      const ids = c.ids || [c.id], groups = ((SQ.merges && SQ.merges.groups) || []).filter(g => !g.ids.some(i => ids.includes(i)));
+      closeSheet(); saveMerges([...groups, {ids, c:k}], KEY); setTimeout(() => toast(`That card is ${CL[k].name}’s now.`), 60); break; }
+    case 'cardnot': { const ids = el.dataset.v.split(','), groups = ((SQ.merges && SQ.merges.groups) || []).filter(g => !g.ids.some(i => ids.includes(i)));
+      closeSheet(); saveMerges([...groups, {ids, c:null}], KEY); setTimeout(() => toast('Taken off. It shows as a card with no name.'), 60); break; }
     case 'sqsplit': { const groups = ((SQ.merges && SQ.merges.groups) || []).filter(g => !g.ids.includes(v)); closeSheet(); saveMerges(groups, KEY); setTimeout(() => toast('Separated.'), 60); break; }
     case 'sqlive': allowLive(); break;
     case 'sqall': { const cs = [...SQX.customers].sort((a,b) => b.year.net - a.year.net || b.all.net - a.all.net), mx = (cs[0] || {all:{net:1}}).all.net || 1;
@@ -3249,6 +3297,7 @@ on('input', e => {
   if (e.target.id === 'cl-search') { S.search = e.target.value; $('#cl-list').innerHTML = clientRows(); }
   if (e.target.id === 'clt-search') { S.clq = e.target.value; $('#clt-list').innerHTML = clientTabRows(); }
   if (e.target.id === 'snap-search') { S.search = e.target.value; $('#snap-res').innerHTML = S.search.trim() ? `<div class="list">${clientRows()}</div>` : ''; }
+  if (e.target.id === 'cw-find' && CW) { CW.find = e.target.value; $('#cw-list').innerHTML = cardWhoList(); }
   if (e.target.id === 'b-find' && B) { B.find = e.target.value; $('#b-who').innerHTML = whoChips(); }
   if (e.target.id === 'b-name' && B) { B.name = e.target.value; const g = $('#book-go'); if (g) g.textContent = bookLabel(); }
   if (e.target.id === 'new-name' && B) { B.newName = e.target.value; const g = $('#book-go'); g.disabled = !bookReady(); g.textContent = bookLabel(); }
@@ -3472,6 +3521,7 @@ async function showPhotos(){ if (!SB) return; for (const img of document.querySe
 function liveFromCache(){
   if (!SQ || !SQ.summary || !SQ_CACHE) return;
   const from = liveFrom(), pays = [...SQ_CACHE.pays.values()].filter(p => new Date(p.created_at) >= from);
+  SQ.all = [...SQ_CACHE.pays.values()];
   SQ.live = {payments:pays, from:isoDay(from), at:new Date(), sig:pays.length + ':' + pays.map(p => p.id + p.status + (p.updated_at || '')).join().length};
 }
 async function cloudGo(){

@@ -29,8 +29,8 @@ async function savePayments(business_id: string, list: any[]) {
 
 // pull payments since `since` (or everything) and every customer's name
 async function sync(business_id: string, full: boolean) {
-  const { data: seller } = await db.schema('private').from('square_sellers').select('*').eq('business_id', business_id).maybeSingle();
-  if (!seller) { const me = await square('/merchants/me'); await db.schema('private').from('square_sellers').upsert({ business_id, merchant_id: me.merchant.id }); }
+  const { data: seller } = await db.from('square_sellers').select('*').eq('business_id', business_id).maybeSingle();
+  if (!seller) { const me = await square('/merchants/me'); const { error } = await db.from('square_sellers').upsert({ business_id, merchant_id: me.merchant.id }); if (error) throw error; }
   const since = full || !seller?.synced_at ? '2022-01-01T00:00:00Z' : new Date(new Date(seller.synced_at).getTime() - 3 * 864e5).toISOString();
   let cursor = '', n = 0, pays: any[] = [];
   do {
@@ -44,7 +44,7 @@ async function sync(business_id: string, full: boolean) {
     people = people.concat((r.customers ?? []).map((c: any) => ({ business_id, id: c.id, name: nameOf(c) }))); cursor = r.cursor ?? ''; n++;
   } while (cursor && n < 100);
   if (people.length) { const { error } = await db.from('square_customers').upsert(people); if (error) throw error; }
-  await db.schema('private').from('square_sellers').update({ synced_at: new Date().toISOString() }).eq('business_id', business_id);
+  const { error } = await db.from('square_sellers').update({ synced_at: new Date().toISOString() }).eq('business_id', business_id); if (error) throw error;
   return { payments: pays.length, customers: people.length };
 }
 
@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     if (req.headers.get('x-square-hmacsha256-signature')) {
       if (!(await signatureOk(req, body))) return reply({ error: 'bad signature' }, 401);
       const ev = JSON.parse(body), merchant = ev.merchant_id;
-      const { data: seller } = await db.schema('private').from('square_sellers').select('business_id').eq('merchant_id', merchant).maybeSingle();
+      const { data: seller } = await db.from('square_sellers').select('business_id').eq('merchant_id', merchant).maybeSingle();
       if (!seller) return reply({ ignored: 'unknown seller' });
       const obj = ev.data?.object ?? {};
       if (obj.payment) await savePayments(seller.business_id, [obj.payment]);

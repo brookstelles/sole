@@ -62,22 +62,24 @@ await p.click('.tab[data-v=money]');
 check(/Card payments/.test(await p.textContent('main')), 'private: Square card payments show in Snapshot');
 check(/card customers/.test(await p.textContent('#s-clients')), 'private: Square customers show in Snapshot');
 await p.click('[data-act=sqall] >> nth=0'); await p.click('.sheet [data-act=sqclient] >> nth=0');
-check(/Spent with you/.test(await p.textContent('.sheet')), 'private: a Square customer opens with their spending');
-await p.click('.sheet .close');
-// combining two cards that belong to one person, then separating them again
+check(/Spent with you/.test(await p.textContent(await p.locator('.sheet').count() ? '.sheet' : 'main')), 'private: a Square customer opens with their spending');
+// combining two cards that belong to one person, then separating them again: a card with a client opens their page,
+// a card with no one yet opens its own sheet
+const shut = async () => { if (await p.locator('.sheet .close').count()) await p.click('.sheet .close'); await p.click('.tab[data-v=money]'); };
+await shut();
 const cardCount = async () => { await p.click('[data-act=sqall] >> nth=0'); const n = await p.locator('.sheet [data-act=sqclient]').count(); await p.click('.sheet .close'); return n; };
-const openCard = async (i) => { await p.click('[data-act=sqall] >> nth=0'); await p.click(`.sheet [data-act=sqclient] >> nth=${i}`); };
+const openCard = async (i) => { await p.click('[data-act=sqall] >> nth=0'); await p.click(`.sheet [data-act=sqclient] >> nth=${i}`); await p.waitForTimeout(100); };
 const n0 = await cardCount();
 check(/Test Person 1/.test(await (async () => { await p.click('[data-act=sqall] >> nth=0'); const t = await p.textContent('.sheet'); await p.click('.sheet .close'); return t; })()), 'private: saved combined cards show as one person');
 let mi = -1;
-for (let i = 0; i < Math.min(n0, 6) && mi < 0; i++) { await openCard(i); if (await p.locator('.sheet [data-act=sqmerge]').count()) mi = i; else await p.click('.sheet .close'); }
+for (let i = 0; i < Math.min(n0, 6) && mi < 0; i++) { await openCard(i); if (await p.locator('[data-act=sqmerge]').count()) mi = i; else await shut(); }
 check(mi >= 0, 'private: a card customer offers "same person"');
-await p.click('.sheet [data-act=sqmerge]'); await p.click('.sheet [data-act=sqmerge-go] >> nth=0'); await p.waitForTimeout(150);
+await p.click('[data-act=sqmerge]'); await p.click('.sheet [data-act=sqmerge-go] >> nth=0'); await p.waitForTimeout(150); await shut();
 check(await cardCount() === n0 - 1, 'private: combining two cards leaves one person');
 let si = -1;
-for (let i = 0; i < n0 && si < 0; i++) { await openCard(i); if (await p.locator('.sheet [data-act=sqsplit]').count()) si = i; else await p.click('.sheet .close'); }
+for (let i = 0; i < n0 && si < 0; i++) { await openCard(i); if (await p.locator('[data-act=sqsplit]').count()) si = i; else await shut(); }
 check(si >= 0, 'private: a combined card offers to separate');
-await p.click('.sheet [data-act=sqsplit]'); await p.waitForTimeout(150);
+await p.click('[data-act=sqsplit]'); await p.waitForTimeout(150); await shut();
 check(await cardCount() > n0 - 1, 'private: separating cards adds them back');
 await p.click('.tab[data-v=money]');
 await p.click('[data-act=snapgo][data-sec=y-square] >> nth=0');
@@ -97,7 +99,7 @@ console.log('ok private Square views');
   check(/Today: \$200 from 2 card payments/.test(await q.textContent('main')), 'live: Square card shows today');
   check(/Live · \d/.test(await q.textContent('main')), 'live: Square card says it is live');
   await q.click('[data-act=sqall] >> nth=0');
-  check(/Card customer OMER/.test(await q.textContent('.sheet')), 'live: a new card customer appears');
+  check(await q.locator('.sheet [data-act=sqclient][data-v=TESTNEWCUSTOMER]').count() === 1, 'live: a new card customer appears');
   await q.click('.sheet .close');
   check(!(await wide(q)), 'live: wider than the phone');
   await q.close();
@@ -168,7 +170,7 @@ console.log('ok private Square views');
   const at = new Date(y); at.setHours(15, 5, 0, 0);
   const sole = {appts:[{uid:'aY', c:'nW', s:'sw60', date:iso(y), start:600, paid:false, tip:0, w:'Kelli'}, {uid:'aN', c:'nW', s:'sw60', date:iso(t), start:660, paid:false, tip:0, w:'Kelli'}], blocks:[],
     clients:{nW:{name:'Wren Sample', phone:'', since:2026, visits:1, last:1, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}}, ledger:[]};
-  const live = {payments:[{id:'LZ', created_at:at.toISOString(), updated_at:at.toISOString(), status:'COMPLETED', customer_id:'TESTCUSTOMER0005', amount_money:{amount:7700}, tip_money:{amount:0}, total_money:{amount:7700}, processing_fee:[]}]};
+  const live = {payments:[{id:'LZ', created_at:at.toISOString(), updated_at:at.toISOString(), status:'COMPLETED', customer_id:'TESTCUSTOMER0000', amount_money:{amount:7700}, tip_money:{amount:0}, total_money:{amount:7700}, processing_fee:[]}]};
   const q = await open('index.html', `window.__SOLE_SQUARE = ${JSON.stringify({...JSON.parse(sq), sole})}; window.__SOLE_SQUARE_LIVE = ${JSON.stringify(live)};`);
   const wk = new Date().getDay() === 1 ? -1 : 0;
   await q.click('.tab[data-v=money]'); await q.click('#s-books [data-act=wkcheck]'); await q.click(`[data-act=wkcheck][data-v="${wk}"]`);
@@ -228,7 +230,9 @@ console.log('ok private Square views');
       {business_id:'B1', col:'visits', id:'mb:old4', data:{c:'sq:CARDPERSON', date:'2025-05-13', start:630, s:'sw90', price:140, from:'MassageBook'}},
       {business_id:'B1', col:'clients', id:'mb:imported-person', data:{name:'Imported Person', phone:'(555) 010-2233', email:'imported@example.com', born:'1980-01-02', since:2022, from:'MassageBook', mine:true, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:''}},
       {business_id:'B1', col:'appts', id:'aC', data:{c:'nC', s:'sw60', date:iso(now), start:1410, paid:false, tip:0, w:'Kelli'}}],
-    payments:[{business_id:'B1', id:'P1', created_at:'2026-03-02T15:00:00Z', status:'COMPLETED', customer_id:'TESTCUST1', data:pay('P1', new Date('2026-03-02T15:00:00Z'), 11500, 2000, 'TESTCUST1')}],
+    payments:[{business_id:'B1', id:'P1', created_at:'2026-03-02T15:00:00Z', status:'COMPLETED', customer_id:'TESTCUST1', data:pay('P1', new Date('2026-03-02T15:00:00Z'), 11500, 2000, 'TESTCUST1')},
+      // a card with no name in Square that paid the day Imported Person came in
+      {business_id:'B1', id:'P2', created_at:'2025-03-04T16:10:00Z', status:'COMPLETED', customer_id:'NONAMECARD', data:pay('P2', new Date('2025-03-04T16:10:00Z'), 10000, 1500, 'NONAMECARD')}],
     customers:[{business_id:'B1', id:'TESTCUST1', name:'Test Card Person'}]};
   // the website carries a made-up business; the real one comes from the database after signing in (members only)
   const demoMassage = new Function('genHist', `return ({${fs.readFileSync(root + 'demo/massage.js', 'utf8')}})`)(() => ({2025:Array(12).fill(30), 2026:Array(9).fill(30)})).massage;
@@ -249,6 +253,11 @@ console.log('ok private Square views');
   await q.click('#fx-on'); await q.waitForSelector('.biz-name');
   check(await q.evaluate(() => localStorage.getItem('sole-face') === '1'), 'website: Face ID is remembered on this phone');
   check(/Cloud Sample/.test(await q.textContent('main')), 'website: the book loads from the database');
+  // a card Square has no name for is the client who came in the day it paid; tapping it opens their page
+  await q.waitForTimeout(300); await q.click('.tab[data-v=money]'); await q.click('#s-clients [data-act=sqall] >> nth=0');
+  { const t = await q.textContent('.sheet'); check(/Imported Person/.test(t) && !/Card customer|Card with no name/.test(t), 'website: nameless cards are named by the visit that day'); }
+  await q.click('.sheet .topc:has-text("Imported Person")'); check(/Imported Person/.test(await q.textContent('main')) && /Not Imported\?/.test(await q.textContent('main')), 'website: a named card opens the client page');
+  await q.click('.tab[data-v=today]');
   check(/Cloud Test Massage/.test(await q.textContent('.biz-name')) && /Robin/.test(await q.textContent('#hdr')), 'website: the business comes from the database');
   check(await q.evaluate(() => __FAKE.invoked.length === 1), 'website: asks the server to catch up with Square');
   await q.click('.tab[data-v=money]');
