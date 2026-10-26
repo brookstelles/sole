@@ -57,6 +57,15 @@ async function tour(p, label, keys = ['massage','hair','barber','tattoo','landsc
     await p.click('[data-act=cl-back]');
     await p.click('.tab[data-v=forms]'); await p.click('.tab[data-v=today]');
     check(!(await wide(p)), `${label} ${k}: wider than the phone`);
+    // the end-of-day notes run works for every trade's own notes
+    if (await p.locator('[data-act=vn-run]').count()) {
+      await p.click('[data-act=vn-run]'); const n = +((await p.textContent('.sheet .sh-top')).match(/· 1 of (\d+)/) || [])[1];
+      check(n >= 1, `${label} ${k}: the notes run counts the visits`);
+      if (await p.locator('.sheet [data-act=vn-q]').count()) { await p.click('.sheet [data-act=vn-q] >> nth=0'); check(/\.$/.test(await p.inputValue('.sheet textarea >> nth=0')), `${label} ${k}: a tapped phrase is written in`); }
+      await p.click('.sheet [data-act=vn-save]');
+      if (n > 1) { check(new RegExp(`· 2 of ${n}`).test(await p.textContent('.sheet .sh-top')), `${label} ${k}: save goes on to the next visit`); check(!(await wide(p)), `${label} ${k}: the notes run fits the phone`); }
+      if (await p.locator('.sheet .close').count()) await p.click('.sheet .close');
+    }
     console.log('ok', label, k, '-', await p.textContent('.biz-name'));
   }
 }
@@ -208,6 +217,27 @@ console.log('ok private Square views');
   check(!(await wide(r)), 'visit notes: wider than the phone');
   await r.close();
   console.log('ok weekly check and visit notes');
+  // the end-of-day run: every visit waiting for notes, one at a time, started from last time or tapped phrases
+  const old = new Date(); old.setDate(old.getDate() - 12);
+  const sole2 = {...sole, clients:{nW:{...sole.clients.nW, pressure:4}}, visits:{oldW:{c:'nW', date:iso(old), s:'sw60', at:old.toISOString(), S:'Test old stiff neck', P:'Test old plan', tech:['Myofascial']}}};
+  const u = await open('index.html', `window.__SOLE_SQUARE = ${JSON.stringify({...JSON.parse(sq), sole:sole2})};`);
+  check(/Write Wren’s SOAP notes/.test(await u.textContent('main')), 'notes run: Today offers the notes still to write');
+  await u.click('[data-act=vn-run]');
+  const ut = await u.textContent('.sheet');
+  check(/1 of 1/.test(ut) && /Save, all done/.test(ut), 'notes run: one visit at a time with a count');
+  check(await u.getAttribute('.sheet [data-act=vn-c][data-v="Swedish"]', 'aria-pressed') === 'true' && await u.getAttribute('.sheet [data-act=vn-c][data-v="Firm"]', 'aria-pressed') === 'true', 'notes run: technique from the service and pressure from the intake filled in');
+  await u.click('.sheet [data-act=vn-last]');
+  check(await u.inputValue('#vn-S') === 'Test old stiff neck' && await u.getAttribute('.sheet [data-act=vn-c][data-v="Myofascial"]', 'aria-pressed') === 'true', 'notes run: same as last time fills in the last note');
+  await u.click('.sheet [data-act=vn-q][data-t=A][data-v="Tension released"]'); await u.click('.sheet [data-act=vn-q][data-t=A][data-v="Pain went down"]');
+  check(await u.inputValue('#vn-A') === 'Tension released. Pain went down.', 'notes run: tapped phrases are written in');
+  await u.click('.sheet [data-act=vn-q][data-t=A][data-v="Tension released"]');
+  check(await u.inputValue('#vn-A') === 'Pain went down.', 'notes run: tapping a phrase again takes it out');
+  check(!(await wide(u)), 'notes run: fits the phone');
+  await u.click('.sheet [data-act=vn-save]');
+  check(/All caught up/.test(await u.textContent('.toast')) && !(await u.locator('[data-act=vn-run]').count()), 'notes run: done, and Today has nothing left to write');
+  check(await u.evaluate(() => Object.values(SQ.sole.visits).some(v => v.S === 'Test old stiff neck' && v.A === 'Pain went down.' && v.at && v.c === 'nW' && v !== SQ.sole.visits.oldW)), 'notes run: saved to the book');
+  await u.close();
+  console.log('ok notes run');
 }
 // the website copy is served as it is (no charset from the server): it must be a whole page of its own
 {

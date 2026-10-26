@@ -206,6 +206,9 @@ main{display:flex;flex-direction:column;gap:22px}
 .card.vnote p{margin:0 0 4px}
 .card.vnote p:last-child{margin:0}
 .btn.danger-line{width:100%;margin-top:12px;color:var(--bad)}
+.vn-same{width:100%}
+.vn-same .muted{font-weight:500}
+.vn-quick{gap:6px}
 .rb-what{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .rb-what div{display:flex;flex-direction:column;gap:2px}
 .cal{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:10px}
@@ -1222,11 +1225,15 @@ const VISIT_FORMS = {
   massage:{title:'SOAP notes', chips:[
       {k:'areas', l:'Areas worked', opts:['Neck', 'Shoulders', 'Upper back', 'Low back', 'Hips and glutes', 'Legs', 'Feet', 'Arms and hands', 'Head and face']},
       {k:'tech', l:'Techniques', opts:['Swedish', 'Deep tissue', 'Trigger point', 'Myofascial', 'Stretching', 'Hot stone', 'Cupping', 'Gua sha']},
-      {k:'press', l:'Pressure used', one:true, opts:['Light', 'Medium', 'Firm']}],
-    text:[{k:'S', l:'S · What they told you', short:'S', ph:'How they feel, what hurts, what they want today'},
-      {k:'O', l:'O · What you found', short:'O', ph:'Tight, tender or knotted areas, posture, range of motion'},
-      {k:'A', l:'A · How it went', short:'A', ph:'How the tissue and pain responded'},
-      {k:'P', l:'P · Plan for next time', short:'P', plan:true, ph:'Focus, how soon to rebook, stretches to do at home'}]},
+      {k:'press', l:'Pressure used', one:true, client:'pressure', opts:['Light', 'Medium', 'Firm']}],
+    text:[{k:'S', l:'S · What they told you', short:'S', ph:'How they feel, what hurts, what they want today',
+        quick:['Feeling good', 'Stressed', 'Neck pain', 'Shoulder pain', 'Low back pain', 'Headaches', 'Sore from working out', 'Not sleeping well', 'Wants to relax']},
+      {k:'O', l:'O · What you found', short:'O', ph:'Tight, tender or knotted areas, posture, range of motion',
+        quick:['Tight', 'Tender to touch', 'Trigger points', 'Knots', 'Limited range of motion', 'Muscle guarding', 'Better than last visit']},
+      {k:'A', l:'A · How it went', short:'A', ph:'How the tissue and pain responded',
+        quick:['Tension released', 'Pain went down', 'Moves more easily', 'Very relaxed', 'Pressure was right', 'Still some tightness']},
+      {k:'P', l:'P · Plan for next time', short:'P', plan:true, ph:'Focus, how soon to rebook, stretches to do at home',
+        quick:['Rebook in 2 weeks', 'Rebook in 4 weeks', 'Same focus next time', 'Stretch at home', 'Drink water', 'Heat at home', 'Firmer pressure next time', 'Lighter pressure next time']}]},
   skin:{title:'Treatment notes', chips:[{k:'areas', l:'Treated', opts:['Face', 'Neck', 'Chest', 'Back', 'Brows', 'Lips']}],
     text:[{k:'done', l:'What you did', ph:'Products, peels, extractions'}, {k:'skin', l:'How the skin looked', ph:'Dry, oily, reactive'}, {k:'next', l:'Next time', plan:true, ph:'What to try, home care'}]},
   hair:{title:'Visit notes', chips:[{k:'work', l:'Done today', opts:['Cut', 'Color', 'Highlights', 'Toner', 'Blowout', 'Treatment']}],
@@ -2014,8 +2021,9 @@ function viewToday(){
   // To do: one line each; the ones with a list open in place (S.td)
   const todo = [], row = (t, sub, icon, attrs) => todo.push(`<button class="li td" ${attrs}><span class="td-i">${icon}</span><span class="who"><b>${t}</b><span>${sub}</span></span>${I.chev}</button>`);
   unpaid().filter(a => a.off >= -7).forEach(a => row(`${esc(CL[a.c].name)} hasn’t paid`, `${cap(dayName(a.off))} · ${svLabel(a.s)} · ${money(SV[a.s].price)}`, I.wallet, `data-act="charge" data-id="${a.id}"`));
-  { const dn = ap.filter(a => endOf(a) <= NOW && !noShow(a) && !(VISITS[visitKey(a)] || {}).at), ft = visitForm().title.toLowerCase().replace('soap', 'SOAP');
-    if (dn.length) row(`Write ${dn.length === 1 ? `${esc(first(dn[0].c))}’s ${ft}` : ft}`, dn.length === 1 ? 'A minute now, and it’s there before their next visit.' : dn.map(a => esc(first(a.c))).join(', '), I.forms, `data-act="vnotes" data-id="${dn[0].id}"`); }
+  { const dn = notesDue(), ft = visitForm().title.toLowerCase().replace('soap', 'SOAP'), today = dn.every(a => a.off === 0);
+    if (dn.length) row(dn.length === 1 ? `Write ${esc(first(dn[0].c))}’s ${ft}` : `Write ${today ? 'today’s' : 'your'} ${ft}`,
+      `${dn.length === 1 ? 'About a minute' : `${dn.length} ${WN}, about ${Math.max(2, Math.ceil(dn.length / 2))} minutes`} · ${[...new Set(dn.map(a => esc(first(a.c))))].slice(0, 4).join(', ')}`, I.forms, `data-act="vn-run"`); }
   ap.filter(a => !CL[a.c].intake && a.start >= NOW).forEach(a => row(`${esc(first(a.c))}’s ${P.intakeName} is missing`, `First visit today at ${clock(a.start)}`, I.forms, `data-act="fillfor" data-c="${a.c}"`));
   [remindTodo(), thanksTodo(), mondayTodo()].filter(Boolean).forEach(x => todo.push(`<button class="li td" data-act="td-open" data-v="${x.key}" aria-expanded="${S.td === x.key}"><span class="td-i">${x.icon}</span><span class="who"><b>${x.t}</b><span>${x.s}</span></span>${I.chev}</button>${S.td === x.key ? `<div class="td-body">${x.body}</div>` : ''}`));
   PAPERS.filter(p => ppDays(p) != null && ppDays(p) <= 30).forEach(p => row(`${esc(p.name)} ${ppDays(p) < 0 ? 'has expired' : 'is due for renewal'}`, ppDays(p) < 0 ? `Expired ${ppDate(p.expires)}` : `Expires ${ppDate(p.expires)}`, I.badge, `data-act="pp-open" data-v="${p.uid}"`));
@@ -2522,20 +2530,52 @@ function savePastVisit(){
 let VN = null;
 function visitForm(){ return VISIT_FORMS[P.visitKind || KEY] || VISIT_FORMS[(TRADES.find(t => t.id === (P.visitKind || KEY)) || {}).base] || VISIT_FORMS.other; }
 function lastVisitNote(k, before){ return Object.values(VISITS).filter(v => v.c === k && v.at && v.date < before).sort((a, b) => b.date.localeCompare(a.date))[0]; }
-function openVisit(id){
+// visits from the last week that ended without notes, today's first: what the end-of-day run goes through
+function notesDue(){ return AP.filter(a => a.off >= -7 && (a.off < 0 || (a.off === 0 && endOf(a) <= NOW)) && !a.pending && !noShow(a) && CL[a.c] && !(VISITS[visitKey(a)] || {}).at)
+  .sort((x, y) => y.off - x.off || x.start - y.start); }
+// a phrase tapped under S, O, A or P goes in (or comes out again) at the end of what's written
+const vnHas = (txt, q) => txt.split(/\.\s*/).map(x => x.trim().toLowerCase()).includes(q.toLowerCase());
+function vnToggle(txt, q){
+  const parts = txt.split(/\.\s*/).map(x => x.trim()).filter(Boolean);
+  const i = parts.findIndex(x => x.toLowerCase() === q.toLowerCase());
+  if (i >= 0) parts.splice(i, 1); else parts.push(q);
+  return parts.length ? parts.join('. ') + '.' : '';
+}
+function openVisit(id, run){
   const a = AP.find(x => x.id === id); if (!a) return;
-  const F = visitForm(), key = visitKey(a), v = VISITS[key] || {};
-  VN = {id, key, picks:Object.fromEntries(F.chips.map(g => [g.k, [...(v[g.k] || [])]]))};
-  sheet(`${top(`${F.title} · ${esc(first(a.c))}`, `${cap(dayName(a.off))} · ${svLabel(a.s)}`)}
+  const F = visitForm(), key = visitKey(a), v = VISITS[key] || {}, c = CL[a.c], sv = SV[a.s] || {}, date = isoDay(dateOf(a.off)), last = lastVisitNote(a.c, date);
+  VN = {id, key, run:run || null, picks:Object.fromEntries(F.chips.map(g => [g.k, [...(v[g.k] || [])]])), text:Object.fromEntries(F.text.map(t => [t.k, v[t.k] || ''])), last};
+  // in the end-of-day run, an empty note starts with what's already known: the service booked and the pressure they asked for
+  if (run && !v.at) F.chips.forEach(g => { if (VN.picks[g.k].length) return;
+    const fromSvc = g.opts.filter(o => (sv.name || '').toLowerCase().includes(o.toLowerCase())), fromCl = g.client === 'pressure' && c.pressure ? [pressureWord(c.pressure)] : [];
+    VN.picks[g.k] = (g.one ? [...fromCl, ...fromSvc].slice(0, 1) : [...fromSvc, ...fromCl]).filter(o => g.opts.includes(o)); });
+  drawVisit();
+}
+function drawVisit(){
+  const a = AP.find(x => x.id === VN.id), F = visitForm(), R = VN.run, ld = VN.last && new Date(VN.last.date + 'T12:00:00');
+  const step = R ? ` · ${R.done + 1} of ${R.done + R.ids.length + 1}` : '';
+  sheet(`${top(`${F.title} · ${esc(first(a.c))}`, `${cap(dayName(a.off))} · ${svLabel(a.s)}${step}`)}
+    ${VN.last ? `<button class="btn line vn-same" data-act="vn-last">${I.check}Same as last time <span class="muted small">${MON[ld.getMonth()].slice(0,3)} ${ld.getDate()}</span></button>` : ''}
     ${F.chips.map(g => `<div class="field"><span class="label">${g.l}</span><div class="chips">${g.opts.map(o => `<button class="chip" data-act="vn-c" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${VN.picks[g.k].includes(o)}">${esc(o)}</button>`).join('')}</div></div>`).join('')}
-    ${F.text.map(t => `<div class="field"><span class="label">${t.l}</span><textarea class="text-in" id="vn-${t.k}" style="min-height:76px" placeholder="${esc(t.ph)}">${esc(v[t.k] || '')}</textarea></div>`).join('')}
-    <button class="btn primary" style="width:100%" data-act="vn-save">Save notes</button>`);
+    ${F.text.map(t => `<div class="field"><span class="label">${t.l}</span>${t.quick ? `<div class="chips vn-quick">${t.quick.map(q => `<button class="chip sm" data-act="vn-q" data-t="${t.k}" data-v="${esc(q)}" aria-pressed="${vnHas(VN.text[t.k], q)}">${esc(q)}</button>`).join('')}</div>` : ''}<textarea class="text-in" id="vn-${t.k}" style="min-height:${t.quick ? 60 : 76}px" placeholder="${esc(t.ph)}${R ? '. Or tap the mic on your keyboard and talk.' : ''}">${esc(VN.text[t.k])}</textarea></div>`).join('')}
+    <div class="sticky-go">${R ? `<div class="btn-row"><button class="btn line" data-act="vn-skip">Skip for now</button><button class="btn primary" data-act="vn-save">${R.ids.length ? 'Save and next' : 'Save, all done'}</button></div>` : '<button class="btn primary" style="width:100%" data-act="vn-save">Save notes</button>'}</div>`);
+}
+// keep what's typed when the sheet is drawn again (a chip tapped, "same as last time")
+function vnRead(){ visitForm().text.forEach(t => { const el = $('#vn-' + t.k); if (el) VN.text[t.k] = el.value; }); }
+function vnNext(saved){
+  const R = VN.run; VN = null;
+  if (R && R.ids.length) { const [next, ...rest] = R.ids; openVisit(next, {ids:rest, done:R.done + 1, saved:R.saved + (saved ? 1 : 0)}); return; }
+  closeSheet(); render();
+  const n = (R ? R.saved : 0) + (saved ? 1 : 0), left = notesDue().length;
+  toast(left ? `${n} saved. ${left} still to write.` : `All caught up. ${n} note${n === 1 ? '' : 's'} saved.`);
 }
 function saveVisit(){
+  vnRead();
   const a = AP.find(x => x.id === VN.id), F = visitForm(), v = {...(VISITS[VN.key] || {}), c:a.c, date:isoDay(dateOf(a.off)), s:a.s, at:new Date().toISOString()};
-  F.chips.forEach(g => { v[g.k] = VN.picks[g.k]; }); F.text.forEach(t => { v[t.k] = ($('#vn-' + t.k).value || '').trim(); });
+  F.chips.forEach(g => { v[g.k] = VN.picks[g.k]; }); F.text.forEach(t => { v[t.k] = (VN.text[t.k] || '').trim(); });
   VISITS[VN.key] = v;
   const plan = F.text.find(t => t.plan); if (plan && v[plan.k]) CL[a.c].note = v[plan.k];
+  if (VN.run) { saveState(); vnNext(true); return; }
   const id = VN.id; VN = null; render(); openAppt(id); toast('Visit notes saved.');
 }
 function visitSummary(v){
@@ -3612,6 +3652,10 @@ on('click', e => {
       if (i >= 0) L.splice(i, 1); else { if (one) L.length = 0; L.push(v); }
       document.querySelectorAll(`[data-act=vn-c][data-g="${g}"]`).forEach(b => b.setAttribute('aria-pressed', L.includes(b.dataset.v))); break; }
     case 'vn-save': saveVisit(); break;
+    case 'vn-run': { const [id, ...ids] = notesDue().map(a => a.id); if (id != null) openVisit(id, {ids, done:0, saved:0}); break; }
+    case 'vn-skip': vnNext(false); break;
+    case 'vn-last': { vnRead(); const L = VN.last, F = visitForm(); F.chips.forEach(g => { VN.picks[g.k] = [...(L[g.k] || [])]; }); F.text.forEach(t => { VN.text[t.k] = L[t.k] || ''; }); drawVisit(); toast('Filled in from last time. Change anything that was different.'); break; }
+    case 'vn-q': { vnRead(); const t = el.dataset.t; VN.text[t] = vnToggle(VN.text[t] || '', v); const ta = $('#vn-' + t); if (ta) ta.value = VN.text[t]; el.setAttribute('aria-pressed', vnHas(VN.text[t], v)); break; }
     case 'editnotes': openNotes(el.dataset.c, el.dataset.back); break;
     case 'en-p': EN.pressure = +v; document.querySelectorAll('[data-act=en-p]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === +v)); break;
     case 'en-save': saveNotes(); break;
