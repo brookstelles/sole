@@ -81,6 +81,7 @@ Deno.serve(async (req) => {
     if (!email || !m) return reply({ error: 'not a member of this business' }, 403);
     return reply(await sync(business_id, !!full));
   } catch (e) {
+    console.error('square:', String((e as Error).message ?? e));
     return reply({ error: String((e as Error).message ?? e) }, 500);
   }
 });
