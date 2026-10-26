@@ -377,6 +377,12 @@ console.log('ok private Square views');
     await x.addInitScript(`window.__SOLE_INTRO_MS = 0; ${init}\nnavigator.credentials.get = navigator.credentials.create = async () => ({id:'fake-pk', toJSON(){ return {id:'fake-pk'}; }});\nwindow.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
     await x.route('https://sole.test/**', r => r.fulfill({contentType:'text/html', body:site})); await x.goto('https://sole.test/', {waitUntil:'networkidle'}); return x; };
   await q.close();
+  // Face ID set up for another address (as right after a move): never offered, the email code carries on
+  { const mv = await page('window.__FAKE_RP = "old.example.com";'); await mv.waitForSelector('#si-email');
+    check(await mv.locator('#si-face').count() === 0, 'moved address: no Face ID button that cannot work');
+    await mv.fill('#si-email', 'test@example.com'); await mv.click('#si-form button'); await mv.fill('#si-code', '123456'); await mv.click('#si-form button');
+    await mv.waitForSelector('.biz-name'); check(!(await mv.locator('#fx-on').count()), 'moved address: signs in with the code, no Face ID offer');
+    await mv.close(); }
   const off = await page('window.__SOLE_OFFLINE = true;');
   await off.waitForSelector('#offline-bar', {timeout:5000}).catch(() => {});
   check(/No signal/.test(await off.textContent('body')) && /Cloud Sample/.test(await off.textContent('main')), 'no signal: the book opens from the phone');

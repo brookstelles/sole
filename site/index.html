@@ -3521,7 +3521,7 @@ on('click', e => {
     case 'me-theme': setTheme(v || null); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
     case 'me-thanks': PREFS.thanks = v !== 'off'; savePrefs(); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
     case 'me-face-off': try { localStorage.removeItem('sole-face'); } catch (_) {} $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; toast(`${FACE} is off on this phone. Next time, sign in with a code.`); break;
-    case 'me-face-on': el.disabled = true; pkCeremony('reg').then(() => true, err => err && (err.code === 'webauthn_credential_exists' || err.name === 'InvalidStateError'))
+    case 'me-face-on': if (!pkOk()) { toast(`${FACE} isn’t ready on this address yet. Try again later.`); break; } el.disabled = true; pkCeremony('reg').then(() => true, err => err && (err.code === 'webauthn_credential_exists' || err.name === 'InvalidStateError'))
       .then(ok => { if (ok) { lsSet('sole-face', '1'); toast(`${FACE} is on. Next time, Sole opens with a glance.`); } else { pkFetch('reg'); toast(`${FACE} didn’t turn on. Try again.`); } if ($('.sheet')) $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; }); break;
     case 'me-out': (async () => { const q = await idbGet('pending'); if (q && q.length) { toast('Some changes are still waiting for signal. Sign out once they’re saved.'); return; }
       await idbSet('book', null); try { await SB.auth.signOut(); } catch (_) {} location.reload(); })(); break;
@@ -3677,12 +3677,19 @@ const FACE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const lsGet = k => { try { return localStorage.getItem(k); } catch (_) { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} };
 const PK = {sign:null, reg:null};   // challenges fetched ahead of the tap: {at, data}
-const pkOk = () => !!(window.PublicKeyCredential && navigator.credentials && SB && SB.auth.passkey);
+// PK_BAD: the sign-in service's Face ID is set up for another address (as right after a move), so the phone would refuse
+// it; Sole then doesn't offer Face ID at all and the email code carries on
+let PK_BAD = false;
+const pkOk = () => !PK_BAD && !!(window.PublicKeyCredential && navigator.credentials && SB && SB.auth.passkey);
+const pkHere = id => !id || location.hostname === id || location.hostname.endsWith('.' + id);
 const pkFresh = kind => !!PK[kind] && Date.now() - PK[kind].at < 4 * 60e3;
 async function pkFetch(kind){
   PK[kind] = null; if (!pkOk()) return null;
   try { const r = await (kind === 'sign' ? SB.auth.passkey.startAuthentication() : SB.auth.passkey.startRegistration());
-    if (r && !r.error && r.data && r.data.options) PK[kind] = {at:Date.now(), data:r.data}; } catch (_) {}
+    if (r && !r.error && r.data && r.data.options) {
+      const o = r.data.options, id = kind === 'sign' ? o.rpId : o.rp && o.rp.id;
+      if (!pkHere(id)) { PK_BAD = true; return null; }
+      PK[kind] = {at:Date.now(), data:r.data}; } } catch (_) {}
   return PK[kind];
 }
 const b64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0)).buffer;
@@ -3731,7 +3738,8 @@ function askSignIn(step = 'email', email = '', msg = ''){
   const face = $id('si-face');
   if (face) face.onclick = () => { face.disabled = true; say('');
     pkCeremony('sign').then(() => { lsSet('sole-face', '1'); cloudGo(); })
-      .catch(() => { face.disabled = false; pkFetch('sign'); say(`${FACE} didn’t sign you in. If it isn’t on for Sole yet, use your email once.`); });
+      .catch(err => { if (PK_BAD || (err && err.name === 'SecurityError')) { PK_BAD = true; face.remove(); say(`Sign in with your email this time. ${FACE} comes back after.`); return; }
+        face.disabled = false; pkFetch('sign'); say(`${FACE} didn’t sign you in. If it isn’t on for Sole yet, use your email once.`); });
   };
   form.onsubmit = async e => {
     e.preventDefault(); const btn = form.querySelector('button'); btn.disabled = true;
