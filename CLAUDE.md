@@ -77,6 +77,10 @@ Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`). T
 - Private edition saves responses to the `forms` collection (read and write `interact`); accounts made in setup keep them with the account; the built-in demos keep them for the visit.
 - Text the form (website only): `formLink(k)` makes a one-time link (`form_links`: a random token, the client, the form; 14 days, closed once sent) and Messages opens with it. The client opens sole.brookstelles.com/?f=<token> with no sign-in: `formStart` asks the `intake` Edge Function (verify_jwt off) for the business's name and look and the form only, `boot` shows `formPage` instead of the app, and "Send" saves the answers and signature into `forms` (`via: 'link'`). `watchSole` picks it up live on Kelli's phone with a toast. The fake Supabase plays `intake` in tests.
 
+## Papers on file
+
+- Forms tab → Your papers (`papersSection`): license, insurance, certificates as a photo or PDF with an optional expiry date. Suggested empty slots by trade (`PAPERS_FOR`); the list is the book's `people/papers` (`{list:[{uid, name, expires, file, type, added, older}]}`), files go where receipts go (website: private `receipts` bucket under `<business id>/papers/`; artifact: assets). Replacing one keeps the earlier copy in `older`; taking one off the list leaves the file stored. A paper due within 30 days, or past due, shows on Today's To do. "Save a copy" uses the phone's share sheet (Files, Google Drive). The nightly backup writes them to `Papers/`.
+
 ## Open questions
 
 - Kelli's Breakdown values each massage at $110; her P&L records about $85 (2024) and $100 (2025) per massage.

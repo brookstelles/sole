@@ -10,6 +10,7 @@ For each business, in a folder named after it:
   Forms.csv               filled-in forms (answers; signatures are in book.json)
   Money.csv               payments and costs logged in Sole
   Card payments.csv       card payments from Square
+  Papers/                 license, insurance, certificates on file
   book.json               everything, exactly as stored (to rebuild from)
 """
 import csv, datetime as dt, io, json, os, re, sys
@@ -49,7 +50,7 @@ def business(b, out, at):
     name = lambda k: (cl.get(k) or {}).get('name') or (sq.get(k[3:]) if k and k.startswith('sq:') else None) or k or ''
     phone = lambda k: (cl.get(k) or {}).get('phone') or ''
     os.makedirs(out, exist_ok=True)
-    json.dump(b, open(os.path.join(out, 'book.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    json.dump({**b, 'papers': [{'path': x['path']} for x in b.get('papers', [])]}, open(os.path.join(out, 'book.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)   # the files are in Papers/
 
     # the schedule: the last 2 weeks and the next 60 days
     today = dt.datetime.fromisoformat(at.replace('Z', '+00:00')).astimezone(ET).date()
@@ -93,6 +94,18 @@ def business(b, out, at):
     write_csv(os.path.join(out, 'Card payments.csv'), ['When', 'Status', 'Amount', 'Tip', 'Refunded', 'Card customer', 'Square customer id', 'Payment id'],
               [[dt.datetime.fromisoformat(x['at'].replace('Z', '+00:00')).astimezone(ET).strftime('%Y-%m-%d %I:%M %p') if x.get('at') else '', x.get('status', ''), val(x.get('amount')), val(x.get('tip')), val(x.get('refunded')), sq.get(x.get('customer') or '', ''), val(x.get('customer')), x.get('id', '')] for x in ps])
 
+    # papers on file: each one under its own name, earlier copies with the day they were added
+    files = {x['path']: x['b64'] for x in b.get('papers', [])}
+    pp = next((r['data'] for r in by.get('people', []) if r['id'] == 'papers'), None) or {}
+    pdir = os.path.join(out, 'Papers'); papers = pp.get('list', [])
+    if papers: os.makedirs(pdir, exist_ok=True)
+    safe = lambda t: re.sub(r'[^A-Za-z0-9 ,&()-]+', '', t).strip() or 'Paper'
+    for p in papers:
+        for i, v in enumerate([p] + list(reversed(p.get('older', [])))):
+            if v.get('file') in files:
+                ext = v['file'].rsplit('.', 1)[-1]
+                nm = safe(p['name']) + (f" (earlier, added {v.get('added', '')})" if i else (f" (expires {p['expires']})" if p.get('expires') else ''))
+                open(os.path.join(pdir, f"{nm}.{ext}"), 'wb').write(__import__('base64').b64decode(files[v['file']]))
     n = {k: len(v) for k, v in by.items()}
     open(os.path.join(out, 'README.md'), 'w', encoding='utf-8').write('\n'.join([
         f"# {p.get('biz', b['name'])}", '',
@@ -103,6 +116,7 @@ def business(b, out, at):
         f"- [Forms](Forms.csv): {n.get('forms', 0)} filled in",
         f"- [Money](Money.csv): {n.get('ledger', 0)} payments and costs logged in Sole",
         f"- [Card payments](Card%20payments.csv): {len(ps)} from Square",
+        f"- [Papers](Papers): {len(papers)} on file (license, insurance, certificates)",
         f"- [book.json](book.json): everything exactly as stored, to rebuild Sole from", '']))
     return p.get('biz', b['name'])
 

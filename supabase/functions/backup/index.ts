@@ -1,9 +1,10 @@
 // The nightly backup (the private repository brookstelles/heart-and-soul-backup, job "Nightly backup") fetches every
-// business's book here: the profile, every item, card customers' names and card payments. No key is kept anywhere: the
+// business's book here: the profile, every item, card customers' names, card payments and the papers on file. No key is kept anywhere: the
 // job sends the identity token GitHub signs for it, and only a token for that repository's main branch, made for
 // "sole-backup", is answered. Deploy with verify_jwt off.
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
 import { createRemoteJWKSet, jwtVerify } from 'npm:jose@5.9.6';
+import { encodeBase64 } from 'jsr:@std/encoding@1.0.10/base64';
 
 const REPO = 'brookstelles/heart-and-soul-backup';
 const GITHUB = 'https://token.actions.githubusercontent.com';
@@ -35,7 +36,14 @@ Deno.serve(async (req) => {
     const out = [];
     for (const b of bs ?? []) {
       const [items, customers, pays] = await Promise.all([all('items', 'col,id,data', b.id), all('square_customers', 'id,name', b.id), all('square_payments', 'id,created_at,status,customer_id,data', b.id)]);
-      out.push({ id: b.id, name: b.name, profile: b.data, items, customers,
+      // papers on file (license, insurance...): the files themselves, so the backup has them too
+      const papers: any[] = [];
+      const { data: files } = await db.storage.from('receipts').list(`${b.id}/papers`, { limit: 1000 });
+      for (const f of files ?? []) {
+        const path = `${b.id}/papers/${f.name}`, { data: blob } = await db.storage.from('receipts').download(path);
+        if (blob) papers.push({ path, b64: encodeBase64(new Uint8Array(await blob.arrayBuffer())) });
+      }
+      out.push({ id: b.id, name: b.name, profile: b.data, items, customers, papers,
         payments: pays.map((p: any) => ({ id: p.id, at: p.created_at, status: p.status, customer: p.customer_id, amount: (p.data?.amount_money?.amount ?? 0) / 100, tip: (p.data?.tip_money?.amount ?? 0) / 100, refunded: (p.data?.refunded_money?.amount ?? 0) / 100 })) });
     }
     return reply({ at: new Date().toISOString(), businesses: out });

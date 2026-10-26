@@ -340,6 +340,12 @@ console.log('ok private Square views');
   check(await q.evaluate(() => __FAKE.T.items.some(r => r.col === 'appts' && r.data.c === 'mb:holly')), 'website: booking works for a one-word name found by search');
   if (await q.locator('.sheet .close').count()) await q.click('.sheet .close');
   await q.click('.tab[data-v=today]');
+  // papers on the website: the file goes to private storage, the list into the book
+  { const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    await q.click('.tab[data-v=forms]'); await q.click('#papers .pp-miss >> nth=0');
+    await q.setInputFiles('#pp-file', {name:'license.png', mimeType:'image/png', buffer:png}); await q.click('.sheet [data-act=pp-save]'); await q.waitForTimeout(400);
+    check(await q.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'people' && x.id === 'papers'); return !!(r && r.data.list.length === 1 && /^B1\/papers\/.+\.png$/.test(r.data.list[0].file)); }), 'website: a paper is stored privately and listed in the book');
+    await q.click('.tab[data-v=today]'); }
   // the account: initials at the top; light or dark on this phone; a name; thank-you texts on or off for the business
   check((await q.textContent('.me')).trim() === 'T', 'account: initials of who is signed in');
   await q.click('[data-act=me]'); await q.click('.sheet [data-act=me-theme][data-v=dark]');
@@ -510,6 +516,19 @@ check(/Lavender oil/.test(ans) && /Headaches, Sciatica/.test(ans) && await p.loc
 await p.click('.sheet .close');
 await p.click('[data-act=resps] >> nth=0'); check(/Riley Test/.test(await p.textContent('.sheet')), 'forms: response listed under the form'); await p.click('.sheet .close');
 await p.click('.tab[data-v=money]'); await p.click('[data-act=snapgo][data-sec=y-proj] >> nth=0'); await p.click('.tab[data-v=today]');
+// papers on file: suggested slots, a photo with an expiry date, the renewal on Today
+{ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  const soon = new Date(); soon.setDate(soon.getDate() + 20); const iso = `${soon.getFullYear()}-${String(soon.getMonth()+1).padStart(2,'0')}-${String(soon.getDate()).padStart(2,'0')}`;
+  await p.click('.tab[data-v=forms]');
+  check(await p.locator('#papers .pp-miss').count() === 4 && /Liability insurance/.test(await p.textContent('#papers')), 'papers: suggested slots for the trade');
+  await p.click('#papers .pp-miss:has-text("Liability insurance")');
+  await p.setInputFiles('#pp-file', {name:'insurance.png', mimeType:'image/png', buffer:png}); await p.fill('#pp-exp', iso);
+  await p.click('.sheet [data-act=pp-save]'); await p.waitForTimeout(300);
+  check(await p.locator('#papers .pp-miss').count() === 3 && /Renew by/.test(await p.textContent('#papers')), 'papers: added with its expiry date');
+  check(!(await wide(p)), 'papers: fits the phone');
+  await p.click('#papers [data-act=pp-open]'); await p.waitForTimeout(200);
+  check(/^blob:/.test(await p.getAttribute('#pp-img', 'src') || ''), 'papers: the photo opens'); await p.click('.sheet .close');
+  await p.click('.tab[data-v=today]'); check(/Liability insurance is due for renewal/.test(await p.textContent('main')), 'papers: renewal on Today a month ahead'); }
 // undo: cancel a visit, then put it back from the toast
 { await p.click('.tab[data-v=today]'); const L = () => p.locator('section:has(h2:has-text("Today’s")) [data-act=appt]'), n0 = await L().count();
   await L().nth(n0 - 1).click(); await p.click('.sheet [data-act=cancel]'); await p.click('.sheet [data-act=cancel-yes]');

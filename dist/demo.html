@@ -89,7 +89,11 @@ main{display:flex;flex-direction:column;gap:22px}
 .btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 /* needs-you cards */
-.todo .li.td{grid-template-columns:34px 1fr auto;width:100%;text-align:left;font:inherit;color:inherit}
+.pp-miss .td-i{background:transparent;border:1.5px dashed var(--line);color:var(--muted)}
+.pp-miss b{color:var(--muted);font-weight:600}
+.warn-t{color:var(--warm);font-weight:600}
+.bad-t{color:var(--bad);font-weight:600}
+.li.td{grid-template-columns:34px 1fr auto;width:100%;text-align:left;font:inherit;color:inherit}
 .td-i{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:var(--accent-soft);color:var(--accent);flex:none}
 .td-i svg{width:18px;height:18px}
 .li.td[aria-expanded="true"] > svg:last-child{transform:rotate(90deg)}
@@ -1240,7 +1244,7 @@ let KEEP = null;   // the tab to return to when the page rebuilds itself
 const SOLE_COLS = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks', 'days'];
 const SOLE_MAPS = ['clients', 'visits', 'weeks', 'days'];   // kept by id; the others are lists of items with a uid
 let REAL_SAVED = null, SOLE_VER = 0, SOLE_Q = Promise.resolve();
-const PREFS_MEM = {};   // the built-in businesses keep their account choices for the visit
+const PREFS_MEM = {}, PAPERS_MEM = {}, PAPER_URLS = {};   // PAPER_URLS: a paper's picture added on this visit, shown before it's stored   // the built-in businesses keep their account choices for the visit
 const LEDGER_MEM = {}, NOTES_MEM = {}, VISITS_MEM = {}, WEEKS_MEM = {}, DAYS_MEM = {};   // the built-in businesses keep what's added for the visit
 const uidOf = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const sortKeys = x => Array.isArray(x) ? x.map(sortKeys) : x && typeof x === 'object' ? Object.fromEntries(Object.keys(x).sort().filter(k => x[k] !== undefined).map(k => [k, sortKeys(x[k])])) : x;
@@ -1305,14 +1309,14 @@ async function loadSquare(key){
     if (window.__SOLE_SQUARE) { SQ = window.__SOLE_SQUARE; watchSquare(key); boot(key); return; }   // test hook: tests/fixtures/square-sample.json
     if (!window.claude || !window.claude.use) return;
     const db = await window.claude.use('db'); if (!db) return;
-    const [a, b, fr, mg, pf, ...book] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false})), db.doc('people/prefs').get().catch(() => ({exists:false})),
+    const [a, b, fr, mg, pf, pp, ...book] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false})), db.doc('people/prefs').get().catch(() => ({exists:false})), db.doc('people/papers').get().catch(() => ({exists:false})),
       ...SOLE_COLS.map(c => db.collection(c).get().catch(() => ({docs:[]})))]);
     const responses = fr.docs.filter(d => d.exists).map(d => JSON.parse(JSON.stringify(d.data())));
     const sole = {appts:[], blocks:[], clients:{}, ledger:[], visits:{}, weeks:{}, days:{}};
     REAL_SAVED = Object.fromEntries(SOLE_COLS.map(c => [c, {}]));
     SOLE_COLS.forEach((c, i) => book[i].docs.filter(d => d.exists).forEach(d => { const x = JSON.parse(JSON.stringify(d.data()));
       REAL_SAVED[c][d.id] = canon(x); if (SOLE_MAPS.includes(c)) sole[c][d.id] = x; else sole[c].push({...x, uid:d.id}); }));
-    SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses, merges:mg.exists ? JSON.parse(JSON.stringify(mg.data())) : null, prefs:pf.exists ? JSON.parse(JSON.stringify(pf.data())) : {}, sole};
+    SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses, merges:mg.exists ? JSON.parse(JSON.stringify(mg.data())) : null, prefs:pf.exists ? JSON.parse(JSON.stringify(pf.data())) : {}, papers:pp.exists ? (JSON.parse(JSON.stringify(pp.data())).list || []) : [], sole};
     if (!document.querySelector('.sheet')) boot(key);
     watchSole(db);
     watchSquare(key);
@@ -1574,7 +1578,7 @@ function saveState(){
     persistReal(JSON.parse(JSON.stringify({appts, blocks, clients, ledger, visits:VISITS, weeks:WEEKS, days:DAYS})));
     return;
   }
-  ACC.state = {clients:Object.fromEntries(Object.entries(CL).filter(([, c]) => c.mine).map(own)), appts, blocks, responses:RESP, ledger, notes:NOTES, visits:VISITS, weeks:WEEKS, days:DAYS};
+  ACC.state = {clients:Object.fromEntries(Object.entries(CL).filter(([, c]) => c.mine).map(own)), appts, blocks, responses:RESP, ledger, notes:NOTES, visits:VISITS, weeks:WEEKS, days:DAYS, papers:PAPERS};
   saveAccounts();
 }
 
@@ -1784,6 +1788,8 @@ const S = {tab:'today', week:0, day:0, range:'week', bar:0, answer:null, search:
 KEEP = null; CUR_S = S; CUR_KEY = KEY; if (LIVEBOOK) LIVE_DRAWN = liveSig();
 const TABS = [['today','Today'],['schedule','Schedule'],['money','Snapshot'],['clients',cap(WN)],['forms','Forms']];
 // the business's own choices (people/prefs in the book: thank-you texts, everyone's name) and who's looking
+// papers kept on file (license, insurance, certificates): the book's people/papers, a setup account's state, or the visit
+const PAPERS = P.real && SQ ? (SQ.papers = SQ.papers || []) : ACC ? ((ACC.state = ACC.state || {}).papers = ACC.state.papers || []) : (PAPERS_MEM[KEY] = PAPERS_MEM[KEY] || []);
 const PREFS = P.real && SQ ? (SQ.prefs = SQ.prefs || {}) : (PREFS_MEM[KEY] = PREFS_MEM[KEY] || {});
 const MY_NAME = (PREFS.names || {})[USER_EMAIL] || (USER_EMAIL ? '' : P.owner);
 const MY_INITIALS = (MY_NAME ? MY_NAME.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]) : [USER_EMAIL[0] || P.owner[0]]).join('').toUpperCase();
@@ -1821,6 +1827,7 @@ function viewToday(){
     if (dn.length) row(`Write ${dn.length === 1 ? `${esc(first(dn[0].c))}’s ${ft}` : ft}`, dn.length === 1 ? 'A minute now, and it’s there before their next visit.' : dn.map(a => esc(first(a.c))).join(', '), I.forms, `data-act="vnotes" data-id="${dn[0].id}"`); }
   ap.filter(a => !CL[a.c].intake && a.start >= NOW).forEach(a => row(`${esc(first(a.c))}’s ${P.intakeName} is missing`, `First visit today at ${clock(a.start)}`, I.forms, `data-act="fillfor" data-c="${a.c}"`));
   [remindTodo(), thanksTodo(), mondayTodo()].filter(Boolean).forEach(x => todo.push(`<button class="li td" data-act="td-open" data-v="${x.key}" aria-expanded="${S.td === x.key}"><span class="td-i">${x.icon}</span><span class="who"><b>${x.t}</b><span>${x.s}</span></span>${I.chev}</button>${S.td === x.key ? `<div class="td-body">${x.body}</div>` : ''}`));
+  PAPERS.filter(p => ppDays(p) != null && ppDays(p) <= 30).forEach(p => row(`${esc(p.name)} ${ppDays(p) < 0 ? 'has expired' : 'is due for renewal'}`, ppDays(p) < 0 ? `Expired ${ppDate(p.expires)}` : `Expires ${ppDate(p.expires)}`, I.badge, `data-act="pp-open" data-v="${p.uid}"`));
   { const w = weekInfo(-1); if (!w.rec.checked && w.todo) row('Check last week', `${w.todo} thing${w.todo === 1 ? '' : 's'} to look at, about two minutes`, I.check, `data-act="wkcheck" data-v="-1"`); }
   const c = next && CL[next.c];
   const mins = next ? next.start - NOW : 0;
@@ -2473,7 +2480,86 @@ function viewForms(){
   </article>`).join('')}
   </section>
   <button class="btn line" data-act="addform">${I.plus}Add a form</button>
-  <p class="small muted">${P.formsNote}</p>`;
+  <p class="small muted">${P.formsNote}</p>
+  ${papersSection()}`;
+}
+/* ---------- papers kept on file ----------
+   License, insurance, certificates: a photo or PDF of each with when it expires. Suggested empty slots by trade
+   (PAPERS_FOR); a renewal shows on Today's To do a month ahead. Files go where receipts go (the website's private
+   storage, the artifact's assets); replacing one keeps the earlier copy in `older`. */
+const PAPERS_FOR = {massage:['Massage therapist license', 'Liability insurance', 'Business tax receipt', 'CE certificates'],
+  hair:['Cosmetology license', 'Salon license', 'Liability insurance', 'Business tax receipt'], barber:['Barber license', 'Barbershop license', 'Liability insurance', 'Business tax receipt'],
+  tattoo:['Tattoo artist license', 'Bloodborne pathogens certificate', 'Liability insurance', 'Business tax receipt'], landscape:['Business license', 'Liability insurance', 'Vehicle insurance', 'Pesticide license'],
+  tennis:['Coaching certification', 'Background check', 'Liability insurance', 'Business license'], other:['License', 'Liability insurance', 'Business tax receipt', 'Certificates']};
+const papersFor = () => PAPERS_FOR[P.visitKind || KEY] || PAPERS_FOR[(TRADES.find(t => t.id === (P.visitKind || KEY)) || {}).base] || PAPERS_FOR.other;
+const ppDays = p => p.expires ? Math.round((new Date(p.expires + 'T12:00:00') - T0) / 864e5) : null;
+const ppDate = d => { const x = new Date(d + 'T12:00:00'); return `${MON[x.getMonth()].slice(0,3)} ${x.getDate()}, ${x.getFullYear()}`; };
+const ppWhen = p => { const n = ppDays(p); return n == null ? `Added ${ppDate(p.added)}` : n < 0 ? `<b class="bad-t">Expired ${ppDate(p.expires)}</b>` : n <= 60 ? `<b class="warn-t">Renew by ${ppDate(p.expires)}</b>` : `Good through ${ppDate(p.expires)}`; };
+function papersSection(){
+  const have = PAPERS.map(p => p.name.toLowerCase()), miss = papersFor().filter(n => !have.includes(n.toLowerCase()));
+  return `<section class="sec" id="papers"><div class="sec-h"><h2>Your papers</h2><span class="aside">${PAPERS.length} on file</span></div>
+    <div class="list">${PAPERS.map(p => `<button class="li td" data-act="pp-open" data-v="${p.uid}"><span class="td-i">${p.type === 'pdf' ? I.forms : I.badge}</span><span class="who"><b>${esc(p.name)}</b><span>${ppWhen(p)}</span></span>${I.chev}</button>`).join('')}
+      ${miss.map(n => `<button class="li td pp-miss" data-act="pp-add" data-v="${esc(n)}"><span class="td-i">${I.plus}</span><span class="who"><b>${esc(n)}</b><span>Not added yet</span></span>${I.chev}</button>`).join('')}</div>
+    <button class="btn line" data-act="pp-add" style="width:100%;margin-top:10px">${I.plus}Add another paper</button>
+    <p class="small muted">A photo or PDF of each, here whenever someone asks. Sole reminds you a month before one runs out.</p></section>`;
+}
+let PPF = null;   // a paper being added or changed
+function ppHTML(){
+  const p = PPF.edit ? PAPERS.find(x => x.uid === PPF.edit) : null, file = PPF.file;
+  return `${top(p ? (PPF.replace ? `New ${esc(p.name)}` : `Change ${esc(p.name)}`) : 'Add a paper', p && PPF.replace ? 'The one on file now is kept as an earlier copy.' : 'A photo of it, or the PDF.')}
+    ${!p || PPF.replace ? `<label class="btn ${file ? 'line' : 'primary'}" style="width:100%">${I.camera}${file ? 'Choose a different one' : 'Take a photo or choose a file'}<input type="file" id="pp-file" accept="image/*,application/pdf" hidden></label>
+      ${file ? (file.type === 'application/pdf' ? `<div class="card facts2"><p>${I.forms.replace('<svg', '<svg width="18" height="18" style="vertical-align:-3px"')} ${esc(file.name)}</p></div>` : `<img class="rcp-img" src="${PPF.url}" alt="">`) : ''}` : ''}
+    <div class="field"><span class="label">What it is</span><input class="text-in" id="pp-name" value="${esc(PPF.name)}" placeholder="License, insurance, certificate…" autocomplete="off"></div>
+    <div class="field"><span class="label">Expires, if it does</span><input class="text-in" type="date" id="pp-exp" value="${esc(PPF.expires || '')}"></div>
+    <button class="btn primary" style="width:100%" data-act="pp-save" ${PPF.saving ? 'disabled' : ''}>${PPF.saving ? 'Saving…' : 'Save'}</button>`;
+}
+const rerenderPaper = () => { const sh = $('.sheet'); if (sh && PPF) { const sc = sh.scrollTop; sh.innerHTML = `<div class="grab"></div>${ppHTML()}`; sh.scrollTop = sc; } };
+async function paperPut(file){
+  const ext = file.type === 'application/pdf' ? 'pdf' : (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+  if (CLOUD_ON && SB && BIZ) { const path = `${BIZ}/papers/${uidOf('p')}.${ext}`; const { error } = await SB.storage.from('receipts').upload(path, file, {contentType:file.type}); if (error) throw error; return path; }
+  try { const as = window.claude && window.claude.use ? await window.claude.use('assets') : null; if (as) return (await as.upload(file)).id; } catch (_) {}
+  return null;   // the built-in businesses: kept for the visit only
+}
+async function paperUrl(p){
+  if (PAPER_URLS[p.uid]) return PAPER_URLS[p.uid];
+  if (!p.file) return '';
+  if (CLOUD_ON && SB) { const { data } = await SB.storage.from('receipts').createSignedUrl(p.file, 600); return data ? data.signedUrl : ''; }
+  return '/_blob/' + p.file;
+}
+async function savePapers(){
+  if (ACC) { saveState(); return; }
+  try { const db = P.real && window.claude && window.claude.use ? await window.claude.use('db') : null; if (db) await db.doc('people/papers').set({list:JSON.parse(JSON.stringify(PAPERS)), updated:new Date().toISOString()}); }
+  catch (_) { toast('Saved on this phone. It couldn’t reach your account just now.'); }
+}
+async function savePaper(){
+  const name = ($('#pp-name').value || '').trim(), expires = $('#pp-exp').value || '', old = PPF.edit ? PAPERS.find(x => x.uid === PPF.edit) : null;
+  if (!name) { toast('Say what it is: license, insurance…'); return; }
+  if ((!old || PPF.replace) && !PPF.file) { toast('Add a photo or the PDF first.'); return; }
+  PPF.name = name; PPF.expires = expires; PPF.saving = true; rerenderPaper();
+  let file = old && !PPF.replace ? old.file : null;
+  if (PPF.file) { try { file = await paperPut(PPF.file); } catch (_) { PPF.saving = false; rerenderPaper(); toast('That didn’t upload. Check your signal and try again.'); return; } }
+  const type = PPF.file ? (PPF.file.type === 'application/pdf' ? 'pdf' : 'image') : old.type;
+  const p = old ? Object.assign(old, {name, expires, ...(PPF.file ? {file, type, added:isoDay(T0), older:[...(old.older || []), {file:old.file, type:old.type, added:old.added, expires:old.expires}]} : {})})
+    : {uid:uidOf('p'), name, expires, file, type, added:isoDay(T0)};
+  if (!old) PAPERS.push(p);
+  if (PPF.file) PAPER_URLS[p.uid] = PPF.url;
+  PPF = null; await savePapers(); closeSheet(); render(); toast(`${name} is on file.`);
+}
+function openPaper(uid){
+  const p = PAPERS.find(x => x.uid === uid); if (!p) return;
+  sheet(`${top(esc(p.name), ppWhen(p))}
+    <div id="pp-view">${p.type === 'pdf' ? `<div class="card facts2"><p>A PDF.</p></div>` : `<img class="rcp-img" id="pp-img" alt="${esc(p.name)}">`}</div>
+    <div class="btn-row"><a class="btn primary" id="pp-openlink" target="_blank" rel="noopener">${p.type === 'pdf' ? 'Open the PDF' : 'Open full size'}</a><button class="btn" data-act="pp-share" data-v="${p.uid}">Save a copy</button></div>
+    <div class="btn-row" style="margin-top:8px"><button class="btn" data-act="pp-new" data-v="${p.uid}">Replace with a newer one</button><button class="btn" data-act="pp-edit" data-v="${p.uid}">Change the date</button></div>
+    ${(p.older || []).length ? `<p class="small muted">${p.older.length} earlier cop${p.older.length === 1 ? 'y' : 'ies'} kept.</p>` : ''}
+    <button class="btn line danger-line" data-act="pp-del" data-v="${p.uid}" style="width:100%;margin-top:8px">Take it off the list</button>`);
+  paperUrl(p).then(u => { const i = $('#pp-img'), a = $('#pp-openlink'); if (i && u) i.src = u; if (a && u) a.href = u; else if (a) a.hidden = true; });
+}
+async function sharePaper(uid){
+  const p = PAPERS.find(x => x.uid === uid), u = p && await paperUrl(p); if (!u) { toast('That one isn’t stored yet.'); return; }
+  try { const b = await (await fetch(u)).blob(), f = new File([b], `${p.name}.${p.type === 'pdf' ? 'pdf' : (b.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg')}`, {type:b.type});
+    if (navigator.canShare && navigator.canShare({files:[f]})) { await navigator.share({files:[f], title:p.name}); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  window.open(u, '_blank', 'noopener');
 }
 function seg(){
   const opts = Object.entries(RANGES).map(([k,r]) => [k, r.label]);
@@ -3431,6 +3517,13 @@ on('click', e => {
       .then(ok => { if (ok) { lsSet('sole-face', '1'); toast(`${FACE} is on. Next time, Sole opens with a glance.`); } else { pkFetch('reg'); toast(`${FACE} didn’t turn on. Try again.`); } if ($('.sheet')) $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; }); break;
     case 'me-out': (async () => { const q = await idbGet('pending'); if (q && q.length) { toast('Some changes are still waiting for signal. Sign out once they’re saved.'); return; }
       await idbSet('book', null); try { await SB.auth.signOut(); } catch (_) {} location.reload(); })(); break;
+    case 'pp-add': PPF = {name:v || '', expires:'', file:null, url:null}; sheet(ppHTML()); break;
+    case 'pp-save': savePaper(); break;
+    case 'pp-open': openPaper(v); break;
+    case 'pp-share': sharePaper(v); break;
+    case 'pp-new': case 'pp-edit': { const p = PAPERS.find(x => x.uid === v); PPF = {edit:v, replace:el.dataset.act === 'pp-new', name:p.name, expires:el.dataset.act === 'pp-new' ? '' : p.expires, file:null, url:null}; sheet(ppHTML()); break; }
+    case 'pp-del': if (el.dataset.sure) { const i = PAPERS.findIndex(x => x.uid === v); if (i >= 0) { const n = PAPERS[i].name; PAPERS.splice(i, 1); savePapers(); closeSheet(); render(); toast(`${n} is off the list.`); } }
+      else { el.dataset.sure = '1'; el.textContent = 'Tap again to take it off'; } break;
     case 'td-open': S.td = S.td === v ? null : v; render(); break;
     case 'mon-ok': lsSet('sole-monday', isoDay(T0)); render(); break;
     case 'glgo': S.tab = 'schedule'; S.view = 'week'; S.day = monOf(0) + (v === 'next' ? 7 : 0); render(); window.scrollTo(0, 0); break;
@@ -3447,6 +3540,7 @@ on('change', e => {
   if (e.target.id === 'ob-logo' && OB) obLogo(e.target.files[0]);
   if (e.target.id === 'ob-docs' && OB) obDocs(e.target.files);
   if (e.target.id === 'rc-file' && RC && e.target.files[0]) takeReceipt(e.target.files[0]);
+  if (e.target.id === 'pp-file' && PPF && e.target.files[0]) { const fl = e.target.files[0]; PPF.name = ($('#pp-name') || {}).value || PPF.name; PPF.expires = ($('#pp-exp') || {}).value || PPF.expires; PPF.file = fl; PPF.url = URL.createObjectURL(fl); rerenderPaper(); }
   if (e.target.id === 'pv-c') { const f = $('#pv-new-f'); if (f) f.hidden = e.target.value !== 'new'; }
   if (B && (e.target.id === 'b-from' || e.target.id === 'b-to') && e.target.value) { const o = Math.max(0, offOfIso(e.target.value));
     if (e.target.id === 'b-from') { B.off = o; B.to = Math.max(B.to, o); } else B.to = Math.max(o, B.off); rerenderBook(); }
