@@ -252,6 +252,10 @@ main{display:flex;flex-direction:column;gap:22px}
 .li{display:grid;grid-template-columns:76px 1fr auto;gap:12px;align-items:center;width:100%;border:0;background:transparent;text-align:left;padding:14px 16px;min-height:64px}
 .li + .li{border-top:1px solid var(--line)}
 .li.sv{grid-template-columns:1fr auto auto}
+.qr-card{background:#fff;color:#1E1B2E;border-radius:24px;padding:18px 18px 22px;display:grid;justify-items:center;gap:4px;text-align:center;box-shadow:var(--shadow)}
+.qr-card svg{width:min(100%,300px);height:auto;display:block}
+.qr-card b{font-size:19px;margin-top:4px}
+.qr-card span{font-size:15px;color:#4A4760}
 .li.sv .sv-pr{font-size:17px;font-variant-numeric:tabular-nums}
 .li .t{font-weight:600;font-variant-numeric:tabular-nums;font-size:16px}
 .li .t small{display:block;font-weight:400;color:var(--muted);font-size:13px}
@@ -2008,6 +2012,7 @@ const unitCap = cap(P.unit);
 
 /* ---------- icons ---------- */
 const I = {
+  qr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1.2"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18 14h2.5M14 18v2.5"/></svg>',
   today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg>',
   schedule:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="8.5" cy="14.5" r=".6" fill="currentColor"/><circle cx="12" cy="14.5" r=".6" fill="currentColor"/></svg>',
   money:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2.8" y="6" width="18.4" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/></svg>',
@@ -2588,6 +2593,7 @@ function meHTML(){
   const seg = (act, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
   return `${top('Your account', esc(P.biz))}
     <div class="me-who"><span class="me big">${esc(MY_INITIALS)}</span><div><b>${esc(MY_NAME || (USER_EMAIL ? 'Add your name' : P.owner))}</b><span class="small muted">${esc(USER_EMAIL || `Owner of ${P.biz}`)}</span></div></div>
+    ${P.site && P.site.url ? `<div class="field"><span class="label">Share your business</span><button class="btn primary" data-act="qr">${I.qr}Show my QR code</button><span class="small muted">Someone points their phone’s camera at it and your website opens.</span></div>` : ''}
     ${USER_EMAIL ? `<div class="field"><span class="label">Your name</span><input class="text-in" id="me-name" value="${esc(MY_NAME)}" placeholder="First and last" autocomplete="name"></div>` : ''}
     <div class="field"><span class="label">Light or dark</span>${seg('me-theme', th, [['', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']])}<span class="small muted">Automatic follows your phone’s setting. Just on this phone.</span></div>
     ${face ? `<div class="field"><span class="label">${FACE}</span>${lsGet('sole-face') ? `<p class="small muted">On. Sole opens with a glance.</p><button class="btn line" data-act="me-face-off">Turn off ${FACE} on this phone</button>` : `<button class="btn line" data-act="me-face-on">${FACE_ICON}Turn on ${FACE}</button>`}</div>` : ''}
@@ -2595,6 +2601,22 @@ function meHTML(){
     <div class="field"><span class="label">Services and prices</span><button class="btn line" data-act="sv-list">Change services and prices</button><span class="small muted">${svOpen().length} offered, from ${money(Math.min(...svOpen().map(k => SV[k].price)))}. Add one, change a price or length, or stop offering one.</span></div>
     <div class="field"><span class="label">Thank-you texts the day after</span>${seg('me-thanks', PREFS.thanks === false ? 'off' : 'on', [['on', 'On'], ['off', 'Off']])}<span class="small muted">For everyone on ${esc(P.biz)}.</span></div>
     ${CLOUD_ON && USER_EMAIL ? `<button class="btn line danger-line" data-act="me-out" style="width:100%;margin-top:8px">Sign out</button>` : ''}`;
+}
+/* ---------- a QR code for the business's website (asked for Oct 26, 2026): her initials, then Show my QR code, and
+   someone scans it from her phone. Black on white whatever the theme, so every camera reads it. The library
+   (qrcode-generator 1.4.4, MIT, Kazuhiko Arase) is site/vendor/qrcode.js: loaded the first time, then kept on the phone. */
+let QR_LIB = null;
+const qrLib = () => window.qrcode ? Promise.resolve() : QR_LIB || (QR_LIB = new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'vendor/qrcode.js'; sc.onload = ok; sc.onerror = () => { QR_LIB = null; no(); }; document.head.appendChild(sc); }));
+async function qrSheet(){
+  const url = P.site.url, shown = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  sheet(`${top(esc(P.biz), 'Have them point their phone’s camera here.')}
+    <div class="qr-card" id="qr-box" aria-live="polite"><p class="muted">One moment…</p></div>
+    <div class="btn-row">${navigator.share ? `<button class="btn primary" data-act="qr-share">${I.send}Send the link</button>` : ''}<button class="btn" data-act="qr-copy">Copy the link</button></div>`);
+  try {
+    await qrLib(); const box = $('#qr-box'); if (!box) return;
+    const q = qrcode(0, 'M'); q.addData(url); q.make();
+    box.innerHTML = `${q.createSvgTag({cellSize:8, margin:16, scalable:true, alt:`QR code that opens ${shown}`})}<b>${esc(P.biz)}</b><span>${esc(shown)}</span>`;
+  } catch (_) { const box = $('#qr-box'); if (box) box.innerHTML = `<p>The QR code needs signal the first time. Your website is <b>${esc(shown)}</b>.</p>`; }
 }
 /* ---------- services and prices (asked for Oct 26, 2026): the owner adds one, changes its name, length, price or
    website words, or stops offering it. Saved with the business's choices (PREFS.services), so every phone, the computer
@@ -4132,6 +4154,9 @@ on('click', e => {
     case 'me': if (CLOUD_ON && typeof pkOk === 'function' && pkOk() && !lsGet('sole-face')) pkFetch('reg'); if (pushOk()) pushFetchKey(); sheet(meHTML()); break;
     case 'me-theme': setTheme(v || null); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
     case 'sv-list': sheet(servicesHTML()); break;
+    case 'qr': qrSheet(); break;
+    case 'qr-share': navigator.share({title:P.biz, url:P.site.url}).catch(() => {}); break;
+    case 'qr-copy': (navigator.clipboard ? navigator.clipboard.writeText(P.site.url) : Promise.reject()).then(() => toast('Link copied. Paste it in a text or an email.'), () => toast(P.site.url)); break;
     case 'sv-new': SVE = {k:null, name:'', min:60, price:'', desc:''}; sheet(serviceHTML()); setTimeout(() => { const n = $('#sv-name'); if (n) n.focus(); }, 50); break;
     case 'sv-edit': { const c = SV[v]; SVE = {k:v, name:c.name, min:c.min, price:c.price, desc:c.desc || ''}; sheet(serviceHTML()); break; }
     case 'sv-min': { svRead(); SVE.min = +v; const sc = $('.sheet').scrollTop; $('.sheet').innerHTML = `<div class="grab"></div>${serviceHTML()}`; $('.sheet').scrollTop = sc; break; }

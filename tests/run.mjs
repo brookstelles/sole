@@ -298,7 +298,7 @@ console.log('ok private Square views');
   { const d = new Date(now); d.setDate(d.getDate() + 2); while ([0, 6].includes(d.getDay())) d.setDate(d.getDate() + 1);
     seed.items.push({business_id:'B1', col:'clients', id:'nL', data:{name:'Weekly Tester', phone:'', since:2026, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}});
     [0, 7, 14].forEach(n => { const x = new Date(d); x.setDate(x.getDate() + n); seed.items.push({business_id:'B1', col:'appts', id:'aL' + n, data:{c:'nL', s:'sw90', date:iso(x), start:630, paid:false, tip:0, w:'Kelli'}}); }); }
-  seed.businesses = [{id:'B1', name:'Cloud Test Massage', profile:'massage', data:{...demoMassage, site:{slug:'cloud-test'}, biz:'Cloud Test Massage', owner:'Robin', real:true, books:{2024:{take:28000, rent:8000, other:900, kept:19100}, 2025:{take:30000, rent:8000, other:1000, kept:21000}}, booksNote:''}}];
+  seed.businesses = [{id:'B1', name:'Cloud Test Massage', profile:'massage', data:{...demoMassage, site:{slug:'cloud-test', url:'https://example.com/cloud-test'}, biz:'Cloud Test Massage', owner:'Robin', real:true, books:{2024:{take:28000, rent:8000, other:900, kept:19100}, 2025:{take:30000, rent:8000, other:1000, kept:21000}}, booksNote:''}}];
   const fake = fs.readFileSync(fx + 'fake-supabase.js', 'utf8');
   const site = fs.readFileSync(root + 'site/index.html', 'utf8');
   check(!/Cloud Test Massage/.test(site) && /Tidewater Massage/.test(site), 'website: the page carries only the made-up business');
@@ -307,6 +307,7 @@ console.log('ok private Square views');
   // the phone's Face ID, standing in for the real prompt
   await q.addInitScript(`window.__SOLE_INTRO_MS = 0; window.print = () => { window.__printed = true; };\nnavigator.credentials.get = navigator.credentials.create = async () => ({id:'fake-pk', toJSON(){ return {id:'fake-pk'}; }});\nwindow.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
   await q.route('https://sole.test/', r => r.fulfill({contentType:'text/html', body:site}));   // https: Face ID needs a secure page
+  await q.route('https://sole.test/vendor/qrcode.js', r => r.fulfill({contentType:'text/javascript', body:fs.readFileSync(root + 'site/vendor/qrcode.js', 'utf8')}));
   await q.goto('https://sole.test/', {waitUntil:'networkidle'});
   check(/Send me a code/.test(await q.textContent('main')), 'website: asks to sign in');
   await q.fill('#si-email', 'test@example.com'); await q.click('#si-form button');
@@ -435,6 +436,11 @@ console.log('ok private Square views');
   check(await q.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'people' && x.id === 'prefs'); return r && r.data.thanks === false && r.data.names['test@example.com'] === 'Test Owner'; }), 'account: choices saved for the business');
   check(!(await wide(q)), 'account: the top row fits the phone');
   check(!(await wide(q)), 'website: wider than the phone');
+  // a QR code for the business's website: two taps from anywhere (the initials, then Show my QR code)
+  { await q.click('[data-act=me]'); await q.click('.sheet [data-act=qr]'); await q.waitForSelector('#qr-box svg');
+    check(/example\.com\/cloud-test/.test(await q.textContent('#qr-box')) && (await q.getAttribute('#qr-box svg path', 'd') || '').length > 500, 'QR code: shows a code for the website and its address');
+    check(await q.evaluate(() => getComputedStyle(document.getElementById('qr-box')).backgroundColor) === 'rgb(255, 255, 255)' && !(await wide(q)), 'QR code: black on white, fits the phone');
+    await q.click('.sheet .close'); await q.waitForTimeout(300); }
   // services and prices: add a 2 hour one, change a price (visits before today keep theirs), stop offering one; then a
   // booked visit changes to the new one, with the client's other upcoming ones
   { await q.click('[data-act=me]'); await q.click('.sheet [data-act=sv-list]');
