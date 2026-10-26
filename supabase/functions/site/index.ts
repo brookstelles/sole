@@ -21,7 +21,12 @@ Deno.serve(async (req) => {
   if (!p) return reply({ error: 'not found' }, 404);
   const s = p.site, h = p.hours || {}, closed: number[] = h.closed || [];
   const open = DAYS.map((d, i) => ({ day: d, open: !closed.includes(i), from: h.open != null ? clock(h.open) : null, to: h.close != null ? clock(h.close) : null }));
-  const services = Object.values(p.services || {}).map((v: any) => ({ name: v.name, minutes: v.min, price: v.price, description: v.desc || '' }));
+  // the database doesn't keep the services in order, so list them from the lowest starting price, then by length
+  const from: Record<string, number> = {};
+  for (const v of Object.values(p.services || {}) as any[]) from[v.name] = Math.min(from[v.name] ?? Infinity, v.price);
+  const services = (Object.values(p.services || {}) as any[])
+    .sort((a, b) => from[a.name] - from[b.name] || a.name.localeCompare(b.name) || a.min - b.min)
+    .map(v => ({ name: v.name, minutes: v.min, price: v.price, description: v.desc || '' }));
   return reply({
     business: p.biz, owner: p.owner, trade: p.trade || null, unit: p.unitOne || 'appointment',
     tagline: s.tagline || '', about: s.about || [], specialties: s.specialties || [], reviews: s.reviews || [],
