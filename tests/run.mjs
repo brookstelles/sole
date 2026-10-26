@@ -295,9 +295,9 @@ console.log('ok private Square views');
   await p.click('.tab[data-v=schedule]'); await p.click('[data-act=sview][data-v=month]');
   let found = false;
   for (let i = 0; i < 12 && !found; i++) { if (await p.locator('.mo-c.fam').count() && await p.locator('.mo-c.holi').count()) found = true; else await p.click('[data-act=snav][data-v="1"]'); }
-  check(found && /No school · Riley/.test(await p.textContent('.mo-key')) && /Holiday/.test(await p.textContent('.mo-key')), 'family: no-school days and holidays marked on the month');
+  check(found && /No school · Rylee/.test(await p.textContent('.mo-key')) && /Holiday/.test(await p.textContent('.mo-key')), 'family: no-school days and holidays marked on the month');
   await p.click('.mo-c.fam >> nth=0');
-  check(/No school · Riley · /.test(await p.textContent('.day-tags')), 'family: the day says why');
+  check(/No school · Rylee · /.test(await p.textContent('.day-tags')), 'family: the day says why');
   await p.click('[data-act=sview][data-v=day]'); await p.click('.tab[data-v=today]');
   console.log('ok family days and holidays');
 }
