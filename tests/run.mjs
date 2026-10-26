@@ -500,6 +500,22 @@ console.log('ok private Square views');
     check(/now 2 hr swedish .* and 2 more/.test(await q.textContent('.toast')), 'services: says what changed');
     check(await q.evaluate(k => ['aL0', 'aL7', 'aL14'].every(id => window.__FAKE.T.items.find(x => x.col === 'appts' && x.id === id).data.s === k), two.k), 'services: all three are saved as the new service');
     await q.click('.tab[data-v=today]'); }
+  // back, one step at a time: from a sheet opened inside another sheet to that one, then to the page
+  { await q.click('[data-act=me]'); await q.click('.sheet [data-act=sv-list]'); await q.click('.sheet [data-act=sv-edit] >> nth=0');
+    check(/Change a service/.test(await q.textContent('.sheet')), 'back: a service open from the list');
+    await q.evaluate(() => history.back()); await q.waitForTimeout(300);
+    check(/Services and prices/.test(await q.textContent('.sheet')) && !/Change a service/.test(await q.textContent('.sheet')), 'back: from a service to the list of services');
+    await q.evaluate(() => history.back()); await q.waitForTimeout(300);
+    check(/Your account/.test(await q.textContent('.sheet')), 'back: from the list to the account menu');
+    await q.evaluate(() => history.back()); await q.waitForTimeout(300);
+    check(await q.locator('#layer .sheet').count() === 0, 'back: then the sheet closes, the page stays'); }
+  // pull down: the page you're on, fresh from the server, without starting the app over
+  { await q.click('.tab[data-v=clients]'); await q.click('#clt-list [data-c=nL]'); await q.waitForTimeout(200);
+    await q.evaluate(() => { window.__still = true; const r = window.__FAKE.T.items.find(x => x.col === 'clients' && x.id === 'nL'); r.data = {...r.data, name:'Weekly Tester Renamed'}; });
+    await q.evaluate(() => pullGo()); await q.waitForTimeout(1500);
+    check(await q.evaluate(() => window.__still === true) && await q.locator('.signin').count() === 0, 'pull down: the app doesn’t start over');
+    check(/Weekly Tester Renamed/.test(await q.textContent('main')) && await q.locator('main .cl-next').count() === 1, 'pull down: the same page, with what changed on the server');
+    await q.click('.tab[data-v=today]'); }
   // signed out (a new day, a cleared session): Face ID comes first and opens the book without a code
   await q.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('sb-')) localStorage.removeItem(k); });
   await q.reload({waitUntil:'networkidle'}); await q.waitForSelector('#si-face');

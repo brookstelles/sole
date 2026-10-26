@@ -1489,6 +1489,7 @@ let CTL;
 const WIDE_MQ = window.matchMedia('(min-width: 700px) and (min-height: 500px)'); let WIDE = WIDE_MQ.matches;
 let SQ = null;    // Square payments and card customers, written into this page's database by the daily refresh
 let KEEP = null;   // the tab to return to when the page rebuilds itself
+let SHEETS = [], SHEET_GEN = 0, BOOT_GEN = 0;   // the sheets under the open one (back returns to them); a rebuild forgets them
 let REOPEN = null;   // a sheet to put back after the page rebuilds itself ('services', 'setup')
 let NEW_CODE = null;   // website: the invite code of someone setting up a new business (the setup screens cover the page)
 let TOAST_T = null; const UNDO = {arm:null, snap:null};
@@ -1672,7 +1673,7 @@ async function allowLive(){
   try { takeServices(await mcp.callTool(...SQ_TOOL, svcReq)); await takeBook(mcp, await mcp.callTool(...SQ_TOOL, bookReq())); } catch (_) {}
 }
 function boot(KEY){
-CTL && CTL.abort(); CTL = new AbortController();
+CTL && CTL.abort(); CTL = new AbortController(); BOOT_GEN++; SHEETS.length = 0;
 { const pre = document.getElementById('pre-bg'); if (pre) pre.remove(); }   // the night-sky first paint (website) gives way to the app's own colors
 const on = (t, f) => document.addEventListener(t, f, {signal:CTL.signal});
 const P = PROFILES[KEY] || makeProfile(KEY);
@@ -2102,7 +2103,9 @@ function sideNext(){
 function navNote(){
   if (!CLOUD_ON) return;
   const nav = {tab:S.tab, money:S.money, cl:S.cl || null, rec:!!S.clRec, view:S.tab === 'schedule' ? sView() : null}, key = JSON.stringify(nav);
-  if (key !== NAV_KEY) { if (NAV_KEY && !NAV_POP) history.pushState({nav}, ''); else history.replaceState({nav}, ''); NAV_KEY = key; }
+  const mo = S.tab === 'money' && S.money === 'month' ? S.mo || null : null;   // stepping month to month stays one page
+  if (key !== NAV_KEY) { if (NAV_KEY && !NAV_POP) history.pushState({nav, mo}, ''); else history.replaceState({nav, mo}, ''); NAV_KEY = key; }
+  else if (mo && (history.state || {}).mo !== mo) history.replaceState({nav, mo}, '');
   NAV_POP = false;
 }
 
@@ -3585,10 +3588,11 @@ function ask(q){
 
 /* ---------- sheets ---------- */
 function sheet(html, cls){
+  const open = $('#layer .sheet'); if (open && SHEET_GEN === BOOT_GEN) SHEETS.push({html:open.innerHTML, cls:cls || ''}); SHEET_GEN = BOOT_GEN;
   $('#layer').innerHTML = `<div class="scrim" data-act="close"></div><div class="sheet ${cls || ''}" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
   const f = $('.sheet .close'); if (f) f.focus({preventScroll:true});
 }
-const closeSheet = () => { if (NEW_CODE) { location.reload(); return; } $('#layer').innerHTML = ''; if (ME_DIRTY) { ME_DIRTY = false; KEEP = {...S}; boot(KEY); return; } if (LIVEBOOK) setTimeout(redrawLive, 0); };   // a change that came in while a sheet was open shows now
+const closeSheet = () => { if (NEW_CODE) { location.reload(); return; } SHEETS.length = 0; $('#layer').innerHTML = ''; if (ME_DIRTY) { ME_DIRTY = false; KEEP = {...S}; boot(KEY); return; } if (LIVEBOOK) setTimeout(redrawLive, 0); };   // a change that came in while a sheet was open shows now
 const top = (h, sub) => `<div class="sh-top"><div><h2>${h}</h2>${sub?`<p>${sub}</p>`:''}</div><button class="close" data-act="close">Done</button></div>`;
 
 function notesHTML(k){
@@ -4364,9 +4368,12 @@ WIDE_MQ.addEventListener('change', e => { WIDE = e.matches; render(); }, {signal
     if (Math.abs(dx) > 70 && Math.abs(dy) < 50) schedNav(dx < 0 ? 1 : -1); }, opt); }
 window.addEventListener('popstate', e => {
   if (!CLOUD_ON) return;
-  if ($('#layer .sheet')) { closeSheet(); history.pushState({nav:JSON.parse(NAV_KEY || '{}')}, ''); return; }   // back closes the open sheet, the page stays
+  if ($('#layer .sheet')) {   // back goes to the sheet this one was opened from, or closes it; the page stays
+    const prev = SHEETS.pop();
+    if (prev) $('#layer').innerHTML = `<div class="scrim" data-act="close"></div><div class="sheet ${prev.cls}" role="dialog" aria-modal="true">${prev.html}</div>`; else closeSheet();
+    history.pushState({nav:JSON.parse(NAV_KEY || '{}')}, ''); return; }
   const nav = e.state && e.state.nav; if (!nav) return;
-  S.tab = nav.tab || 'today'; S.money = nav.money || 'home'; S.cl = nav.cl || null; S.clRec = !!nav.rec; if (nav.view) S.view = nav.view; NAV_POP = true; render(); window.scrollTo(0, 0);
+  S.tab = nav.tab || 'today'; S.money = nav.money || 'home'; S.cl = nav.cl || null; S.clRec = !!nav.rec; if (nav.view) S.view = nav.view; if (e.state.mo) S.mo = e.state.mo; NAV_POP = true; render(); window.scrollTo(0, 0);
 }, {signal:CTL.signal});
 if (CLOUD_ON && STANDALONE) {
   let sw = null; const opt = {signal:CTL.signal, passive:true};
@@ -4411,7 +4418,24 @@ const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator
 const MINI_SUN = '<svg viewBox="-32 -32 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><circle r="10" fill="currentColor"/>' + Array.from({length:8}, (_, i) => `<path transform="rotate(${i*45})" d="M0 -17V-26"/>`).join('') + '</g></svg>';
 function gestureEl(id, html){ let el = document.getElementById(id); if (!el) { el = document.createElement('div'); el.id = id; el.className = id; el.innerHTML = html; document.body.appendChild(el); } return el; }
 function pullShow(dy){ const el = gestureEl('pull', MINI_SUN), d = Math.min(dy, 150); el.style.opacity = d ? Math.min(1, d / 95) : 0; el.style.transform = `translateY(${d ? d * .45 - 10 : -50}px) rotate(${d * 2.4}deg)`; }
-function pullGo(){ const el = gestureEl('pull', MINI_SUN); el.classList.add('go'); el.style.opacity = 1; el.style.transform = 'translateY(40px)'; setTimeout(() => location.reload(), 380); }
+function pullGo(){
+  const el = gestureEl('pull', MINI_SUN); el.classList.add('go'); el.style.opacity = 1; el.style.transform = 'translateY(40px)';
+  const done = () => { el.classList.remove('go'); el.style.opacity = 0; el.style.transform = 'translateY(-50px)'; };
+  Promise.all([refreshBook(), new Promise(r => setTimeout(r, 600))]).then(done, () => { done(); TOAST('Couldn’t reach your book just now. This is what’s on this phone.'); });
+}
+// pull down (asked for Oct 26, 2026): the page you're on, fresh from the server: the business's details, Square's latest
+// payments and the book, redrawn on the same page. Only a phone that opened with no signal starts over, to try again.
+async function refreshBook(){
+  if (!SB || !BIZ || OFFLINE) { location.reload(); return; }
+  const keep = CUR_S ? {...CUR_S} : null, key = CUR_KEY;
+  const { data:b, error } = await SB.from('businesses').select('id,name,profile,data').eq('id', BIZ).maybeSingle(); if (error) throw error;
+  if (b && b.data) PROFILES[b.profile || 'massage'] = {...b.data, cloud:CLOUD_CFG};
+  await SB.functions.invoke('square', {body:{business_id:BIZ, full:false}}).catch(() => {});
+  await loadSquareTables();
+  KEEP = keep; await loadSquare(key);
+  liveFromCache(); if (SQ) { SOLE_VER++; redrawLive(); }
+  bookSaveSoon();
+}
 function edgeShow(dx){ const el = gestureEl('edge', '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>'); el.style.opacity = dx ? Math.min(1, dx / 70) : 0; el.style.transform = `translateX(${Math.min(dx, 90) * .4}px)`; }
 // the opening plays every time Sole opens: the book loads behind it, then the scene hands over
 const INTRO_MS = window.__SOLE_INTRO_MS != null ? window.__SOLE_INTRO_MS : matchMedia('(prefers-reduced-motion: reduce)').matches ? 1200 : 3400;
