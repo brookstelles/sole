@@ -189,6 +189,22 @@ main{display:flex;flex-direction:column;gap:22px}
 .card.vnote p{margin:0 0 4px}
 .card.vnote p:last-child{margin:0}
 .btn.danger-line{width:100%;margin-top:12px;color:var(--bad)}
+.rb-what{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.rb-what div{display:flex;flex-direction:column;gap:2px}
+.cal{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:10px}
+.cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-w{text-align:center;font-size:12px;color:var(--muted);font-weight:600}
+.cal-d{border:0;background:var(--sunk);border-radius:10px;min-height:44px;font:inherit;font-weight:600;color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;position:relative;font-variant-numeric:tabular-nums}
+.cal-d i{font-style:normal;font-size:10px;line-height:8px;height:8px;color:var(--accent);letter-spacing:1px}
+.cal-d.off{background:transparent;color:var(--muted);font-weight:400}
+.cal-d.now{box-shadow:inset 0 0 0 1.5px var(--ink)}
+.cal-d.hint,.cal-ring{box-shadow:inset 0 0 0 2px var(--gold)}
+.cal-ring{display:inline-block;width:14px;height:14px;border-radius:5px;vertical-align:-2px}
+.cal-d.cal-tag::after{content:'';position:absolute;top:5px;right:6px;width:5px;height:5px;border-radius:50%;background:var(--warm)}
+.cal-d[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.cal-d[aria-pressed="true"] i{color:var(--accent-ink)}
+.cal-d:disabled{opacity:.35}
 .scroller{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
 .scroller::-webkit-scrollbar{display:none}
 .scroller .chip{flex:none}
@@ -2722,7 +2738,7 @@ function openAppt(id){
       ${!c.intake ? `<button class="btn" data-act="fillfor" data-c="${a.c}">Fill in ${P.intakeName}</button><button class="btn" data-act="intake" data-c="${a.c}">Text the form</button>` : ''}
       ${future ? `<button class="btn" data-act="move" data-id="${a.id}">Move</button>` : ''}
       ${done && !a.paid && !noShow(a) ? `<button class="btn" data-act="wk-noshow" data-id="${a.id}">No-show</button>` : ''}
-      <button class="btn" data-act="rebook" data-id="${a.id}">Rebook in ${Math.max(1, Math.round((c.every||28)/7))} wk</button>
+      <button class="btn" data-act="rebook" data-id="${a.id}">Book again</button>
       ${future ? `<button class="btn danger" data-act="cancel" data-id="${a.id}">Cancel</button>` : ''}
     </div>
     <div class="confirm" id="confirm" hidden><p>Cancel ${first(a.c)}’s ${clock(a.start)} on ${dayLong(a.off)}?</p><div class="btn-row"><button class="btn danger" data-act="cancel-yes" data-id="${a.id}">Yes, cancel</button><button class="btn" data-act="cancel-no">Keep it</button></div></div>`);
@@ -2803,8 +2819,8 @@ function whoChips(){
 function openBook(o){
   B = Object.assign({kind:'client', mode:'new', c:null, newName:'', s:Object.keys(SV)[0], off:S.tab==='schedule'?S.day:1, start:null, label:'Lunch', name:'', len:30, rep:false, w:S.tab==='schedule'?S.who:ME}, o);
   if (o.c && !o.s && CL[o.c] && CL[o.c].usual) B.s = CL[o.c].usual;
-  while (isOff(B.off) || B.off < 0) B.off++;
-  B.to = B.off;
+  if (B.off != null) { while (isOff(B.off) || B.off < 0) B.off++; }
+  B.to = B.off; B.calM = B.off != null ? B.off : B.hint != null ? B.hint : 0;
   fixStart(); sheet(bookHTML());
 }
 const TIME_OFF = [['Lunch', 30], ['Break', 15], ['Errand', 60], ['Appointment', 60], ['Day off', 0], ['Vacation', 0]];
@@ -2813,22 +2829,24 @@ const offOfIso = v => Math.round((new Date(v + 'T00:00:00') - T0) / 864e5);
 const workDays = (a, b) => { const out = []; for (let o = a; o <= b; o++) if (!isOff(o)) out.push(o); return out; };
 const bLen = () => B.kind === 'client' ? SV[B.s].min : wholeDays() ? closeOf(B.off) - openOf(B.off) : B.len;
 const bStarts = () => validStarts(B.off, bLen(), B.kind === 'client' ? TURN : 0, B.id, B.w, B.wide);
-function fixStart(){ if (!bStarts().includes(B.start)) B.start = null; }
-function bookReady(){ if (wholeDays()) return workDays(B.off, B.to).length > 0; return B.start != null && (B.kind !== 'client' || (B.c && (B.c !== 'new' || B.newName.trim()))); }
+function fixStart(){ if (B.off == null || !bStarts().includes(B.start)) B.start = null; }
+function bookReady(){ if (wholeDays()) return workDays(B.off, B.to).length > 0; return B.off != null && B.start != null && (B.kind !== 'client' || (B.c && (B.c !== 'new' || B.newName.trim()))); }
 function bookLabel(){
   if (wholeDays()) { const n = workDays(B.off, B.to).length; return n ? `Take ${n} day${n === 1 ? '' : 's'} off` : 'Pick working days'; }
-  if (!bookReady()) return B.kind === 'client' ? (B.c ? 'Pick a time' : 'Pick who and a time') : 'Pick a time';
+  if (!bookReady()) return B.kind === 'client' ? (B.off == null ? 'Pick a day' : B.c ? 'Pick a time' : 'Pick who and a time') : 'Pick a time';
   const when = `${dayShort(B.off).slice(0,3)} ${clock(B.start)}`;
   if (B.kind === 'block') return B.rep ? `Every ${DOW[dateOf(B.off).getDay()]} at ${clock(B.start)}` : `Block ${when}`;
   const who = B.c === 'new' ? B.newName.trim().split(' ')[0] : first(B.c);
   return B.mode === 'move' ? `Move to ${when}` : `Book ${who} · ${when}`;
 }
 function bookHTML(){
-  const days = Array.from({length:B.kind === 'block' ? 42 : 28}, (_, o) => o);   // every day: closed ones can be opened
-  const st = bStarts();
   const head = B.kind === 'block' ? top('Time off', `Breaks, your own appointments and days away. ${cap(WN)} can’t be booked over it.`)
     : B.mode === 'move' ? top(`Move ${first(B.c)}`, `${svLabel(B.s)}, now ${whenText(AP.find(a=>a.id===B.id))}`)
+    : B.rebook ? top(`Book ${esc(first(B.c))} again`, 'Same as last time. Pick a day on the calendar.')
     : top(`Book a ${W1}`, B.fromReq ? `${CL[B.c].name} asked for ${dayName(REQ.off)} at ${clock(REQ.start)}` : TURN ? `${TURN} minutes to reset is added after each ${P.unitOne}.` : 'Booked back to back.');
+  if (B.rebook) return `${head}
+    <div class="card rb-what"><div><b>${esc(CL[B.c].name)}</b><span class="small muted">${svLabel(B.s)} · ${money(SV[B.s].price)}</span></div><button class="chip sm" data-act="b-unrb">Change</button></div>
+    ${dayAndTime()}`;
   const who = B.kind === 'client' && B.mode === 'new' ? `<div class="field"><span class="label">Who</span>
       <input class="search" id="b-find" type="search" placeholder="Find a ${W1}" value="${esc(B.find || '')}" autocomplete="off" aria-label="Find a ${W1}">
       <div class="chips" id="b-who">${whoChips()}</div>
@@ -2849,14 +2867,29 @@ function bookHTML(){
         ${clash.length > 8 ? `<p class="small muted">and ${clash.length - 8} more</p>` : ''}</div>` : ''}
       <div class="sticky-go"><button class="btn primary" id="book-go" data-act="b-go" ${bookReady()?'':'disabled'}>${esc(bookLabel())}</button></div>`;
   }
-  return `${head}${who}${withWho}${what}
-    <div class="field"><span class="label">Day</span><div class="scroller">${days.map(o => `<button class="chip${isOff(o) ? ' dim' : ''}${familyOn(o).length ? ' fam' : ''}" data-act="b-d" data-v="${o}" aria-pressed="${B.off===o}">${o===0?'Today':o===1?'Tomorrow':dayShort(o).slice(0,3)+' '+dateOf(o).getDate()}${isOff(o) ? ' · closed' : ''}</button>`).join('')}</div>${dayTags(B.off) ? `<div class="day-tags">${dayTags(B.off)}</div>` : ''}</div>
-    ${isOff(B.off) && !B.wide ? `<div class="card facts2"><p><b>You’re usually closed ${DOW[dateOf(B.off).getDay()]}s.</b> Open this day?</p>${hoursPick(B.off)}
+  return `${head}${who}${withWho}${what}${dayAndTime()}`;
+}
+function dayAndTime(){
+  const days = Array.from({length:B.kind === 'block' ? 42 : 28}, (_, o) => o), st = B.off == null ? [] : bStarts();   // every day: closed ones can be opened
+  return `<div class="field"><span class="label lbl-row">Day<button class="chip sm" data-act="b-cal">${B.cal ? 'Next few weeks' : 'Calendar'}</button></span>${B.cal ? calHTML() : `<div class="scroller">${days.map(o => `<button class="chip${isOff(o) ? ' dim' : ''}${familyOn(o).length ? ' fam' : ''}" data-act="b-d" data-v="${o}" aria-pressed="${B.off===o}">${o===0?'Today':o===1?'Tomorrow':dayShort(o).slice(0,3)+' '+dateOf(o).getDate()}${isOff(o) ? ' · closed' : ''}</button>`).join('')}</div>`}${B.off != null && dayTags(B.off) ? `<div class="day-tags">${dayTags(B.off)}</div>` : ''}</div>
+    ${B.off == null ? '' : isOff(B.off) && !B.wide ? `<div class="card facts2"><p><b>You’re usually closed ${DOW[dateOf(B.off).getDay()]}s.</b> Open this day?</p>${hoursPick(B.off)}
       <button class="btn primary" data-act="dh-save" data-in="book" data-v="${B.off}">Open ${dayShort(B.off).slice(0,3)} ${dateOf(B.off).getDate()}</button></div>` : ''}
-    <div class="field" ${isOff(B.off) && !B.wide ? 'hidden' : ''}><span class="label">Time</span>${st.length ? `<div class="chips">${st.map(t => `<button class="chip num" data-act="b-t" data-v="${t}" aria-pressed="${B.start===t}">${clock(t)}</button>`).join('')}</div>` : `<p class="muted">No room for ${dur(bLen())} that day. Try another day.</p>`}</div>
+    <div class="field" ${B.off == null || (isOff(B.off) && !B.wide) ? 'hidden' : ''}><span class="label">Time</span>${st.length ? `<div class="chips">${st.map(t => `<button class="chip num" data-act="b-t" data-v="${t}" aria-pressed="${B.start===t}">${clock(t)}</button>`).join('')}</div>` : `<p class="muted">No room for ${dur(bLen())} that day. Try another day.</p>`}</div>
     <div class="field"><button class="chip" data-act="b-wide" aria-pressed="${!!B.wide}" style="align-self:flex-start">Earlier or later</button>${B.wide ? `<span class="small muted">Times from 7 am to 9 pm, outside your usual ${hrs(openOf(B.off))} to ${hrs(closeOf(B.off))}.</span>` : ''}</div>
     ${B.kind === 'block' ? `<div class="field"><button class="chip" data-act="b-rep" aria-pressed="${B.rep}" style="align-self:flex-start">Every week</button>${B.rep ? `<span class="small muted">Every ${DOW[dateOf(B.off).getDay()]} for the next 3 months. Weeks that are already busy then are skipped.</span>` : ''}</div>` : ''}
     <div class="sticky-go"><button class="btn primary" id="book-go" data-act="b-go" ${bookReady()?'':'disabled'}>${esc(bookLabel())}</button></div>`;
+}
+// a month to pick a day from: closed days dimmed, a dot for each visit already booked, holidays and family days marked,
+// and a ring on the day this client usually comes back (a suggestion, never picked for her)
+function calHTML(){
+  const m0 = dateOf(B.calM || 0), first1 = new Date(m0.getFullYear(), m0.getMonth(), 1), o1 = offOfIso(isoDay(first1)), n = new Date(m0.getFullYear(), m0.getMonth() + 1, 0).getDate();
+  const lead = (first1.getDay() + 6) % 7, cells = [];
+  for (let i = 0; i < lead; i++) cells.push('<span></span>');
+  for (let d = 0; d < n; d++) { const o = o1 + d, past = o < 0, busy = past ? 0 : apptsOn(o).filter(a => !noShow(a)).length;
+    cells.push(`<button class="cal-d${isOff(o) ? ' off' : ''}${familyOn(o).length || holidayOn(o) ? ' cal-tag' : ''}${o === 0 ? ' now' : ''}${o === B.hint ? ' hint' : ''}" data-act="b-d" data-v="${o}" aria-pressed="${B.off === o}" ${past ? 'disabled' : ''} aria-label="${dayLong(o)}${busy ? `, ${busy} booked` : ''}">${d + 1}<i>${'•'.repeat(Math.min(busy, 4))}</i></button>`); }
+  const hint = B.hint != null && B.c && CL[B.c] && CL[B.c].every ? `<p class="small muted"><span class="cal-ring"></span> ${esc(first(B.c))} usually comes every ${Math.round(CL[B.c].every / 7)} week${CL[B.c].every >= 11 ? 's' : ''}: ${dayShort(B.hint)}.</p>` : '';
+  return `<div class="cal"><div class="cal-h"><button class="chip sm" data-act="b-calm" data-v="-1" ${o1 <= 0 ? 'disabled' : ''} aria-label="Earlier month">‹</button><b>${MON[m0.getMonth()]} ${m0.getFullYear()}</b><button class="chip sm" data-act="b-calm" data-v="1" ${o1 > 380 ? 'disabled' : ''} aria-label="Later month">›</button></div>
+    <div class="cal-g">${['M','T','W','T','F','S','S'].map(x => `<span class="cal-w">${x}</span>`).join('')}${cells.join('')}</div></div>${hint}`;
 }
 function rerenderBook(){ const sc = $('.sheet').scrollTop; $('.sheet').innerHTML = `<div class="grab"></div>${bookHTML()}`; $('.sheet').scrollTop = sc; }
 function bookGo(){
@@ -3134,11 +3167,11 @@ on('click', e => {
     case 'en-p': EN.pressure = +v; document.querySelectorAll('[data-act=en-p]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === +v)); break;
     case 'en-save': saveNotes(); break;
     case 'move': { const a = AP.find(x => x.id === id); openBook({mode:'move', id:a.id, c:a.c, s:a.s, off:a.off, start:a.start, w:a.w}); break; }
-    case 'rebook': { const a = AP.find(x => x.id === id), wk = Math.max(1, Math.round((CL[a.c].every || 28) / 7));
-      let off = Math.max(a.off, 0) + wk * 7; while (isOff(off)) off++;
-      let v = validStarts(off, SV[a.s].min, TURN, undefined, a.w); const t = v.includes(a.start) ? a.start : v[0];
-      if (t == null) { openBook({c:a.c, s:a.s, off, w:a.w}); break; }
-      add(a.c, a.s, off, t, {w:a.w, mine:true}); closeSheet(); render(); toast(`Booked ${first(a.c)} for ${dayLong(off)} at ${clock(t)}.`); break; }
+    case 'rebook': { const a = AP.find(x => x.id === id), every = CL[a.c].every;   // the same again: she picks the day on a calendar
+      openBook({c:a.c, s:a.s, w:a.w, rebook:true, cal:true, off:null, hint:every ? Math.max(a.off, 0) + every : null, likeAt:a.start}); break; }
+    case 'b-unrb': B.rebook = false; rerenderBook(); break;
+    case 'b-cal': B.cal = !B.cal; if (B.cal) B.calM = B.off != null ? B.off : 0; rerenderBook(); break;
+    case 'b-calm': { const d = dateOf(B.calM != null ? B.calM : 0), m = new Date(d.getFullYear(), d.getMonth() + (+v), 1); B.calM = Math.max(0, offOfIso(isoDay(m))); rerenderBook(); break; }
     case 'cancel': $('#confirm').hidden = false; $('#confirm').scrollIntoView({block:'nearest'}); break;
     case 'cancel-no': $('#confirm').hidden = true; break;
     case 'cancel-yes': { const i = AP.findIndex(x => x.id === id), a = AP[i]; AP.splice(i,1); closeSheet(); render(); toast(`Canceled ${first(a.c)}’s ${clock(a.start)}. That time is open again.`); break; }
@@ -3273,7 +3306,7 @@ on('click', e => {
     case 'snav': schedNav(+v); break;
     case 'sday': S.tab = 'schedule'; S.day = +v; S.view = 'day'; render(); window.scrollTo(0, 0); break;
     case 'b-len': B.len = +v; fixStart(); rerenderBook(); break;
-    case 'b-d': B.off = +v; fixStart(); rerenderBook(); break;
+    case 'b-d': B.off = +v; B.calM = B.off; fixStart(); if (B.start == null && B.likeAt != null && bStarts().includes(B.likeAt)) B.start = B.likeAt; rerenderBook(); break;
     case 'b-t': B.start = +v; rerenderBook(); break;
     case 'b-go': bookGo(); break;
   }

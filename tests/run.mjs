@@ -258,6 +258,15 @@ console.log('ok private Square views');
   { const t = await q.textContent('.sheet'); check(/Imported Person/.test(t) && !/Card customer|Card with no name/.test(t), 'website: nameless cards are named by the visit that day'); }
   await q.click('.sheet .topc:has-text("Imported Person")'); check(/Imported Person/.test(await q.textContent('main')) && /Not Imported\?/.test(await q.textContent('main')), 'website: a named card opens the client page');
   await q.click('.tab[data-v=today]');
+  // book again: a calendar to pick the day, the same client and service
+  await q.click('[data-act=appt] >> nth=0'); await q.click('[data-act=rebook]');
+  check(await q.locator('.sheet .cal').count() === 1 && /again/.test(await q.textContent('.sheet h2, .sheet .sheet-h, .sheet')), 'website: book again opens a calendar');
+  check(await q.locator('.sheet [data-act=b-t]').count() === 0 && /Pick a day/.test(await q.textContent('#book-go')), 'website: book again waits for her to pick the day');
+  await q.click('.sheet [data-act=b-calm][data-v="1"]'); await q.click('.sheet .cal-d:not(.off):not([disabled]) >> nth=2');
+  if (!(await q.locator('.sheet [data-act=b-t][aria-pressed=true]').count())) await q.click('.sheet [data-act=b-t] >> nth=0');
+  check(/Book Cloud/.test(await q.textContent('#book-go')), 'website: a day and time picked from the calendar');
+  check(!(await wide(q)), 'website: the calendar fits the phone');
+  await q.click('#book-go'); await q.waitForTimeout(200); if (await q.locator('.sheet .close').count()) await q.click('.sheet .close');
   check(/Cloud Test Massage/.test(await q.textContent('.biz-name')) && /Robin/.test(await q.textContent('#hdr')), 'website: the business comes from the database');
   check(await q.evaluate(() => __FAKE.invoked.length === 1), 'website: asks the server to catch up with Square');
   await q.click('.tab[data-v=money]');
