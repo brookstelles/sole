@@ -215,7 +215,7 @@ console.log('ok private Square views');
   const now = new Date(), early = new Date(now); early.setHours(0, 5, 0, 0);
   const pay = (id, when, amt, tip, cust) => ({id, created_at:when.toISOString(), updated_at:when.toISOString(), status:'COMPLETED', customer_id:cust, amount_money:{amount:amt}, tip_money:{amount:tip}, total_money:{amount:amt + tip}, processing_fee:[{amount_money:{amount:300}}]});
   const seed = {items:[{business_id:'B1', col:'clients', id:'nC', data:{name:'Cloud Sample', phone:'', since:2026, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}},
-      {business_id:'B1', col:'visits', id:'mb:old1', data:{c:'mb:imported-person', date:'2025-03-04', start:600, s:'sw60', price:100, from:'MassageBook'}},
+      {business_id:'B1', col:'visits', id:'mb:old1', data:{c:'mb:imported-person', date:'2025-03-04', start:600, s:'sw60', price:100, from:'MassageBook', at:'2025-03-04T15:00:00Z', S:'Test sore shoulders', P:'Test rebook in a month'}},
       {business_id:'B1', col:'visits', id:'mb:old2', data:{c:'mb:imported-person', date:'2025-04-01', start:660, s:'sw60', svc:'Aromatherapy massage', price:140, from:'MassageBook'}},
       {business_id:'B1', col:'clients', id:'mb:holly', data:{name:'Holly', phone:'', since:2023, from:'MassageBook', mine:true, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:''}},
       {business_id:'B1', col:'clients', id:'sq:CARDPERSON', data:{name:'Card Person Imported', phone:'(555) 010-9988', from:'MassageBook'}},
@@ -234,7 +234,7 @@ console.log('ok private Square views');
   const q = await (await b.newContext({viewport:{width:390, height:844}})).newPage();
   q.on('pageerror', e => errs.push('site/index.html: ' + e.message));
   // the phone's Face ID, standing in for the real prompt
-  await q.addInitScript(`window.__SOLE_INTRO_MS = 0;\nnavigator.credentials.get = navigator.credentials.create = async () => ({id:'fake-pk', toJSON(){ return {id:'fake-pk'}; }});\nwindow.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
+  await q.addInitScript(`window.__SOLE_INTRO_MS = 0; window.print = () => { window.__printed = true; };\nnavigator.credentials.get = navigator.credentials.create = async () => ({id:'fake-pk', toJSON(){ return {id:'fake-pk'}; }});\nwindow.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
   await q.route('https://sole.test/', r => r.fulfill({contentType:'text/html', body:site}));   // https: Face ID needs a secure page
   await q.goto('https://sole.test/', {waitUntil:'networkidle'});
   check(/Send me a code/.test(await q.textContent('main')), 'website: asks to sign in');
@@ -263,6 +263,15 @@ console.log('ok private Square views');
   // a Square card customer brought over from the old app keeps their history until Square knows them
   await q.click('[data-act=cl-back]'); await q.fill('#clt-search', 'Card Person'); await q.click('#clt-list .li.client');
   check(/\$280/.test(await q.textContent('.spend')) && /2 massages/.test(await q.textContent('.cl-hero')), 'website: a card customer from the old app shows their visits and spending');
+  // records on file: who has notes, without what's in them; a client's record prints
+  await q.click('.tab[data-v=clients]'); await q.fill('#clt-search', '');
+  check(/1 SOAP note on file for 1 client/.test(await q.textContent('[data-act=cl-rec]')), 'records: the Clients tab says how many notes are on file');
+  await q.click('[data-act=cl-rec]');
+  const rec = await q.textContent('main'); check(/Imported Person/.test(rec) && /1 note · Mar 4, 2025/.test(rec) && !/Test sore shoulders/.test(rec), 'records: the list shows what is on file, not what is in it');
+  await q.click('[data-act=print-list]'); await q.waitForTimeout(120);
+  check(await q.evaluate(() => window.__printed && /Records on file/.test(document.getElementById('print').textContent)), 'records: the list prints');
+  await q.click('.list [data-act=cl-open]'); await q.click('[data-act=print-rec]'); await q.waitForTimeout(120);
+  check(await q.evaluate(() => /Test sore shoulders/.test(document.getElementById('print').textContent) && /Imported Person/.test(document.getElementById('print').textContent)), 'records: a client record prints with every note');
   // booking someone with a one-word name, found by search
   await q.click('.tab[data-v=schedule]'); await q.click('[data-act=book]');
   await q.fill('#b-find', 'holl'); await q.click('#b-who [data-act=b-c][data-v="mb:holly"]');
@@ -280,6 +289,17 @@ console.log('ok private Square views');
   check(/Cloud Test Massage/.test(await q.textContent('.biz-name')), 'website: Face ID signs in');
   await q.close();
   console.log('ok website');
+}
+// the family's days and holidays show on the schedule
+{
+  await p.click('.tab[data-v=schedule]'); await p.click('[data-act=sview][data-v=month]');
+  let found = false;
+  for (let i = 0; i < 12 && !found; i++) { if (await p.locator('.mo-c.fam').count() && await p.locator('.mo-c.holi').count()) found = true; else await p.click('[data-act=snav][data-v="1"]'); }
+  check(found && /No school · Riley/.test(await p.textContent('.mo-key')) && /Holiday/.test(await p.textContent('.mo-key')), 'family: no-school days and holidays marked on the month');
+  await p.click('.mo-c.fam >> nth=0');
+  check(/No school · Riley · /.test(await p.textContent('.day-tags')), 'family: the day says why');
+  await p.click('[data-act=sview][data-v=day]'); await p.click('.tab[data-v=today]');
+  console.log('ok family days and holidays');
 }
 // Kelli's app is only her business: no switcher, no sample businesses
 check(await p.locator('[data-act=trade]').count() === 0, 'private: no business switcher or sample businesses');
