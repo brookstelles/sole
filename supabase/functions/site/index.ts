@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     tagline: s.tagline || '', about: s.about || [], specialties: s.specialties || [], reviews: s.reviews || [],
     address: s.address || '', phone: s.phone || '', email: s.email || '', hoursNote: s.hoursNote || '',
     hours: open, services,
-    intakeUrl: `https://sole.brookstelles.com/?new=${encodeURIComponent(s.slug)}`,
+    intakeUrl: `https://app.solepro.app/?new=${encodeURIComponent(s.slug)}`,
     updated: new Date().toISOString(),
   });
 });

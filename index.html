@@ -821,7 +821,7 @@ const PROFILES = {
       ['2027-01-18','2027-01-18','Martin Luther King Jr. Day'], ['2027-02-15','2027-02-15','Teacher duty day'], ['2027-03-10','2027-03-10','Spring holiday'],
       ['2027-03-22','2027-03-26','Spring break'], ['2027-03-29','2027-03-29','Teacher duty day'], ['2027-05-28','2027-07-31','Summer break']]}],
     // Sole's own website: the Supabase project's URL and publishable key (safe in the page), and where it runs
-    cloud:{url:'https://qfimqsqmxiqiydjexkfc.supabase.co', key:'sb_publishable_jCwOLmgU9N6YzZBf7KdK2A_pSW2f1aj', host:/(^|\.)(brookstelles\.com|solepro\.app)$/},
+    cloud:{url:'https://qfimqsqmxiqiydjexkfc.supabase.co', key:'sb_publishable_jCwOLmgU9N6YzZBf7KdK2A_pSW2f1aj', host:/(^|\.)(brookstelles\.com|solepro\.app)$/, home:'https://app.solepro.app', movedFrom:/^sole\.brookstelles\.com$/},
   },
   /* PRIVATE:END */
 
@@ -3637,6 +3637,8 @@ const CLOUD_CFG = PROFILES.massage.cloud || {};   // set in the private edition 
 let FORM_LINK = null, CLIENT_NAME = () => '', TOAST = () => {}, USER_EMAIL = '', ME_DIRTY = false;
 const setTheme = t => { try { if (t) localStorage.setItem('sole-theme', t); else localStorage.removeItem('sole-theme'); } catch (_) {} if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
 try { const t = localStorage.getItem('sole-theme'); if (t) document.documentElement.dataset.theme = t; } catch (_) {}   // the texted form being filled in (formStart); a client's name, for formLink
+// Sole's address moved (Oct 26, 2026): the old one forwards to the new, texted form links included
+if (CLOUD_CFG.movedFrom && CLOUD_CFG.movedFrom.test(location.hostname)) location.replace(CLOUD_CFG.home + location.pathname + location.search + location.hash);
 const CLOUD_ON = !!window.__SOLE_CLOUD_CLIENT || (!!CLOUD_CFG.url && !!CLOUD_CFG.host && CLOUD_CFG.host.test(location.hostname));
 let SB = null, BIZ = null, SQ_CACHE = null;
 let NAV_KEY = '', NAV_POP = false;   // the page the browser's history is on (see navNote)

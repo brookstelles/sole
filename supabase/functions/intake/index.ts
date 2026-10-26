@@ -1,4 +1,4 @@
-// A client filling in a form from a link texted to them (sole.brookstelles.com/?f=<token>). They don't sign in: the
+// A client filling in a form from a link texted to them (app.solepro.app/?f=<token>). They don't sign in: the
 // token is the key. "open" gives the page what it needs to show the form (the business's name and look, the form, the
 // client's name); "submit" saves the answers into the book as a filled-in form and closes the link. A new client from
 // the business's website ("open-new", "submit-new" with the site slug) gets the same form without a link.
