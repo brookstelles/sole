@@ -225,7 +225,10 @@ main{display:flex;flex-direction:column;gap:22px}
 .glance button{border:0;text-align:left;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:14px 16px;display:flex;flex-direction:column;gap:2px}
 .glance .big{font-family:var(--display);font-size:30px;font-weight:400;font-variant-numeric:tabular-nums}
 /* today: what's in against what's booked */
-.glance .mt{grid-column:1 / -1;gap:10px}
+.glance .mt{grid-column:1 / -1;display:flex;flex-direction:column;gap:12px;background:var(--surface);border-radius:20px;box-shadow:var(--shadow);padding:10px 12px 14px}
+.gl-seg{grid-template-columns:repeat(4,1fr)}
+.gl-seg button{font-size:13.5px;min-height:38px;white-space:nowrap;padding:0 2px}
+.mt-body{border:0;background:transparent;display:flex;flex-direction:column;gap:10px;text-align:left;color:var(--ink);padding:0 4px}
 .mt-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%}
 .mt-row > span{display:flex;flex-direction:column;gap:2px;min-width:0}
 .mt-row > span:last-child{text-align:right;align-items:flex-end}
@@ -1602,7 +1605,7 @@ const BY = Object.keys(BOOKS).map(Number), Y1 = BY[0], Y2 = BY[1];
 const LICENSE = P.license;
 const SQX = P.real && SQ && SQ.summary ? (() => {
   const mo = {...(SQ.summary.months || {})}, fees = {...(SQ.summary.fees || {})}, mk = `${T0.getFullYear()}-${String(T0.getMonth()+1).padStart(2,'0')}`;
-  let customers = SQ.customers, today = null;
+  let customers = SQ.customers, today = null, byDay = null;
   const lv = SQ.live;
   if (lv) {
     // live payments replace the stored months from the start of the live window; fees and tips only add what came in after the daily refresh
@@ -1615,6 +1618,7 @@ const SQX = P.real && SQ && SQ.summary ? (() => {
     ps.forEach(p => { const m = mo[p.mk] || (mo[p.mk] = {net:0, tips:0, collected:0, orders:0}); m.net += p.net; m.tips += p.tips; m.collected += p.collected; m.orders++;
       if (p.fresh) fees[p.mk.slice(0,4)] = (fees[p.mk.slice(0,4)] || 0) + p.fee; });
     const tp = ps.filter(p => p.day === td); today = {net:tot(tp, 'net'), tips:tot(tp, 'tips'), n:tp.length};
+    byDay = {}; ps.forEach(p => { const d = byDay[p.day] || (byDay[p.day] = {net:0, tips:0, n:0}); d.net += p.net; d.tips += p.tips; d.n++; });
     const by = {}; ps.filter(p => p.cust).forEach(p => (by[p.cust] = by[p.cust] || []).push(p));
     const sameYear = SQ.summary.through.slice(0,4) === cy;   // the stored "this year" is still this year
     const fold = (base, mine) => { const sm = base.month || {n:0, net:0}, yp = mine.filter(p => p.mk.startsWith(cy)), mp = mine.filter(p => p.mk === mk), nw = mine.filter(p => p.fresh);
@@ -1627,7 +1631,7 @@ const SQX = P.real && SQ && SQ.summary ? (() => {
   const yr = y => Object.entries(mo).filter(([k]) => k.startsWith(y + '-')).reduce((t, [, v]) => ({net:t.net + v.net, tips:t.tips + v.tips, collected:t.collected + v.collected, orders:t.orders + v.orders}), {net:0, tips:0, collected:0, orders:0});
   const years = {}; [...new Set(Object.keys(mo).map(k => k.slice(0,4)))].forEach(y => { const t = yr(y); years[y] = {...t, fees:fees[y] || 0, deposited:t.collected - (fees[y] || 0)}; });
   const updated = new Date(SQ.summary.updated);
-  return {years, month:mo[mk] || {net:0, tips:0, orders:0}, months:mo, customers:mergeCards(customers, SQ.merges), updated, today, live:!!lv,
+  return {years, month:mo[mk] || {net:0, tips:0, orders:0}, months:mo, customers:mergeCards(customers, SQ.merges), updated, today, byDay, live:!!lv,
     updatedText:lv ? liveText(lv.at) : `${MON[updated.getMonth()].slice(0,3)} ${updated.getDate()}, ${clock(updated.getHours() * 60 + updated.getMinutes())}`};
 })() : null;
 // a business whose 2025 books are missing Square for September to December gets them filled in from Square itself
@@ -1732,17 +1736,7 @@ function viewToday(){
   ${needs.length ? `<section class="sec"><div class="sec-h"><h2>Needs you</h2><span class="aside">${needs.length}</span></div>${needs.join('')}</section>` : ''}
   <section class="sec" ${ap.length ? '' : 'hidden'}><div class="sec-h"><h2>Today’s ${WN}</h2><button class="chip" data-act="tab" data-v="schedule">Full schedule</button></div>
     <div class="list">${dayRows(0)}</div></section>
-  <section class="glance">
-    ${(() => { const o = otherToday(), sq = SQX && SQX.today, inNow = sq ? SQX.today.net + o.net : td.net, tips = sq ? SQX.today.tips + o.tips : td.tips;
-      const t = booked([0]), dow = (T0.getDay() + 6) % 7, wk = booked(Array.from({length:7}, (_, i) => i - dow)), pct = t.$ ? Math.min(100, inNow / t.$ * 100) : 0;
-      return `<button class="mt" data-act="${sq ? 'tab' : 'money'}" data-v="${sq ? 'money' : 'today'}">
-        <span class="mt-row"><span><span class="small muted">Today so far</span><span class="big">${money(inNow)}</span><span class="small muted">+ ${money(tips)} tips${sq && !o.n ? ' · Square' : ''}</span></span>
-          <span><span class="small muted">Booked today</span><span class="big">${t.n ? money(t.$) : '—'}</span><span class="small muted">${t.n ? `${t.n} ${t.n === 1 ? P.unitOne : P.unit} · about ${money(t.$ - feeOf(t.$, t.n))} after ${CARDCO()} fees` : 'Nothing booked'}</span></span></span>
-        ${t.n ? `<span class="mt-bar" aria-hidden="true"><i style="width:${pct.toFixed(0)}%"></i></span>` : ''}</button>
-      <button data-act="tab" data-v="schedule"><span class="small muted">This week</span><span class="big">${money(wk.$)}</span><span class="small muted">${wk.n} booked · about ${money(wk.$ - feeOf(wk.$, wk.n))} after fees</span></button>`; })()}
-    ${P.fresh ? `<button data-act="money" data-v="month"><span class="small muted">This month</span><span class="big">${money(sumOf('month').net)}</span><span class="small muted">${sumOf('month').n} ${sumOf('month').n === 1 ? P.unitOne : P.unit} paid</span></button>`
-      : `<button data-act="money" data-v="year"><span class="small muted">This year</span><span class="big">${SO_FAR}</span><span class="small muted">${P.unit} · on pace for ${PROJ}</span></button>`}
-  </section>`;
+  <section class="glance">${glanceCard(td)}  </section>`;
 }
 const pressureWord = p => ['Not known','Light','Light','Medium','Firm','Firm'][p];   // her intake form: Light, Medium, Firm
 const pressureLvl = p => [0,1,1,2,3,3][p];
@@ -1994,6 +1988,47 @@ const CARDCO = () => SQX || /square/i.test(P.booking || '') ? 'Square' : 'card';
 function feeOf(amt, n){ const y = SQX && SQX.years && SQX.years[String(T0.getFullYear())]; return y && y.collected > 500 && y.fees ? amt * y.fees / y.collected : amt * 0.026 + 0.15 * n; }
 function booked(offs){ const L = AP.filter(a => offs.includes(a.off) && !noShow(a) && SV[a.s]);
   return {n:L.length, $:L.reduce((t, a) => t + (a.paid && a.paidAmt != null ? a.paidAmt : SV[a.s].price), 0)}; }
+// what came in on a day: Square's card payments once connected, plus payments logged in Sole; otherwise the paid visits
+function inOn(off){
+  const dk = isoDay(dateOf(off)), L = LEDGER.filter(x => x.kind === 'pay' && x.date === dk), add = (t, u) => ({net:t.net + u.reduce((a, x) => a + x.amount, 0), tips:t.tips + u.reduce((a, x) => a + (x.tip || 0), 0), n:t.n + u.length});
+  if (SQX && SQX.byDay) return add({...(SQX.byDay[dk] || {net:0, tips:0, n:0})}, L);
+  if (!LIVEBOOK) return take(off);
+  const p = AP.filter(a => a.off === off && a.paid && !(a.auto && a.method !== 'Card'));
+  return add({net:p.reduce((t, a) => t + (a.paidAmt != null ? a.paidAmt : SV[a.s].price), 0), tips:p.reduce((t, a) => t + (a.tip || 0), 0), n:p.length}, L.filter(x => !x.matched));
+}
+const GLANCE = [['today', 'Today'], ['week', 'This week'], ['next', 'Next week'], ['year', 'This year']];
+function glanceCard(td){
+  const g = S.glance || 'today', o = otherToday(), sq = SQX && SQX.today, unit = n => n === 1 ? P.unitOne : P.unit, after = t => money(t.$ - feeOf(t.$, t.n));
+  const sumIn = L => L.reduce((t, x) => ({net:t.net + x.net, tips:t.tips + x.tips, n:t.n + x.n}), {net:0, tips:0, n:0});
+  const week = m => Array.from({length:7}, (_, i) => m + i), mon = monOf(0);
+  let L, R, pct = 0, act = '', note = '';
+  if (g === 'today') {
+    const t = booked([0]), x = sq ? {net:SQX.today.net + o.net, tips:SQX.today.tips + o.tips} : td;
+    L = ['Today so far', money(x.net), `+ ${money(x.tips)} tips${sq && !o.n ? ' · Square' : ''}`];
+    R = ['Booked today', t.n ? money(t.$) : '—', t.n ? `${t.n} ${unit(t.n)} · about ${after(t)} after ${CARDCO()} fees` : 'Nothing booked'];
+    pct = t.$ ? x.net / t.$ : 0; act = sq ? 'data-act="tab" data-v="money"' : 'data-act="money" data-v="today"';
+  } else if (g === 'week' || g === 'next') {
+    const days = week(g === 'week' ? mon : mon + 7), t = booked(days), x = sumIn(days.filter(d => d <= 0).map(inOn));
+    const open = days.filter(d => d >= 0).reduce((u, d) => u + openMin(d, S.who), 0), cap = days.reduce((u, d) => u + (isOff(d) ? 0 : closeOf(d) - openOf(d)), 0);
+    const used = days.reduce((u, d) => u + apptsFor(d).reduce((v, a) => v + SV[a.s].min, 0), 0);
+    L = g === 'week' ? ['In so far', money(x.net), `+ ${money(x.tips)} tips`] : ['Booked', t.n ? money(t.$) : '—', `${t.n} ${unit(t.n)}`];
+    R = g === 'week' ? ['Booked this week', money(t.$), `${t.n} ${unit(t.n)} · about ${after(t)} after fees`] : ['After fees', t.n ? after(t) : '—', `${dur(open)} still open`];
+    pct = g === 'week' ? (t.$ ? x.net / t.$ : 0) : cap ? used / cap : 0;
+    note = g === 'next' ? `${Math.round(pct * 100)}% of your hours booked` : '';
+    act = `data-act="glgo" data-v="${g}"`;
+  } else if (P.fresh) {
+    const m = sumOf('month'); L = ['This month', money(m.net), `+ ${money(m.tips)} tips`]; R = [cap(P.unit), String(m.n), 'paid so far']; act = 'data-act="money" data-v="month"';
+  } else {
+    const y = SQX && SQX.years && SQX.years[String(T0.getFullYear())], ly = LEDGER.filter(x => x.kind === 'pay' && x.date.startsWith(String(T0.getFullYear())));
+    L = ['Sales this year', y ? money(y.net + ly.reduce((t, x) => t + x.amount, 0)) : `about ${money(SO_FAR * RATE)}`, y ? `+ ${money(y.tips + ly.reduce((t, x) => t + (x.tip || 0), 0))} tips` : 'from your records'];
+    R = [cap(P.unit), String(SO_FAR), `on pace for ${PROJ}`]; pct = PROJ ? SO_FAR / PROJ : 0; act = 'data-act="money" data-v="year"';
+  }
+  const half = ([a, b, c]) => `<span><span class="small muted">${a}</span><span class="big">${b}</span><span class="small muted">${c}</span></span>`;
+  return `<div class="mt">
+    <div class="seg gl-seg" role="group" aria-label="Money for">${GLANCE.map(([k, l]) => `<button data-act="glance" data-v="${k}" aria-pressed="${g === k}">${l}</button>`).join('')}</div>
+    <button class="mt-body" ${act}><span class="mt-row">${half(L)}${half(R)}</span>
+      <span class="mt-bar" aria-hidden="true"><i style="width:${Math.min(100, pct * 100).toFixed(0)}%"></i></span>${note ? `<span class="small muted">${note}</span>` : ''}</button></div>`;
+}
 function otherToday(){ const td = isoDay(T0), L = LEDGER.filter(x => x.kind === 'pay' && x.date === td && (SQX && SQX.today ? true : !x.matched));
   return {net:L.reduce((t, x) => t + x.amount, 0), tips:L.reduce((t, x) => t + (x.tip || 0), 0), n:L.length}; }
 const entrySort = (a, b) => b.date.localeCompare(a.date) || String(b.uid).localeCompare(String(a.uid));
@@ -2613,7 +2648,17 @@ function messageFor(k, kind){
 
 /* ---------- booking ---------- */
 let B = null;
-const recent = () => Object.keys(CL).filter(k => CL[k].visits > 0 || CL[k].mine);
+const recent = () => Object.keys(CL).filter(k => (CL[k].visits > 0 || CL[k].mine) && !CL[k].anon);
+// first name and last initial; a one-word name stays as it is
+const shortName = k => { const w = CL[k].name.trim().split(/\s+/); return w.length > 1 ? `${w[0]} ${w[w.length - 1][0]}.` : w[0]; };
+// who to offer when booking: what was typed, otherwise the people seen most recently (and whoever is picked)
+function whoChips(){
+  const q = (B.find || '').trim().toLowerCase(), qd = q.replace(/\D/g, '');
+  const pool = recent().filter(k => !q || CL[k].name.toLowerCase().includes(q) || (qd.length >= 3 && String(CL[k].phone || '').replace(/\D/g, '').includes(qd)));
+  const ks = (q ? pool.sort((a, b) => CL[a].name.localeCompare(CL[b].name)) : pool.sort((a, b) => (lastVisit(a) == null ? 1e9 : lastVisit(a)) - (lastVisit(b) == null ? 1e9 : lastVisit(b)))).slice(0, 8);
+  if (B.c && B.c !== 'new' && CL[B.c] && !ks.includes(B.c)) ks.unshift(B.c);
+  return `${ks.map(k => `<button class="chip" data-act="b-c" data-v="${esc(k)}" aria-pressed="${B.c===k}">${esc(shortName(k))}</button>`).join('')}${q && !ks.length ? `<span class="small muted">No one named “${esc(B.find)}”.</span>` : ''}<button class="chip" data-act="b-c" data-v="new" aria-pressed="${B.c==='new'}">+ Someone new</button>`;
+}
 function openBook(o){
   B = Object.assign({kind:'client', mode:'new', c:null, newName:'', s:Object.keys(SV)[0], off:S.tab==='schedule'?S.day:1, start:null, label:'Lunch', name:'', len:30, rep:false, w:S.tab==='schedule'?S.who:ME}, o);
   if (o.c && !o.s && CL[o.c] && CL[o.c].usual) B.s = CL[o.c].usual;
@@ -2644,7 +2689,8 @@ function bookHTML(){
     : B.mode === 'move' ? top(`Move ${first(B.c)}`, `${svLabel(B.s)}, now ${whenText(AP.find(a=>a.id===B.id))}`)
     : top(`Book a ${W1}`, B.fromReq ? `${CL[B.c].name} asked for ${dayName(REQ.off)} at ${clock(REQ.start)}` : TURN ? `${TURN} minutes to reset is added after each ${P.unitOne}.` : 'Booked back to back.');
   const who = B.kind === 'client' && B.mode === 'new' ? `<div class="field"><span class="label">Who</span>
-      <div class="chips">${recent().map(k => `<button class="chip" data-act="b-c" data-v="${k}" aria-pressed="${B.c===k}">${first(k)} ${CL[k].name.split(' ')[1][0]}.</button>`).join('')}<button class="chip" data-act="b-c" data-v="new" aria-pressed="${B.c==='new'}">+ Someone new</button></div>
+      <input class="search" id="b-find" type="search" placeholder="Find a ${W1}" value="${esc(B.find || '')}" autocomplete="off" aria-label="Find a ${W1}">
+      <div class="chips" id="b-who">${whoChips()}</div>
       ${B.c === 'new' ? `<input class="text-in" id="new-name" placeholder="Their name" value="${esc(B.newName)}" autocomplete="off" aria-label="New ${W1} name">` : ''}</div>` : '';
   const what = B.kind === 'client' ? (B.mode === 'new' ? `<div class="field"><span class="label">What</span><div class="svc">${Object.entries(SV).map(([k,v]) => `<button data-act="b-s" data-v="${k}" aria-pressed="${B.s===k}"><b>${v.name}</b><span>${v.min} min · ${money(v.price)}</span></button>`).join('')}</div></div>` : '')
     : `<div class="field"><span class="label">What</span><div class="chips">${TIME_OFF.map(([l]) => `<button class="chip" data-act="b-l" data-v="${l}" aria-pressed="${B.label===l}">${l}</button>`).join('')}</div>
@@ -3069,6 +3115,8 @@ on('click', e => {
     case 'dh-closed': { const o = +v; DAYS[isoDay(dateOf(o))] = {closed:true}; closeSheet(); render(); toast(`${cap(dayName(o))}: closed.`); break; }
     case 'dh-usual': { const o = +v; delete DAYS[isoDay(dateOf(o))]; closeSheet(); render(); toast(`${cap(dayName(o))}: back to your usual hours.`); break; }
     case 'sview': S.view = v; render(); window.scrollTo(0, 0); break;
+    case 'glance': S.glance = v; render(); break;
+    case 'glgo': S.tab = 'schedule'; S.view = 'week'; S.day = monOf(0) + (v === 'next' ? 7 : 0); render(); window.scrollTo(0, 0); break;
     case 'snav': schedNav(+v); break;
     case 'sday': S.day = +v; S.view = 'day'; render(); window.scrollTo(0, 0); break;
     case 'b-len': B.len = +v; fixStart(); rerenderBook(); break;
@@ -3096,6 +3144,7 @@ on('input', e => {
   if (e.target.id === 'cl-search') { S.search = e.target.value; $('#cl-list').innerHTML = clientRows(); }
   if (e.target.id === 'clt-search') { S.clq = e.target.value; $('#clt-list').innerHTML = clientTabRows(); }
   if (e.target.id === 'snap-search') { S.search = e.target.value; $('#snap-res').innerHTML = S.search.trim() ? `<div class="list">${clientRows()}</div>` : ''; }
+  if (e.target.id === 'b-find' && B) { B.find = e.target.value; $('#b-who').innerHTML = whoChips(); }
   if (e.target.id === 'b-name' && B) { B.name = e.target.value; const g = $('#book-go'); if (g) g.textContent = bookLabel(); }
   if (e.target.id === 'new-name' && B) { B.newName = e.target.value; const g = $('#book-go'); g.disabled = !bookReady(); g.textContent = bookLabel(); }
 });

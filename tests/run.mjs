@@ -22,7 +22,12 @@ const wide = p => p.evaluate(() => document.documentElement.scrollWidth > 390);
 async function tour(p, label, keys = ['massage','hair','barber','tattoo','landscape','tennis']){
   for (const k of keys) {
     if (keys.length > 1) { await p.click('[data-act=trade]'); await p.click(`[data-act=pick][data-v=${k}]`); }
-    { const g = await p.textContent('.glance'); check(/Today so far/.test(g) && /Booked today/.test(g) && /This week\s*\$[\d,]+/.test(g) && /after .*fees/.test(g), `${label} ${k}: today in against booked, and the week`); }
+    { const g = await p.textContent('.glance'); check(/Today so far/.test(g) && /Booked today/.test(g) && /after .*fees|Nothing booked/.test(g), `${label} ${k}: today in against booked`);
+      await p.click('[data-act=glance][data-v=week]'); check(/In so far/.test(await p.textContent('.glance')) && /Booked this week\s*\$[\d,]+/.test(await p.textContent('.glance')), `${label} ${k}: this week`);
+      await p.click('[data-act=glance][data-v=next]'); check(/still open/.test(await p.textContent('.glance')) && /% of your hours booked/.test(await p.textContent('.glance')), `${label} ${k}: next week`);
+      await p.click('[data-act=glance][data-v=year]'); check(/Sales this year/.test(await p.textContent('.glance')) && /on pace for/.test(await p.textContent('.glance')), `${label} ${k}: this year`);
+      check(!(await wide(p)), `${label} ${k}: the money bar fits the phone`);
+      await p.click('[data-act=glance][data-v=today]'); }
     await p.click('[data-act=ask][data-q*="spent"]');
     await p.click('.tab[data-v=schedule]'); await p.click('[data-act=day] >> nth=2');
     if (await p.locator('[data-act=gap]').count()) { await p.click('[data-act=gap] >> nth=0'); await p.click('[data-act=b-c] >> nth=0');
@@ -212,6 +217,7 @@ console.log('ok private Square views');
   const seed = {items:[{business_id:'B1', col:'clients', id:'nC', data:{name:'Cloud Sample', phone:'', since:2026, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}},
       {business_id:'B1', col:'visits', id:'mb:old1', data:{c:'mb:imported-person', date:'2025-03-04', start:600, s:'sw60', price:100, from:'MassageBook'}},
       {business_id:'B1', col:'visits', id:'mb:old2', data:{c:'mb:imported-person', date:'2025-04-01', start:660, s:'sw60', svc:'Aromatherapy massage', price:140, from:'MassageBook'}},
+      {business_id:'B1', col:'clients', id:'mb:holly', data:{name:'Holly', phone:'', since:2023, from:'MassageBook', mine:true, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:''}},
       {business_id:'B1', col:'clients', id:'sq:CARDPERSON', data:{name:'Card Person Imported', phone:'(555) 010-9988', from:'MassageBook'}},
       {business_id:'B1', col:'visits', id:'mb:old3', data:{c:'sq:CARDPERSON', date:'2025-05-06', start:630, s:'sw90', price:140, from:'MassageBook'}},
       {business_id:'B1', col:'visits', id:'mb:old4', data:{c:'sq:CARDPERSON', date:'2025-05-13', start:630, s:'sw90', price:140, from:'MassageBook'}},
@@ -257,6 +263,13 @@ console.log('ok private Square views');
   // a Square card customer brought over from the old app keeps their history until Square knows them
   await q.click('[data-act=cl-back]'); await q.fill('#clt-search', 'Card Person'); await q.click('#clt-list .li.client');
   check(/\$280/.test(await q.textContent('.spend')) && /2 massages/.test(await q.textContent('.cl-hero')), 'website: a card customer from the old app shows their visits and spending');
+  // booking someone with a one-word name, found by search
+  await q.click('.tab[data-v=schedule]'); await q.click('[data-act=book]');
+  await q.fill('#b-find', 'holl'); await q.click('#b-who [data-act=b-c][data-v="mb:holly"]');
+  for (let i = 0; i < 6 && !(await q.locator('[data-act=b-t]').count()); i++) await q.click(`[data-act=b-d] >> nth=${i + 1}`);
+  await q.click('[data-act=b-t] >> nth=0'); await q.click('#book-go'); await q.waitForTimeout(150);
+  check(await q.evaluate(() => __FAKE.T.items.some(r => r.col === 'appts' && r.data.c === 'mb:holly')), 'website: booking works for a one-word name found by search');
+  if (await q.locator('.sheet .close').count()) await q.click('.sheet .close');
   await q.click('.tab[data-v=today]');
   check(!(await wide(q)), 'website: wider than the phone');
   // signed out (a new day, a cleared session): Face ID comes first and opens the book without a code
