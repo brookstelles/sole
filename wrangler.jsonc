@@ -1,4 +1,5 @@
-// Cloudflare deploys this repository to app.solepro.app (and the old sole.brookstelles.com while Kelli moves over).
+// Cloudflare deploys this repository to app.solepro.app. solepro.app, www.solepro.app and the old sole.brookstelles.com
+// answer too and forward there (index.html, CLOUD_CFG.movedFrom) until solepro.app gets its own page.
 // Only site/ is published; build_demo.py copies index.html there. The workers.dev and preview addresses stay off.
 {
   "name": "sole",
@@ -6,5 +7,5 @@
   "assets": { "directory": "./site" },
   "workers_dev": false,
   "preview_urls": false,
-  "routes": [{ "pattern": "app.solepro.app", "custom_domain": true }, { "pattern": "sole.brookstelles.com", "custom_domain": true }]
+  "routes": [{ "pattern": "app.solepro.app", "custom_domain": true }, { "pattern": "solepro.app", "custom_domain": true }, { "pattern": "www.solepro.app", "custom_domain": true }, { "pattern": "sole.brookstelles.com", "custom_domain": true }]
 }
