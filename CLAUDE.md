@@ -67,10 +67,9 @@ Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`). T
 - Every form can be filled in on the phone ("Fill in now"): fields come from `FIELDSETS` (`massage` is Kelli's intake form question for question, `tattoo`, `waiver`) or are built from a template's `sections` by `fieldsFor()`. Finger signature on a canvas, saved as a PNG.
 - A filled-in form updates its person (`applyResponse`): intake done, health flags into their notes, pressure and reason for massage.
 - Private edition saves responses to the `forms` collection (read and write `interact`); accounts made in setup keep them with the account; the built-in demos keep them for the visit.
-- "Text a link" for clients to fill in on their own phone needs Sole hosted outside claude.ai (clients aren't claude.ai users).
+- Text the form (website only): `formLink(k)` makes a one-time link (`form_links`: a random token, the client, the form; 14 days, closed once sent) and Messages opens with it. The client opens sole.brookstelles.com/?f=<token> with no sign-in: `formStart` asks the `intake` Edge Function (verify_jwt off) for the business's name and look and the form only, `boot` shows `formPage` instead of the app, and "Send" saves the answers and signature into `forms` (`via: 'link'`). `watchSole` picks it up live on Kelli's phone with a toast. The fake Supabase plays `intake` in tests.
 
 ## Open questions
 
 - Kelli's Breakdown values each massage at $110; her P&L records about $85 (2024) and $100 (2025) per massage.
 - Square income for Sept to Dec 2025 is $0 on her P&L.
-- Her intake form in Drive must be shared "Anyone with the link" for "Text to a client" to work.

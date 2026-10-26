@@ -271,6 +271,32 @@ console.log('ok private Square views');
   check(/Book Cloud/.test(await q.textContent('#book-go')), 'website: a day and time picked from the calendar');
   check(!(await wide(q)), 'website: the calendar fits the phone');
   await q.click('#book-go'); await q.waitForTimeout(200); if (await q.locator('.sheet .close').count()) await q.click('.sheet .close');
+  // a form texted to a client: a one-time link, filled in and signed on their own phone, back in the book
+  await q.click('.tab[data-v=clients]'); await q.fill('#clt-search', 'Imported Person'); await q.click('#clt-list .li.client >> nth=0');
+  await q.click('main [data-act=intake]');   await q.waitForSelector('.sheet');
+  const link = await q.evaluate(() => window.__FAKE.T.form_links[0]);
+  check(link && link.token.length >= 32 && link.client === 'mb:imported-person' && (await q.innerHTML('.sheet')).includes('/?f=' + link.token), 'website: texting the form makes a one-time link');
+  await q.click('.sheet .close');
+  const fq = await (await b.newContext({viewport:{width:390, height:844}})).newPage();
+  fq.on('pageerror', e => errs.push('site/index.html (form link): ' + e.message));
+  await fq.addInitScript(`window.__SOLE_INTRO_MS = 0;\nwindow.__FAKE_DB = ${JSON.stringify({...seed, form_links:[link]})};\n${fake}`);
+  await fq.route('https://sole.test/**', r => r.fulfill({contentType:'text/html', body:site}));
+  await fq.goto('https://sole.test/?f=' + link.token, {waitUntil:'networkidle'});
+  { const t = await fq.textContent('main'); check(/Hi Imported!/.test(t) && /Cloud Test Massage/.test(t) && !/Cloud Sample|Send me a code/.test(t) && !(await fq.locator('.tab').count()), 'form link: the client sees only the form, no sign-in'); }
+  check(await fq.inputValue('#ff-name') === 'Imported Person', 'form link: their name is filled in');
+  await fq.fill('#ff-phone', '(555) 010-2233'); await fq.click('label.pick:has(input[name="ff-pressure"][value="Firm"])'); await fq.check('#ff-consent');
+  await fq.locator('#sig').scrollIntoViewIfNeeded(); { const bx = await fq.locator('#sig').boundingBox();
+    await fq.mouse.move(bx.x + 20, bx.y + 40); await fq.mouse.down(); await fq.mouse.move(bx.x + 150, bx.y + 80, {steps:8}); await fq.mouse.up(); }
+  check(!(await wide(fq)), 'form link: fits the phone');
+  await fq.click('#fill-go'); await fq.waitForSelector('.thanks');
+  check(/Thank you, Imported/.test(await fq.textContent('main')), 'form link: thank-you after sending');
+  const sent = await fq.evaluate(() => window.__FAKE.sent);
+  check(sent && sent.col === 'forms' && sent.data.client === 'mb:imported-person' && /^data:image\/png/.test(sent.data.sig) && sent.data.answers.pressure === 'Firm', 'form link: answers and signature saved to the book');
+  await fq.goto('https://sole.test/?f=nope', {waitUntil:'networkidle'}); check(/link has closed/.test(await fq.textContent('main')), 'form link: an unknown link says so');
+  await fq.close();
+  await q.evaluate(row => window.__FAKE.emit('items', {eventType:'INSERT', new:row}), sent);
+  check(await q.waitForFunction(() => /Imported sent their client intake form/.test((document.querySelector('.toast') || {}).textContent || ''), null, {timeout:4000}).then(() => true, () => false), 'website: a texted form shows up on her phone the moment it is sent');
+  await q.click('.tab[data-v=today]');
   check(/Cloud Test Massage/.test(await q.textContent('.biz-name')) && /Robin/.test(await q.textContent('#hdr')), 'website: the business comes from the database');
   check(await q.evaluate(() => __FAKE.invoked.length === 1), 'website: asks the server to catch up with Square');
   await q.click('.tab[data-v=money]');

@@ -449,6 +449,8 @@ html[data-look="sole"][data-theme="dark"]{
 
 /* filling in forms */
 .sheet.fill{max-height:100%;height:100%;border-radius:0;gap:16px}
+body.form-only .tabbar{display:none}
+.form-page{padding-block:18px 40px;display:flex;flex-direction:column;gap:14px}
 .fill-top{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
 .fill-top b{display:block;font-weight:600}
 .fill-top span span,.fill-top div span{color:var(--muted);font-size:14px}
@@ -1275,6 +1277,12 @@ function watchSole(db){
     });
     if (changed) { SOLE_VER++; redrawLive(); }
   }, () => {}); } catch (_) {} });
+  // a form a client filled in on their own phone (from a texted link) shows up the moment it's sent
+  try { db.collection('forms').onSnapshot(snap => { const fresh = [];
+    snap.docChanges().forEach(ch => { if (ch.type === 'removed' || !SQ) return; const r = JSON.parse(JSON.stringify(ch.doc.data()));
+      if (!(SQ.responses = SQ.responses || []).some(x => x.id === r.id)) { SQ.responses.push(r); fresh.push(r); } });
+    if (fresh.length) { SOLE_VER++; redrawLive(); const r = fresh[fresh.length - 1]; if (r.via === 'link') setTimeout(() => TOAST(`${String(r.name || 'A client').split(' ')[0]} sent their ${String(r.form || 'form').toLowerCase()}.`), 300); }
+  }, () => {}); } catch (_) {}
 }
 function mergeCards(list, merges){
   const groups = (merges && merges.groups) || [], byId = Object.fromEntries(list.map(c => [c.id, c])), used = new Set(), out = [];
@@ -2665,7 +2673,8 @@ function clientPage(k){
   </section>
   <section class="sec"><div class="sec-h"><h2>Forms</h2><span class="aside">${rs.length} on file</span></div>
     <div class="cl-files">${rs.map(r => `<button class="cl-file" data-act="resp" data-v="${esc(r.id)}"><span class="fi">${I.forms}</span><span><b>${esc(r.form)}</b><span>Filled in ${MON[+r.date.slice(5,7) - 1].slice(0,3)} ${+r.date.slice(8,10)}, ${r.date.slice(0,4)}${r.sig ? ' · signed' : ''}</span></span>${I.chev}</button>`).join('')}
-      ${intake && !rs.some(r => r.form === intake.name) ? `<button class="cl-file todo" data-act="fillfor" data-c="${esc(k)}"><span class="fi">${I.plus}</span><span><b>Fill in the ${esc(intake.name.toLowerCase())}</b><span>${c.intake ? 'On paper so far. Fill it in on the phone to keep it here.' : 'Not filled in yet'}</span></span>${I.chev}</button>` : ''}
+      ${intake && !rs.some(r => r.form === intake.name) ? `<button class="cl-file todo" data-act="fillfor" data-c="${esc(k)}"><span class="fi">${I.plus}</span><span><b>Fill in the ${esc(intake.name.toLowerCase())}</b><span>${c.intake ? 'On paper so far. Fill it in on the phone to keep it here.' : 'Not filled in yet'}</span></span>${I.chev}</button>
+        ${CLOUD_ON ? `<button class="cl-file todo" data-act="intake" data-c="${esc(k)}"><span class="fi">${I.send}</span><span><b>Text it to ${esc(first(k))}</b><span>A link to fill it in and sign on their own phone. It comes back here.</span></span>${I.chev}</button>` : ''}` : ''}
       ${!rs.length && !intake ? `<p class="muted">No forms yet.</p>` : ''}</div>
   </section>
   <button class="btn line" data-act="print-rec" data-c="${esc(k)}">Print ${esc(first(k))}’s record</button>`;
@@ -2834,7 +2843,7 @@ function messageFor(k, kind){
     return kind === 'confirm' ? `Hi ${f}! You’re booked for ${a ? svLabel(a.s) : P.unitOne} ${when}. See you then! ${P.owner}, ${P.biz}`
       : kind === 'moved' ? `Hi ${f}, your ${P.unitOne} is now ${when}. See you then! ${P.owner}`
       : `Hi ${f}! Just confirming your ${a ? svText(a.s) : P.unitOne} with me ${when}. Reply C to confirm, or let me know if you need to change. See you then! ${P.owner}, ${P.biz}`; }
-  if (kind === 'intake') { const a = nextAppt(k); return `Hi ${f}, I’m looking forward to seeing you ${a ? dayName(a.off) + ' at ' + clock(a.start) : 'soon'}! Before you come, please fill in this short form so I can plan your session: ${INTAKE_URL}`; }
+  if (kind === 'intake') { const a = nextAppt(k); return `Hi ${f}, I’m looking forward to seeing you ${a ? dayName(a.off) + ' at ' + clock(a.start) : 'soon'}! Before you come, please fill in this short form so I can plan your session: ${arguments[2] || INTAKE_URL}`; }
   return `Hi ${f}! `;
 }
 
@@ -3070,6 +3079,30 @@ function openFill(i, k){
       <button class="btn primary" type="submit" style="width:100%">Submit</button></form>`, 'fill');
   setTimeout(sigPad, 40);
 }
+// the form a client opens from a texted link, on their own phone: the business's name and look, nothing else of it
+function formPage(L){
+  $('#hdr').innerHTML = ''; $('#tabs').innerHTML = '';
+  const shell = body => { $('#main').innerHTML = `<div class="form-page">${body}</div>`; };
+  if (L.error || !FORMS.length) return shell(`<div class="thanks"><div class="brand">${SUNMARK}</div>${L.error === 'used'
+    ? `<h2>All done${L.name ? `, ${esc(L.name)}` : ''}.</h2><p>This form is already filled in. Thank you!</p>`
+    : L.error === 'net' ? `<h2>That didn’t load.</h2><p>Check your connection and open the link again.</p>`
+    : `<h2>This link has closed.</h2><p>Links last two weeks. Ask for a new one and it’ll be right here.</p>`}</div>`);
+  const f = FORMS[0], c = {name:L.name || '', phone:''}, fn = (L.name || '').split(' ')[0];
+  FILL = {i:0, k:null, link:L};
+  shell(`<div class="fill-top"><span class="biz-mark">${BIZMARK}</span><div style="min-width:0"><b>${esc(P.biz)}</b><span>${esc(f.name)}</span></div><span></span></div>
+    <p class="muted">${fn ? `Hi ${esc(fn)}! ` : ''}Please fill this in before your ${esc(P.firstVisit)}. It takes about two minutes, and only ${esc(P.owner)} sees it.</p>
+    <form id="fill-form" class="fill-form" novalidate>${fieldsFor(f).map(x => fieldHTML(x, c)).join('')}
+      <button class="btn primary" type="submit" id="fill-go" style="width:100%">Send to ${esc(P.owner)}</button></form>`);
+  setTimeout(sigPad, 40);
+}
+async function sendLink(r){
+  const L = FILL.link, go = $('#fill-go'); go.disabled = true; go.textContent = 'Sending…';
+  let res; try { res = await SB.functions.invoke('intake', {body:{token:L.token, action:'submit', answers:r.answers, sig:r.sig}}); } catch (_) { res = {error:true}; }
+  const d = res && res.data;
+  if (d && d.ok) { FILL = null; $('#main').innerHTML = `<div class="form-page"><div class="thanks"><div class="brand">${SUNMARK}</div><h2>Thank you${r.name ? ', ' + esc(String(r.name).split(' ')[0]) : ''}.</h2><p>${esc(P.owner)} has your ${esc(FORMS[0].name.toLowerCase())}. See you soon!</p></div></div>`; window.scrollTo(0, 0); return; }
+  if (d && d.error === 'used') { FILL = null; formPage({error:'used', name:d.name}); return; }
+  go.disabled = false; go.textContent = `Send to ${P.owner}`; toast('That didn’t send. Check your connection and tap Send again.');
+}
 function sigPad(){
   const cv = $('#sig'); if (!cv) return;
   const b = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
@@ -3100,6 +3133,7 @@ function submitFill(){
   if (missing.length) { missing.forEach(fl => { const w = $('#fw-' + fl.id); w && w.classList.add('missing'); }); const w = $('#fw-' + missing[0].id); w && w.scrollIntoView({block:'center'});
     toast(missing[0].t === 'sign' ? 'Please sign at the bottom.' : missing[0].t === 'consent' ? 'Please tick the box to agree.' : `Please fill in: ${missing[0].l}.`); return; }
   const r = {id:'r' + Date.now().toString(36), form:f.name, formIndex:FILL.i, client:FILL.k || null, name:ans.name, date:isoDay(T0), at:new Date().toISOString(), answers:ans, sig, mine:true};
+  if (FILL.link) return sendLink(r);
   RESP.push(r); applyResponse(r);
   if (P.real) saveResponse(r);
   const nm = first(r.client);
@@ -3184,7 +3218,9 @@ on('click', e => {
     case 'client': openClient(el.dataset.c); break;
     case 'close': closeSheet(); OB = null; FILL = null; break;
     case 'late': { const a = AP.find(x => x.id === id); msgSheet(`Text to ${first(a.c)}`, `Hi ${first(a.c)}, I’m running about 10 minutes behind. So sorry! I’ll see you at ${clock(a.start + 10)}.`); break; }
-    case 'intake': msgSheet(`Text to ${first(el.dataset.c)}`, messageFor(el.dataset.c, 'intake')); break;
+    case 'intake': { const k = el.dataset.c;
+      if (!CLOUD_ON || !BIZ) { msgSheet(`Text to ${first(k)}`, messageFor(k, 'intake')); break; }
+      formLink(k).then(url => msgSheet(`Text to ${first(k)}`, messageFor(k, 'intake', url), CL[k].phone)).catch(() => toast('Couldn’t make the link just now. Try again in a minute.')); break; }
     case 'reach': msgSheet(`Text to ${first(el.dataset.c)}`, messageFor(el.dataset.c, el.dataset.kind, el.dataset.id ? AP.find(x => x.id === id) : undefined), CL[el.dataset.c].phone); break;
     case 'copy': { const ta = $('#msg'); const t = ta.value;
       try { navigator.clipboard.writeText(t).then(() => toast('Copied. Paste it into Messages.'), () => { ta.select(); toast('Press and hold the text to copy it.'); }); }
@@ -3417,6 +3453,8 @@ if (CLOUD_ON && STANDALONE) {
     edgeShow(0); sw = null; }, opt);
 }
 
+if (FORM_LINK) { formPage(FORM_LINK); return; }
+CLIENT_NAME = k => CL[k] ? CL[k].name.trim() : ''; TOAST = toast;
 RESP.forEach(r => applyResponse(r, true));
 render();
 if (P.real && !SQ) loadSquare(KEY);
@@ -3431,6 +3469,7 @@ if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.g
    and reads Square payments that the square Edge Function writes. It does this by standing in for window.claude, so
    the rest of the app is the same on both. On claude.ai nothing here runs. */
 const CLOUD_CFG = PROFILES.massage.cloud || {};   // set in the private edition only
+let FORM_LINK = null, CLIENT_NAME = () => '', TOAST = () => {};   // the texted form being filled in (formStart); a client's name, for formLink
 const CLOUD_ON = !!window.__SOLE_CLOUD_CLIENT || (!!CLOUD_CFG.url && !!CLOUD_CFG.host && CLOUD_CFG.host.test(location.hostname));
 let SB = null, BIZ = null, SQ_CACHE = null;
 let NAV_KEY = '', NAV_POP = false;   // the page the browser's history is on (see navNote)
@@ -3635,12 +3674,31 @@ async function cloudGo(){
     if (r && r.data && r.data.payments) { await loadSquareTables(); const sh = squareShape([...SQ_CACHE.pays.values()], SQ_CACHE.names); if (sh.customers.length || SQ_CACHE.pays.size) { SQ.summary = sh.summary; SQ.customers = sh.customers; liveFromCache(); SOLE_VER++; redrawLive(); } }
   }).catch(() => {});
 }
+async function sbMake(){
+  if (window.__SOLE_CLOUD_CLIENT) { SB = window.__SOLE_CLOUD_CLIENT; return; }   // tests: a stand-in for Supabase
+  await new Promise((ok, fail) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/dist/umd/supabase.min.js'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc); });
+  SB = window.supabase.createClient(CLOUD_CFG.url, CLOUD_CFG.key, {auth:{persistSession:true, autoRefreshToken:true, experimental:{passkey:true}}});
+}
+// a client opening a form texted to them (?f=<token>): no sign-in, just the business's form; see supabase/functions/intake
+async function formStart(token){
+  cloudScreen('<p class="muted sky-wait">Opening your form…</p>');
+  let L;
+  try { await sbMake(); const { data, error } = await SB.functions.invoke('intake', {body:{token, action:'open'}}); L = data && !error ? {...data, token} : {error:(data && data.error) || 'net'}; }
+  catch (_) { L = {error:'net'}; }
+  if (L.pub && L.form) PROFILES.massage = {...PROFILES.massage, ...L.pub, real:false, forms:[L.form]};
+  FORM_LINK = L; document.body.classList.add('form-only'); boot('massage');
+}
+// a one-time link to text a client: good for 14 days, closed once they send it
+async function formLink(k){
+  const t = [...crypto.getRandomValues(new Uint8Array(20))].map(b => b.toString(16).padStart(2, '0')).join(''), f = (PROFILES.massage.forms || []).find(x => x.intake);
+  const { error } = await SB.from('form_links').insert({token:t, business_id:BIZ, client:k, name:k && CLIENT_NAME(k), form:f ? f.name : 'Client intake form'});
+  if (error) throw error;
+  return `${location.origin}/?f=${t}`;
+}
 async function cloudStart(){
   INTRO_AT = Date.now();
   cloudScreen('<p class="muted sky-wait">Opening Sole…</p>');
-  if (window.__SOLE_CLOUD_CLIENT) SB = window.__SOLE_CLOUD_CLIENT;   // tests: a stand-in for Supabase
-  else { await new Promise((ok, fail) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/dist/umd/supabase.min.js'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc); });
-    SB = window.supabase.createClient(CLOUD_CFG.url, CLOUD_CFG.key, {auth:{persistSession:true, autoRefreshToken:true, experimental:{passkey:true}}}); }
+  await sbMake();
   const { data } = await SB.auth.getSession();
   if (data && data.session) return offerFace(cloudGo);
   await pkFetch('sign'); askSignIn();
@@ -3650,5 +3708,6 @@ async function cloudStart(){
 let START = 'massage';
 try { START = localStorage.getItem('sole-current') || START; } catch (_) {}
 // the private edition opens on its own business only; the sample businesses and setup are in the public demo
-if (CLOUD_ON) cloudStart(); else boot(EDITION === 'private' ? 'massage' : PROFILES[START] || ACCOUNTS[START] ? START : 'massage');
+const FORM_TOKEN = CLOUD_ON ? new URLSearchParams(location.search).get('f') : null;
+if (FORM_TOKEN) formStart(FORM_TOKEN); else if (CLOUD_ON) cloudStart(); else boot(EDITION === 'private' ? 'massage' : PROFILES[START] || ACCOUNTS[START] ? START : 'massage');
 </script>
