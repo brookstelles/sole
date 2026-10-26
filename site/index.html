@@ -1397,6 +1397,17 @@ if (LIVEBOOK) {
 // payments logged in Sole mark that day's visit paid
 LEDGER.filter(x => x.kind === 'pay').forEach(x => { x.matched = false; if (!x.c) return; const off = offOf(x.date), a = AP.find(y => y.c === x.c && y.off === off && !y.paid);
   if (a) { a.paid = true; a.auto = true; a.tip = x.tip || 0; a.method = x.method; a.paidAmt = x.amount; x.matched = true; } });
+// visits brought over from an old booking app (MassageBook): when each person came and what it cost, so "last in",
+// how many, how often and what they've spent are right. Kept apart from the schedule: they're never "not paid".
+Object.entries(Object.values(VISITS).reduce((o, v) => { if (v.from && v.c && v.date && CL[v.c] && v.date <= isoDay(T0)) (o[v.c] = o[v.c] || []).push(v); return o; }, {})).forEach(([k, vs]) => {
+  const c = CL[k], ds = vs.map(v => v.date).sort(), ago = d => Math.round((T0 - new Date(d + 'T00:00:00')) / 864e5);
+  const sum = L => ({v:L.length, $:L.reduce((t, v) => t + (v.price || 0), 0)}), yk = String(T0.getFullYear()), mk = isoDay(T0).slice(0, 7);
+  c._saved = {last:c.last, visits:c.visits, every:c.every, since:c.since, isNew:c.isNew};   // what's saved stays as it was (see own)
+  c.last = Math.min(c.last == null ? Infinity : c.last, ago(ds[ds.length - 1]));
+  c.visits = Math.max(c.visits || 0, ds.length); c.since = Math.min(c.since || 9999, +ds[0].slice(0, 4)); c.isNew = false;
+  if (!c.every && ds.length >= 3) { const gaps = ds.slice(-8).map((d, i, L) => i ? ago(L[i - 1]) - ago(d) : 0).slice(1).sort((a, b) => a - b); c.every = gaps[gaps.length >> 1] || null; }
+  c.old = {a:sum(vs), y:sum(vs.filter(v => v.date.startsWith(yk))), m:sum(vs.filter(v => v.date.startsWith(mk)))};
+});
 const ASKNAME = LIVEBOOK ? ((Object.values(CL).filter(c => c.sq && c.visits).sort((a, b) => b.visits - a.visits)[0] || {name:P.askName}).name.split(' ')[0]) : P.askName;
 const DONE_STEPS = ACC ? (ACC.steps = ACC.steps || {}) : {};
 const RESP = [...((ACC && ACC.state && ACC.state.responses) || []), ...(P.real && SQ && SQ.responses ? SQ.responses : [])];   // filled-in forms
@@ -1405,7 +1416,7 @@ function saveState(){
   if (!ACC && !SOLE) return;
   const appts = AP.filter(a => a.mine).map(a => ({uid:a.uid || (a.uid = uidOf('a')), c:a.c, s:a.s, date:isoDay(dateOf(a.off)), start:a.start, paid:!!a.paid && !a.auto, tip:a.auto ? 0 : a.tip || 0, w:a.w, method:a.auto ? undefined : a.method}));
   const blocks = BL.filter(b => b.mine).map(b => ({uid:b.uid || (b.uid = uidOf('b')), date:isoDay(dateOf(b.off)), start:b.start, min:b.min, label:b.label, w:b.w}));
-  const own = ([k, c]) => [k, JSON.parse(JSON.stringify({...c, birthday:undefined, edited:undefined}))];
+  const own = ([k, c]) => [k, JSON.parse(JSON.stringify({...c, ...(c._saved || {}), _saved:undefined, old:undefined, birthday:undefined, edited:undefined}))];
   const ledger = LEDGER.map(x => ({...x, matched:undefined, photoUrl:undefined}));
   if (SOLE) {
     const clients = Object.fromEntries([...Object.entries(CL).filter(([, c]) => c.mine).map(own),
@@ -1463,7 +1474,8 @@ function spend(k){
   const sp = spendBase(k), mk = isoDay(T0).slice(0,7), yk = String(T0.getFullYear());
   const mine = LEDGER.filter(x => x.kind === 'pay' && x.c === k && (SQX || !x.matched)), tot = L => L.reduce((t, x) => t + x.amount, 0);
   const lm = mine.filter(x => x.date.startsWith(mk)), ly = mine.filter(x => x.date.startsWith(yk));
-  return {...sp, m:{v:sp.m.v + lm.length, $:sp.m.$ + tot(lm)}, y:{v:sp.y.v + ly.length, $:sp.y.$ + tot(ly)}, a:{v:sp.a.v + mine.length, $:sp.a.$ + tot(mine)}, tipsY:sp.tipsY + ly.reduce((t, x) => t + (x.tip || 0), 0)};
+  const o = CL[k].sq === undefined && CL[k].old, ov = f => o ? o[f] : {v:0, $:0}, av = sp.a.v + mine.length + ov('a').v;
+  return {...sp, price:sp.price || (av ? (sp.a.$ + tot(mine) + ov('a').$) / av : 0), m:{v:sp.m.v + lm.length + ov('m').v, $:sp.m.$ + tot(lm) + ov('m').$}, y:{v:sp.y.v + ly.length + ov('y').v, $:sp.y.$ + tot(ly) + ov('y').$}, a:{v:av, $:sp.a.$ + tot(mine) + ov('a').$}, tipsY:sp.tipsY + ly.reduce((t, x) => t + (x.tip || 0), 0)};
 }
 function spendBase(k){
   if (CL[k].sq !== undefined && SQX) { const x = SQX.customers.find(y => y.id === CL[k].sq || (y.ids || []).includes(CL[k].sq)) || {all:{n:0, net:0}, year:{n:0, net:0, tips:0}, month:{n:0, net:0}};
@@ -2304,15 +2316,15 @@ function clientTabRows(){
 // every visit with this person, newest first: appointments, plus notes from visits outside the schedule's reach
 function clientVisits(k){
   const seen = new Set(), items = AP.filter(a => a.c === k).map(a => { const key = visitKey(a); seen.add(key); return {a, v:VISITS[key] || {}, date:isoDay(dateOf(a.off)), t:a.start}; });
-  Object.entries(VISITS).forEach(([key, v]) => { if (v.c === k && v.date && !seen.has(key)) items.push({v, date:v.date, t:0}); });
+  Object.entries(VISITS).forEach(([key, v]) => { if (v.c === k && v.date && !seen.has(key)) items.push({v, date:v.date, t:v.start || 0}); });
   return items.sort((x, y) => y.date.localeCompare(x.date) || y.t - x.t);
 }
 function visitItem({a, v, date}){
   const F = visitForm(), d = new Date(date + 'T12:00:00'), future = a && (a.off > 0 || (a.off === 0 && a.start >= NOW));
-  const svc = a ? SV[a.s].name : v.s && SV[v.s] ? SV[v.s].name : F.title;
-  const tag = future ? '<span class="tag next">Coming up</span>' : v.noshow ? '<span class="tag warn">No-show</span>' : a && a.paid ? `<span class="tag ok">Paid${a.tip ? ' + tip' : ''}</span>` : a ? '<span class="tag warn">Not paid</span>' : '';
-  const body = `<span class="tl-top"><span class="tl-date"><b>${MON[d.getMonth()].slice(0,3)} ${d.getDate()}</b>${d.getFullYear() !== T0.getFullYear() ? ', ' + d.getFullYear() : ''} · ${DOW[d.getDay()].slice(0,3)}${a ? ' · ' + clock(a.start) : ''}</span>${tag}</span>
-    <span class="tl-svc">${esc(svc)}${a ? ` <span class="muted" style="font-weight:400">· ${SV[a.s].min} min</span>` : ''}</span>
+  const sv = a ? SV[a.s] : v.s && SV[v.s], svc = a ? sv.name : v.svc || (sv ? sv.name : F.title), at = a ? a.start : v.start;
+  const tag = future ? '<span class="tag next">Coming up</span>' : v.noshow ? '<span class="tag warn">No-show</span>' : a && a.paid ? `<span class="tag ok">Paid${a.tip ? ' + tip' : ''}</span>` : a ? '<span class="tag warn">Not paid</span>' : v.price ? `<span class="tag new">${money(v.price)}</span>` : '';
+  const body = `<span class="tl-top"><span class="tl-date"><b>${MON[d.getMonth()].slice(0,3)} ${d.getDate()}</b>${d.getFullYear() !== T0.getFullYear() ? ', ' + d.getFullYear() : ''} · ${DOW[d.getDay()].slice(0,3)}${at != null ? ' · ' + clock(at) : ''}</span>${tag}</span>
+    <span class="tl-svc">${esc(svc)}${sv ? ` <span class="muted" style="font-weight:400">· ${sv.min} min</span>` : ''}</span>
     ${v.at ? `<span class="tl-soap">${visitSummary(v)}</span>` : a && !future && !v.noshow ? `<span class="tl-todo">${I.plus.replace('<svg', '<svg width="14" height="14" style="vertical-align:-2px"')} Write ${F.title.replace('SOAP', 'SOAP').toLowerCase().replace('soap', 'SOAP')}</span>` : ''}`;
   return `<li class="tl-i${future ? ' soon' : v.noshow || (a && !a.paid && !future) ? ' miss' : ''}">${a ? `<button class="tl-card" data-act="appt" data-id="${a.id}">${body}</button>` : `<div class="tl-card">${body}</div>`}</li>`;
 }
@@ -2347,7 +2359,8 @@ function clientPage(k){
     <div><span>This year</span><b>${money(sp.y.$)}</b><span>${sp.y.v} visit${sp.y.v === 1 ? '' : 's'}</span></div>
     <div><span>All time</span><b>${money(sp.a.$)}</b><span>${sp.a.v} visit${sp.a.v === 1 ? '' : 's'}</span></div></div></section>
   <section class="sec"><div class="sec-h"><h2>Visits</h2><span class="aside">${visitForm().title} on each</span></div>
-    ${vs.length ? `<ol class="tl">${[...coming.reverse(), ...past].map(visitItem).join('')}</ol>` : `<p class="muted">No visits in Sole yet. Each one you book shows here with its notes.</p>`}
+    ${vs.length ? `<ol class="tl">${[...coming.reverse(), ...(S.clAll === k ? past : past.slice(0, 12))].map(visitItem).join('')}</ol>
+      ${past.length > 12 && S.clAll !== k ? `<button class="btn line" data-act="cl-all" data-c="${esc(k)}">Show all ${past.length} visits</button>` : ''}` : `<p class="muted">No visits in Sole yet. Each one you book shows here with its notes.</p>`}
   </section>
   <section class="sec"><div class="sec-h"><h2>Forms</h2><span class="aside">${rs.length} on file</span></div>
     <div class="cl-files">${rs.map(r => `<button class="cl-file" data-act="resp" data-v="${esc(r.id)}"><span class="fi">${I.forms}</span><span><b>${esc(r.form)}</b><span>Filled in ${MON[+r.date.slice(5,7) - 1].slice(0,3)} ${+r.date.slice(8,10)}, ${r.date.slice(0,4)}${r.sig ? ' · signed' : ''}</span></span>${I.chev}</button>`).join('')}
@@ -2728,6 +2741,7 @@ on('click', e => {
     case 'tab': closeSheet(); S.tab = v; if (v === 'schedule') { S.day = 0; S.week = 0; } if (v === 'money') S.money = 'home'; if (v === 'clients') S.cl = null; render(); window.scrollTo(0,0); break;
     case 'cl-open': closeSheet(); S.tab = 'clients'; S.cl = el.dataset.c; render(); window.scrollTo(0,0); break;
     case 'cl-back': S.cl = null; render(); window.scrollTo(0,0); break;
+    case 'cl-all': S.clAll = el.dataset.c; render(); break;
     case 'cl-f': S.cl = null; S.clf = v; render(); break;
     case 'money': closeSheet(); S.tab = 'money'; if (v === 'year') S.money = 'year'; else { S.money = 'day'; S.range = v; } render(); window.scrollTo(0,0); break;
     case 'snap': S.money = 'home'; render(); window.scrollTo(0,0); break;

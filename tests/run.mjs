@@ -208,6 +208,8 @@ console.log('ok private Square views');
   const now = new Date(), early = new Date(now); early.setHours(0, 5, 0, 0);
   const pay = (id, when, amt, tip, cust) => ({id, created_at:when.toISOString(), updated_at:when.toISOString(), status:'COMPLETED', customer_id:cust, amount_money:{amount:amt}, tip_money:{amount:tip}, total_money:{amount:amt + tip}, processing_fee:[{amount_money:{amount:300}}]});
   const seed = {items:[{business_id:'B1', col:'clients', id:'nC', data:{name:'Cloud Sample', phone:'', since:2026, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}},
+      {business_id:'B1', col:'visits', id:'mb:old1', data:{c:'mb:imported-person', date:'2025-03-04', start:600, s:'sw60', price:100, from:'MassageBook'}},
+      {business_id:'B1', col:'visits', id:'mb:old2', data:{c:'mb:imported-person', date:'2025-04-01', start:660, s:'sw60', svc:'Aromatherapy massage', price:140, from:'MassageBook'}},
       {business_id:'B1', col:'clients', id:'mb:imported-person', data:{name:'Imported Person', phone:'(555) 010-2233', email:'imported@example.com', born:'1980-01-02', since:2022, from:'MassageBook', mine:true, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:''}},
       {business_id:'B1', col:'appts', id:'aC', data:{c:'nC', s:'sw60', date:iso(now), start:1410, paid:false, tip:0, w:'Kelli'}}],
     payments:[{business_id:'B1', id:'P1', created_at:'2026-03-02T15:00:00Z', status:'COMPLETED', customer_id:'TESTCUST1', data:pay('P1', new Date('2026-03-02T15:00:00Z'), 11500, 2000, 'TESTCUST1')}],
@@ -242,9 +244,11 @@ console.log('ok private Square views');
   check(/Today so far\s*\$155/.test(await q.textContent('.glance')), 'website: a card payment shows the moment it comes in');
   // a client brought in from MassageBook: how long they've come, found by phone, contact details on their page
   await q.click('.tab[data-v=clients]'); await q.fill('#clt-search', '010-22');
-  check(/Imported Person/.test(await q.textContent('#clt-list')) && /since 2022/.test(await q.textContent('#clt-list')), 'website: imported client found by phone, shown with how long they have come');
+  check(/Imported Person/.test(await q.textContent('#clt-list')) && /Last in \d+ weeks ago/.test(await q.textContent('#clt-list')), 'website: imported client found by phone, shown with when they were last in');
   await q.click('#clt-list .li.client'); const pg = await q.textContent('main');
   check(/imported@example\.com/.test(pg) && /January 2/.test(pg) && !/>New</.test(await q.innerHTML('.cl-hero')), 'website: imported client page has their contact details');
+  check(/Aromatherapy massage/.test(pg) && /\$140/.test(pg) && /Mar 4, 2025/.test(pg) && /\$240/.test(await q.textContent('.spend')) && /2 massages/.test(await q.textContent('.cl-hero')), 'website: visits from the old booking app show with their prices and count');
+  check(await q.evaluate(() => __FAKE.T.items.filter(r => r.col === 'clients' && r.id === 'mb:imported-person').every(r => r.data.last == null && !r.data.old && !r.data._saved)), 'website: worked-out history is not saved over the client');
   await q.click('.tab[data-v=today]');
   check(!(await wide(q)), 'website: wider than the phone');
   // signed out (a new day, a cleared session): Face ID comes first and opens the book without a code
