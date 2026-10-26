@@ -29,7 +29,10 @@ Sole (spelled S-O-L-E, as in sole proprietor; never "Soleil") is a phone app for
 
 ## Drive
 
-Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`). The plan is the Google Doc *Sole: Product Plan* (id `1SlNHcJMCPG62BhRMYFlwJBEBfTX0bgCNOZ0OWURUXUg`); keep its "Next steps" current. Kelli's source data is in Business / Heart and Soul / Taxes (Heart and Soul Breakdown, Heart and Soul 2024, Heart and Soul 2025).
+Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`) is where Brooks keeps everything organized (asked Oct 26, 2026). After every change worth noting, update all three docs there in place (never as new copies):
+- *Sole: Product Plan* (`1SlNHcJMCPG62BhRMYFlwJBEBfTX0bgCNOZ0OWURUXUg`): what Sole is and does, what is real, and "Next steps".
+- *Sole: Systems and Accounts* (`1nRd72R_WBK-sCcaDjafOy7sd0Nth71v1ToL1zZzOHC4`): addresses, accounts and services, who can sign in, where data lives, backups, what to do if something breaks. Never passwords or keys.
+- *Sole: Build Log* (`1lA5e24kAZaWkoes4kwB8MmdcF3-5G_0W5Yvcc5EpF-E`): what was built and decided, by date, newest first. Kelli's source data is in Business / Heart and Soul / Taxes (Heart and Soul Breakdown, Heart and Soul 2024, Heart and Soul 2025).
 
 ## Square (private edition only)
 
