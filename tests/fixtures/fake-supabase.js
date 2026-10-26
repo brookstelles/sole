@@ -22,7 +22,15 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     return api;
   };
   // the intake Edge Function: a client filling in a texted form (see supabase/functions/intake)
-  const intake = ({token, action, answers, sig}) => {
+  const intake = ({token, action, answers, sig, biz}) => {
+    if (action === 'open-new' || action === 'submit-new') {   // a new client from the business's website
+      const b = T.businesses.find(x => x.data && x.data.site && x.data.site.slug === biz); if (!b) return {data:{error:'gone'}};
+      const p = b.data, form = (p.forms || []).find(f => f.intake);
+      if (action === 'open-new') return {data:{pub:{biz:p.biz, owner:p.owner, look:p.look, firstVisit:p.firstVisit}, form:{name:form.name, fields:form.fields, sections:form.sections, intake:true}, name:''}};
+      if (!answers.name || String(answers.phone || '').replace(/\D/g, '').length < 10 || answers.consent !== true || !sig) return {data:{error:'incomplete'}};
+      const id = 'w' + Date.now().toString(36), row = {business_id:b.id, col:'forms', id, data:{id, form:form.name, client:null, name:answers.name, date:new Date().toISOString().slice(0, 10), at:new Date().toISOString(), answers, sig, via:'website'}};
+      T.items.push(row); window.__FAKE.sent = row; return {data:{ok:true}};
+    }
     const link = T.form_links.find(l => l.token === token); if (!link) return {data:{error:'gone'}};
     if (link.used_at) return {data:{error:'used', name:(link.name || '').split(' ')[0]}};
     const p = (T.businesses.find(b => b.id === link.business_id) || {}).data || {}, form = (p.forms || []).find(f => f.name === link.form) || (p.forms || []).find(f => f.intake);

@@ -1290,7 +1290,7 @@ function watchSole(db){
   try { db.collection('forms').onSnapshot(snap => { const fresh = [];
     snap.docChanges().forEach(ch => { if (ch.type === 'removed' || !SQ) return; const r = JSON.parse(JSON.stringify(ch.doc.data()));
       if (!(SQ.responses = SQ.responses || []).some(x => x.id === r.id)) { SQ.responses.push(r); fresh.push(r); } });
-    if (fresh.length) { SOLE_VER++; redrawLive(); const r = fresh[fresh.length - 1]; if (r.via === 'link') setTimeout(() => TOAST(`${String(r.name || 'A client').split(' ')[0]} sent their ${String(r.form || 'form').toLowerCase()}.`), 300); }
+    if (fresh.length) { SOLE_VER++; redrawLive(); const r = fresh[fresh.length - 1]; if (r.via === 'link' || r.via === 'website') setTimeout(() => TOAST(`${r.via === 'website' ? 'New client from your website: ' : ''}${String(r.name || 'A client').split(' ')[0]} sent their ${String(r.form || 'form').toLowerCase()}.`), 300); }
   }, () => {}); } catch (_) {}
 }
 function mergeCards(list, merges){
@@ -3202,14 +3202,14 @@ function formPage(L){
   const f = FORMS[0], c = {name:L.name || '', phone:''}, fn = (L.name || '').split(' ')[0];
   FILL = {i:0, k:null, link:L};
   shell(`<div class="fill-top"><span class="biz-mark">${BIZMARK}</span><div style="min-width:0"><b>${esc(P.biz)}</b><span>${esc(f.name)}</span></div><span></span></div>
-    <p class="muted">${fn ? `Hi ${esc(fn)}! ` : ''}Please fill this in before your ${esc(P.firstVisit)}. It takes about two minutes, and only ${esc(P.owner)} sees it.</p>
+    <p class="muted">${fn ? `Hi ${esc(fn)}! ` : L.newBiz ? 'Welcome! ' : ''}Please fill this in before your ${esc(P.firstVisit)}. It takes about two minutes, and only ${esc(P.owner)} sees it.</p>
     <form id="fill-form" class="fill-form" novalidate>${fieldsFor(f).map(x => fieldHTML(x, c)).join('')}
       <button class="btn primary" type="submit" id="fill-go" style="width:100%">Send to ${esc(P.owner)}</button></form>`);
   setTimeout(sigPad, 40);
 }
 async function sendLink(r){
   const L = FILL.link, go = $('#fill-go'); go.disabled = true; go.textContent = 'Sending…';
-  let res; try { res = await SB.functions.invoke('intake', {body:{token:L.token, action:'submit', answers:r.answers, sig:r.sig}}); } catch (_) { res = {error:true}; }
+  let res; try { res = await SB.functions.invoke('intake', {body:L.newBiz ? {biz:L.newBiz, action:'submit-new', answers:r.answers, sig:r.sig} : {token:L.token, action:'submit', answers:r.answers, sig:r.sig}}); } catch (_) { res = {error:true}; }
   const d = res && res.data;
   if (d && d.ok) { FILL = null; $('#main').innerHTML = `<div class="form-page"><div class="thanks"><div class="brand">${SUNMARK}</div><h2>Thank you${r.name ? ', ' + esc(String(r.name).split(' ')[0]) : ''}.</h2><p>${esc(P.owner)} has your ${esc(FORMS[0].name.toLowerCase())}. See you soon!</p></div></div>`; window.scrollTo(0, 0); return; }
   if (d && d.error === 'used') { FILL = null; formPage({error:'used', name:d.name}); return; }
@@ -3882,11 +3882,12 @@ async function sbMake(){
   await new Promise((ok, fail) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/dist/umd/supabase.min.js'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc); });
   SB = window.supabase.createClient(CLOUD_CFG.url, CLOUD_CFG.key, {auth:{persistSession:true, autoRefreshToken:true, experimental:{passkey:true}}});
 }
-// a client opening a form texted to them (?f=<token>): no sign-in, just the business's form; see supabase/functions/intake
-async function formStart(token){
+// a client opening a form texted to them (?f=<token>), or a new client from the business's website (?new=<site slug>):
+// no sign-in, just the business's form; see supabase/functions/intake
+async function formStart(token, slug){
   cloudScreen('<p class="muted sky-wait">Opening your form…</p>');
   let L;
-  try { await sbMake(); const { data, error } = await SB.functions.invoke('intake', {body:{token, action:'open'}}); L = data && !error ? {...data, token} : {error:(data && data.error) || 'net'}; }
+  try { await sbMake(); const { data, error } = await SB.functions.invoke('intake', {body:token ? {token, action:'open'} : {biz:slug, action:'open-new'}}); L = data && !error ? {...data, token, newBiz:token ? null : slug} : {error:(data && data.error) || 'net'}; }
   catch (_) { L = {error:'net'}; }
   if (L.pub && L.form) PROFILES.massage = {...PROFILES.massage, ...L.pub, real:false, forms:[L.form]};
   FORM_LINK = L; document.body.classList.add('form-only'); boot('massage');
@@ -3913,6 +3914,6 @@ async function cloudStart(){
 let START = 'massage';
 try { START = localStorage.getItem('sole-current') || START; } catch (_) {}
 // the private edition opens on its own business only; the sample businesses and setup are in the public demo
-const FORM_TOKEN = CLOUD_ON ? new URLSearchParams(location.search).get('f') : null;
-if (FORM_TOKEN) formStart(FORM_TOKEN); else if (CLOUD_ON) cloudStart(); else boot(EDITION === 'private' ? 'massage' : PROFILES[START] || ACCOUNTS[START] ? START : 'massage');
+const FORM_TOKEN = CLOUD_ON ? new URLSearchParams(location.search).get('f') : null, FORM_NEW = CLOUD_ON ? new URLSearchParams(location.search).get('new') : null;
+if (FORM_TOKEN || FORM_NEW) formStart(FORM_TOKEN, FORM_NEW); else if (CLOUD_ON) cloudStart(); else boot(EDITION === 'private' ? 'massage' : PROFILES[START] || ACCOUNTS[START] ? START : 'massage');
 </script>

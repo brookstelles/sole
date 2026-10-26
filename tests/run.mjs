@@ -243,7 +243,7 @@ console.log('ok private Square views');
     customers:[{business_id:'B1', id:'TESTCUST1', name:'Test Card Person'}]};
   // the website carries a made-up business; the real one comes from the database after signing in (members only)
   const demoMassage = new Function('genHist', `return ({${fs.readFileSync(root + 'demo/massage.js', 'utf8')}})`)(() => ({2025:Array(12).fill(30), 2026:Array(9).fill(30)})).massage;
-  seed.businesses = [{id:'B1', name:'Cloud Test Massage', profile:'massage', data:{...demoMassage, biz:'Cloud Test Massage', owner:'Robin', real:true, books:{2024:{take:28000, rent:8000, other:900, kept:19100}, 2025:{take:30000, rent:8000, other:1000, kept:21000}}, booksNote:''}}];
+  seed.businesses = [{id:'B1', name:'Cloud Test Massage', profile:'massage', data:{...demoMassage, site:{slug:'cloud-test'}, biz:'Cloud Test Massage', owner:'Robin', real:true, books:{2024:{take:28000, rent:8000, other:900, kept:19100}, 2025:{take:30000, rent:8000, other:1000, kept:21000}}, booksNote:''}}];
   const fake = fs.readFileSync(fx + 'fake-supabase.js', 'utf8');
   const site = fs.readFileSync(root + 'site/index.html', 'utf8');
   check(!/Cloud Test Massage/.test(site) && /Tidewater Massage/.test(site), 'website: the page carries only the made-up business');
@@ -300,6 +300,15 @@ console.log('ok private Square views');
   const sent = await fq.evaluate(() => window.__FAKE.sent);
   check(sent && sent.col === 'forms' && sent.data.client === 'mb:imported-person' && /^data:image\/png/.test(sent.data.sig) && sent.data.answers.pressure === 'Firm', 'form link: answers and signature saved to the book');
   await fq.goto('https://sole.test/?f=nope', {waitUntil:'networkidle'}); check(/link has closed/.test(await fq.textContent('main')), 'form link: an unknown link says so');
+  // a new client from the business's website: the same form, no link made for them; lands in the book as a new client
+  await fq.goto('https://sole.test/?new=cloud-test', {waitUntil:'networkidle'});
+  check(/Welcome!/.test(await fq.textContent('main')) && /Cloud Test Massage/.test(await fq.textContent('main')) && await fq.inputValue('#ff-name') === '', 'website form: a new client gets the intake form');
+  await fq.fill('#ff-name', 'Web Newcomer'); await fq.fill('#ff-phone', '(555) 010-7788'); await fq.check('#ff-consent');
+  await fq.locator('#sig').scrollIntoViewIfNeeded(); { const bx = await fq.locator('#sig').boundingBox();
+    await fq.mouse.move(bx.x + 20, bx.y + 40); await fq.mouse.down(); await fq.mouse.move(bx.x + 150, bx.y + 80, {steps:8}); await fq.mouse.up(); }
+  await fq.click('#fill-go'); await fq.waitForSelector('.thanks');
+  check(await fq.evaluate(() => window.__FAKE.sent && window.__FAKE.sent.data.via === 'website' && window.__FAKE.sent.data.client === null && window.__FAKE.sent.data.name === 'Web Newcomer'), 'website form: saved as a new client');
+  await fq.goto('https://sole.test/?new=nobody', {waitUntil:'networkidle'}); check(/link has closed/.test(await fq.textContent('main')), 'website form: an unknown business says so');
   await fq.close();
   await q.evaluate(row => window.__FAKE.emit('items', {eventType:'INSERT', new:row}), sent);
   check(await q.waitForFunction(() => /Imported sent their client intake form/.test((document.querySelector('.toast') || {}).textContent || ''), null, {timeout:4000}).then(() => true, () => false), 'website: a texted form shows up on her phone the moment it is sent');

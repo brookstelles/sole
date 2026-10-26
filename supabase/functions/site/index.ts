@@ -1,0 +1,32 @@
+// What a business's public website shows, read live from Sole: its name, words, services and prices, usual hours,
+// address and contact, about, specialties and reviews (the profile's `site`), and where new clients fill in the intake
+// form. Never clients, the book or money. GET ?b=<site slug> (heart-and-soul). Deploy with verify_jwt off.
+import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
+
+const env = (k: string) => Deno.env.get(k) ?? '';
+const db = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info', 'Access-Control-Allow-Methods': 'GET, OPTIONS' };
+const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } });
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const clock = (m: number) => { const h = Math.floor(m / 60), mi = m % 60; return `${h % 12 || 12}${mi ? ':' + String(mi).padStart(2, '0') : ''} ${h < 12 ? 'am' : 'pm'}`; };
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method !== 'GET') return reply({ error: 'GET only' }, 405);
+  const slug = new URL(req.url).searchParams.get('b') ?? '';
+  const { data: bs, error } = await db.from('businesses').select('data');
+  if (error) return reply({ error: 'failed' }, 500);
+  const p = (bs ?? []).map((b: any) => b.data || {}).find((d: any) => d.site && d.site.slug === slug);
+  if (!p) return reply({ error: 'not found' }, 404);
+  const s = p.site, h = p.hours || {}, closed: number[] = h.closed || [];
+  const open = DAYS.map((d, i) => ({ day: d, open: !closed.includes(i), from: h.open != null ? clock(h.open) : null, to: h.close != null ? clock(h.close) : null }));
+  const services = Object.values(p.services || {}).map((v: any) => ({ name: v.name, minutes: v.min, price: v.price }));
+  return reply({
+    business: p.biz, owner: p.owner, trade: p.trade || null, unit: p.unitOne || 'appointment',
+    tagline: s.tagline || '', about: s.about || [], specialties: s.specialties || [], reviews: s.reviews || [],
+    address: s.address || '', phone: s.phone || '', email: s.email || '', hoursNote: s.hoursNote || '',
+    hours: open, services,
+    intakeUrl: `https://sole.brookstelles.com/?new=${encodeURIComponent(s.slug)}`,
+    updated: new Date().toISOString(),
+  });
+});
