@@ -28,11 +28,14 @@ async function tour(p, label, keys = ['massage','hair','barber','tattoo','landsc
       await p.click('[data-act=glance][data-v=year]'); check(/Sales this year/.test(await p.textContent('.glance')) && /on pace for/.test(await p.textContent('.glance')), `${label} ${k}: this year`);
       check(!(await wide(p)), `${label} ${k}: the money bar fits the phone`);
       await p.click('[data-act=glance][data-v=today]'); }
+    // To do: tomorrow's confirmations and the thank-yous open in place
+    if (await p.locator('[data-act=td-open][data-v=rm]').count()) await p.click('[data-act=td-open][data-v=rm]');
     if (await p.locator('.li.rm').count()) { const h = await p.getAttribute('[data-act=rm-sent] >> nth=0', 'href');
       check(/^sms:/.test(h) && /Just%20confirming%20your/.test(h), `${label} ${k}: the confirmation text is written for her`);
       await p.evaluate(() => document.querySelector('[data-act=rm-sent]').removeAttribute('href')); await p.click('[data-act=rm-sent] >> nth=0'); await p.waitForTimeout(500);
       await p.click('[data-act=rm-ok] >> nth=0'); check(/Confirmed/.test(await p.textContent('.li.rm >> nth=0')), `${label} ${k}: marked confirmed`);
       check(!(await wide(p)), `${label} ${k}: the confirm list fits the phone`); }
+    if (await p.locator('[data-act=td-open][data-v=ty]').count()) await p.click('[data-act=td-open][data-v=ty]');
     if (await p.locator('[data-act=ty-sent]').count()) { const h = await p.getAttribute('[data-act=ty-sent] >> nth=0', 'href'), n = await p.locator('[data-act=ty-sent]').count();
       check(/^sms:/.test(h) && /Thank%20you%20for%20coming/.test(h), `${label} ${k}: the thank-you text is written for her`);
       await p.evaluate(() => document.querySelector('[data-act=ty-sent]').removeAttribute('href')); await p.click('[data-act=ty-sent] >> nth=0'); await p.waitForTimeout(500);

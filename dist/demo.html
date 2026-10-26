@@ -89,6 +89,12 @@ main{display:flex;flex-direction:column;gap:22px}
 .btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 /* needs-you cards */
+.todo .li.td{grid-template-columns:34px 1fr auto;width:100%;text-align:left;font:inherit;color:inherit}
+.td-i{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:var(--accent-soft);color:var(--accent);flex:none}
+.td-i svg{width:18px;height:18px}
+.li.td[aria-expanded="true"] > svg:last-child{transform:rotate(90deg)}
+.td-body{padding:4px 14px 14px;display:flex;flex-direction:column;gap:8px}
+.td-body .list.flat{box-shadow:none;background:transparent}
 .need{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;background:var(--warm-soft);border:1px solid color-mix(in srgb,var(--gold) 45%,transparent);border-radius:18px;padding:14px 14px 14px 16px}
 .need p:first-child{font-weight:600}
 .need .btn{min-height:44px;font-size:15px;background:var(--surface);color:var(--ink)}
@@ -1795,22 +1801,20 @@ function viewToday(){
   const needs = [];
   if (REQ.open) needs.push(`<div class="need req"><div><p>${CL[REQ.c].name} asked for ${cap(dayName(REQ.off))} at ${clock(REQ.start)}</p><p class="small muted">${svLabel(REQ.s)} · booked online</p></div>
     <div class="btn-row"><button class="btn primary" data-act="req-ok">Accept</button><button class="btn" data-act="req-other">Offer another time</button></div></div>`);
-  { const dn = ap.filter(a => endOf(a) <= NOW && !noShow(a) && !(VISITS[visitKey(a)] || {}).at);
-    if (dn.length) needs.push(`<div class="need"><div><p>Write ${dn.length === 1 ? `${first(dn[0].c)}’s ${visitForm().title.toLowerCase().replace('soap', 'SOAP')}` : `${visitForm().title.toLowerCase().replace('soap', 'SOAP')} for ${dn.map(a => first(a.c)).join(', ')}`}</p><p class="small muted">A minute now, and it’s there before their next visit.</p></div><button class="btn" data-act="vnotes" data-id="${dn[0].id}">Write notes</button></div>`); }
-  { const w = weekInfo(-1); if (!w.rec.checked && w.todo) needs.push(`<div class="need"><div><p>Last week needs a quick check</p><p class="small muted">${w.todo} thing${w.todo === 1 ? '' : 's'} to look at, about two minutes.</p></div><button class="btn" data-act="wkcheck" data-v="-1">Check it</button></div>`); }
-  unpaid().filter(a => a.off >= -7).forEach(a => needs.push(`<div class="need"><div><p>${CL[a.c].name} hasn’t paid</p><p class="small muted">${cap(dayName(a.off))} · ${svLabel(a.s)} · ${money(SV[a.s].price)}</p></div><button class="btn" data-act="charge" data-id="${a.id}">Charge ${money(SV[a.s].price)}</button></div>`));
-  ap.filter(a => !CL[a.c].intake && a.start >= NOW).forEach(a => needs.push(`<div class="need"><div><p>${first(a.c)}’s ${P.intakeName} is missing</p><p class="small muted">First visit today at ${clock(a.start)}</p></div><button class="btn" data-act="fillfor" data-c="${a.c}">Fill in now</button></div>`));
+  // To do: one line each; the ones with a list open in place (S.td)
+  const todo = [], row = (t, sub, icon, attrs) => todo.push(`<button class="li td" ${attrs}><span class="td-i">${icon}</span><span class="who"><b>${t}</b><span>${sub}</span></span>${I.chev}</button>`);
+  unpaid().filter(a => a.off >= -7).forEach(a => row(`${esc(CL[a.c].name)} hasn’t paid`, `${cap(dayName(a.off))} · ${svLabel(a.s)} · ${money(SV[a.s].price)}`, I.wallet, `data-act="charge" data-id="${a.id}"`));
+  { const dn = ap.filter(a => endOf(a) <= NOW && !noShow(a) && !(VISITS[visitKey(a)] || {}).at), ft = visitForm().title.toLowerCase().replace('soap', 'SOAP');
+    if (dn.length) row(`Write ${dn.length === 1 ? `${esc(first(dn[0].c))}’s ${ft}` : ft}`, dn.length === 1 ? 'A minute now, and it’s there before their next visit.' : dn.map(a => esc(first(a.c))).join(', '), I.forms, `data-act="vnotes" data-id="${dn[0].id}"`); }
+  ap.filter(a => !CL[a.c].intake && a.start >= NOW).forEach(a => row(`${esc(first(a.c))}’s ${P.intakeName} is missing`, `First visit today at ${clock(a.start)}`, I.forms, `data-act="fillfor" data-c="${a.c}"`));
+  [remindTodo(), thanksTodo(), mondayTodo()].filter(Boolean).forEach(x => todo.push(`<button class="li td" data-act="td-open" data-v="${x.key}" aria-expanded="${S.td === x.key}"><span class="td-i">${x.icon}</span><span class="who"><b>${x.t}</b><span>${x.s}</span></span>${I.chev}</button>${S.td === x.key ? `<div class="td-body">${x.body}</div>` : ''}`));
+  { const w = weekInfo(-1); if (!w.rec.checked && w.todo) row('Check last week', `${w.todo} thing${w.todo === 1 ? '' : 's'} to look at, about two minutes`, I.check, `data-act="wkcheck" data-v="-1"`); }
   const c = next && CL[next.c];
   const mins = next ? next.start - NOW : 0;
   const wk = sumOf('week'), td = sumOf('today');
   return `
   ${P.fresh ? setupCard() : ''}${(() => { const o = [0,1,2,3,4,5,6,7].find(d => familyOn(d).length); if (o == null) return ''; const f = familyOn(o)[0];
     return `<button class="heads" data-act="sday" data-v="${o}">${esc(f.what)}${f.who ? ` for ${esc(f.who)}` : ''} ${o === 0 ? 'today' : o === 1 ? 'tomorrow' : DOW[dateOf(o).getDay()]} · ${esc(f.why)}</button>`; })()}<section class="sec"><p class="lede">${ap.length ? `<b>${ap.length} ${ap.length === 1 ? W1 : WN} today.</b> ${left ? `${left} still to come. Your last one ends at ${clock(end)}.` : 'All done for the day.'}` : `<b>Nothing booked today.</b> ${Object.keys(CL).length ? 'Book someone, or block time for yourself.' : `Add your first ${W1} to get going.`}`}</p></section>
-  <section class="sec">
-    <form class="ask" id="ask-form"><input id="ask-in" placeholder="Ask anything about your day…" autocomplete="off" aria-label="Ask a question"><button aria-label="Ask">${I.send}</button></form>
-    <div class="chips">${askChips().map(q => `<button class="chip" data-act="ask" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
-    ${S.answer ? `<div class="answer"><p class="q">${esc(S.answer.q)}</p><div class="a">${S.answer.a}</div></div>` : ''}
-  </section>
   ${next ? `<section class="next" aria-label="Next ${W1}">${MOTIF}
     <p class="eyebrow">Next · ${clock(next.start)} · in ${dur(mins)}</p>
     <h2>${c.name}</h2>
@@ -1820,13 +1824,16 @@ function viewToday(){
     </div>
     <div class="btns"><button class="btn" data-act="appt" data-id="${next.id}">All notes</button><button class="btn" data-act="late" data-id="${next.id}">Running late</button></div>
   </section>` : ''}
-  ${needs.length ? `<section class="sec"><div class="sec-h"><h2>Needs you</h2><span class="aside">${needs.length}</span></div>${needs.join('')}</section>` : ''}
+  ${needs.join('')}
   <section class="sec" ${ap.length ? '' : 'hidden'}><div class="sec-h"><h2>Today’s ${WN}</h2><button class="chip" data-act="tab" data-v="schedule">Full schedule</button></div>
     <div class="list">${dayRows(0)}</div></section>
-  ${mondayCard()}
-  ${remindCard()}
-  ${thanksCard()}
-  <section class="glance">${glanceCard(td)}  </section>`;
+  ${todo.length ? `<section class="sec todo"><div class="sec-h"><h2>To do</h2><span class="aside">${todo.filter(x => !x.startsWith('<div')).length}</span></div><div class="list">${todo.join('')}</div></section>` : ''}
+  <section class="glance">${glanceCard(td)}  </section>
+  <section class="sec">
+    <form class="ask" id="ask-form"><input id="ask-in" placeholder="Ask anything about your day…" autocomplete="off" aria-label="Ask a question"><button aria-label="Ask">${I.send}</button></form>
+    <div class="chips">${askChips().map(q => `<button class="chip" data-act="ask" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+    ${S.answer ? `<div class="answer"><p class="q">${esc(S.answer.q)}</p><div class="a">${S.answer.a}</div></div>` : ''}
+  </section>`;
 }
 const pressureWord = p => ['Not known','Light','Light','Medium','Firm','Firm'][p];   // her intake form: Light, Medium, Firm
 const pressureLvl = p => [0,1,1,2,3,3][p];
@@ -2124,42 +2131,42 @@ function glanceCard(td){
       <span class="mt-bar" aria-hidden="true"><i style="width:${Math.min(100, pct * 100).toFixed(0)}%"></i></span>${note ? `<span class="small muted">${note}</span>` : ''}</button></div>`;
 }
 // the day after: a thank-you text to each person who came in (with the review link when there is one). Off with P.thanks false.
-function thanksCard(){
-  if (P.thanks === false) return '';
-  const o = [-1, -2, -3].find(d => !isOff(d) && apptsOn(d).some(a => !noShow(a))); if (o == null) return '';
+function thanksTodo(){
+  if (P.thanks === false) return null;
+  const o = [-1, -2, -3].find(d => !isOff(d) && apptsOn(d).some(a => !noShow(a))); if (o == null) return null;
   const st = a => VISITS[visitKey(a)] || {}, L = apptsOn(o).filter(a => !noShow(a) && !st(a).noshow && String(CL[a.c].phone || '').replace(/[^0-9+]/g, '').length >= 10).sort((x, y) => x.start - y.start);
-  const left = L.filter(a => !st(a).thanked); if (!left.length) return '';
-  return `<section class="sec"><div class="sec-h"><h2>Say thanks</h2><span class="aside">${left.length} from ${o === -1 ? 'yesterday' : DOW[dateOf(o).getDay()]}</span></div>
-    <div class="list">${left.map(a => `<div class="li rm"><button class="who" data-act="appt" data-id="${a.id}"><b>${esc(CL[a.c].name)}</b><span>${clock(a.start)} · ${esc(SV[a.s].name)}</span></button>
+  const left = L.filter(a => !st(a).thanked); if (!left.length) return null;
+  return {key:'ty', icon:I.send, t:'Say thanks', s:`${left.length} from ${o === -1 ? 'yesterday' : DOW[dateOf(o).getDay()]} · ${left.map(a => esc(first(a.c))).join(', ')}`, body:`
+    <div class="list flat">${left.map(a => `<div class="li rm"><button class="who" data-act="appt" data-id="${a.id}"><b>${esc(CL[a.c].name)}</b><span>${clock(a.start)} · ${esc(SV[a.s].name)}</span></button>
       <a class="btn sm primary" href="sms:${String(CL[a.c].phone).replace(/[^0-9+]/g, '')}&body=${encodeURIComponent(messageFor(a.c, 'thanks', a))}" target="_top" data-act="ty-sent" data-id="${a.id}">Text</a></div>`).join('')}</div>
-    <p class="small muted">${P.reviewUrl ? 'A thank-you with your review link.' : 'A short thank-you.'} Tap Text, hit send. <button class="linkish" data-act="ty-skip" data-v="${o}">Skip these</button></p></section>`;
+    <p class="small muted">${P.reviewUrl ? 'A thank-you with your review link.' : 'A short thank-you.'} Tap Text, hit send. <button class="linkish" data-act="ty-skip" data-v="${o}">Skip these</button></p>`};
 }
 // Mondays: how last week went and what this week holds, in one look
-function mondayCard(){
-  if (dateOf(0).getDay() !== 1 || P.fresh || lsGet('sole-monday') === isoDay(T0)) return '';
+function mondayTodo(){
+  if (dateOf(0).getDay() !== 1 || P.fresh || lsGet('sole-monday') === isoDay(T0)) return null;
   const wk = m => Array.from({length:7}, (_, i) => m + i), lw = wk(-7), pw = wk(-14), tw = wk(0), unit = n => n === 1 ? P.unitOne : P.unit;
   const sumIn = L => L.reduce((t, x) => ({net:t.net + x.net, tips:t.tips + x.tips, n:t.n + x.n}), {net:0, tips:0, n:0});
   const a = sumIn(lw.map(inOn)), b = sumIn(pw.map(inOn)), seen = booked(lw), t = booked(tw), open = tw.reduce((u, d) => u + openMin(d, S.who), 0), diff = a.net - b.net;
   const best = lw.map(d => [d, inOn(d).net]).sort((x, y) => y[1] - x[1])[0], w = weekInfo(-1), lds = new Set(lw.map(d => isoDay(dateOf(d))));
   seen.n = new Set([...AP.filter(x => lw.includes(x.off) && !noShow(x)).map(x => x.c + isoDay(dateOf(x.off))), ...Object.values(VISITS).filter(v => v.from && v.c && lds.has(v.date)).map(v => v.c + v.date)]).size;   // the old app's visits count too
-  return `<section class="sec monday"><div class="sec-h"><h2>Your week</h2><span class="aside">Monday note</span></div>
-    <div class="card"><div class="stat3 two"><button data-act="wkcheck" data-v="-1"><b>${money(a.net)}</b><span>last week · ${seen.n} ${unit(seen.n)}${a.tips ? ` · + ${money(a.tips)} tips` : ''}</span></button>
+  return {key:'mon', icon:I.trend, t:'Your week', s:`${money(a.net)} last week · ${t.n ? `${money(t.$)} booked this week` : 'nothing booked yet this week'}`, body:`<div class="monday"><div class="stat3 two"><button data-act="wkcheck" data-v="-1"><b>${money(a.net)}</b><span>last week · ${seen.n} ${unit(seen.n)}${a.tips ? ` · + ${money(a.tips)} tips` : ''}</span></button>
       <button data-act="glgo" data-v="week"><b>${t.n ? money(t.$) : '—'}</b><span>booked this week · ${t.n} ${unit(t.n)}</span></button></div>
     <p class="small muted" style="margin-top:8px">${b.net ? `${diff >= 0 ? 'Up' : 'Down'} ${money(Math.abs(diff))} from the week before. ` : ''}${best && best[1] ? `Best day: ${DOW[dateOf(best[0]).getDay()]}, ${money(best[1])}. ` : ''}${open ? `${dur(open)} still open this week.` : 'This week is full.'}</p>
-    <div class="btn-row" style="margin-top:10px">${!w.rec.checked && w.todo ? `<button class="btn" data-act="wkcheck" data-v="-1">${w.todo} to check</button>` : ''}<button class="btn line" data-act="mon-ok">Got it</button></div></div></section>`;
+    <div class="btn-row" style="margin-top:10px">${!w.rec.checked && w.todo ? `<button class="btn" data-act="wkcheck" data-v="-1">${w.todo} to check</button>` : ''}<button class="btn line" data-act="mon-ok">Got it</button></div></div>`};
 }
-function remindCard(){
-  const o = [1,2,3].find(d => apptsOn(d).length); if (o == null) return '';
+function remindTodo(){
+  const o = [1,2,3].find(d => apptsOn(d).length); if (o == null) return null;
   const L = apptsOn(o).sort((x, y) => x.start - y.start), st = a => VISITS[visitKey(a)] || {};
   const ok = L.filter(a => st(a).confirmed).length, sent = L.filter(a => st(a).reminded).length;
-  return `<section class="sec"><div class="sec-h"><h2>${o === 1 ? 'Tomorrow' : DOW[dateOf(o).getDay()]}</h2><span class="aside">${ok ? `${ok} of ${L.length} confirmed` : sent ? `${sent} of ${L.length} texted` : `${L.length} to confirm`}</span></div>
-    <div class="list">${L.map(a => { const c = CL[a.c], tel = String(c.phone || '').replace(/[^0-9+]/g, ''), x = st(a);
+  if (ok === L.length) return null;
+  return {key:'rm', icon:I.send, t:`Confirm ${o === 1 ? 'tomorrow' : DOW[dateOf(o).getDay()]}`, s:ok ? `${ok} of ${L.length} confirmed` : sent ? `${sent} of ${L.length} texted` : `${L.length} to text · ${L.map(a => esc(first(a.c))).join(', ')}`, body:`
+    <div class="list flat">${L.map(a => { const c = CL[a.c], tel = String(c.phone || '').replace(/[^0-9+]/g, ''), x = st(a);
       const act = x.confirmed ? `<span class="tag ok">Confirmed</span>`
         : x.reminded ? `<button class="chip sm" data-act="rm-ok" data-id="${a.id}">Confirmed?</button>`
         : tel.length >= 10 ? `<a class="btn sm primary" href="sms:${tel}&body=${encodeURIComponent(messageFor(a.c, 'remind', a))}" target="_top" data-act="rm-sent" data-id="${a.id}">Text</a>`
         : `<button class="btn sm" data-act="editnotes" data-c="${esc(a.c)}">Add phone</button>`;
       return `<div class="li rm"><button class="who" data-act="appt" data-id="${a.id}"><b>${esc(c.name)}</b><span>${clock(a.start)} · ${esc(SV[a.s].name)}${x.reminded && !x.confirmed ? ' · texted' : ''}</span></button>${act}</div>`; }).join('')}</div>
-    ${!sent && L.length ? `<p class="small muted">Tap Text and Messages opens with it written. Hit send, come back for the next.</p>` : ''}</section>`;
+    ${!sent && L.length ? `<p class="small muted">Tap Text and Messages opens with it written. Hit send, come back for the next.</p>` : ''}`};
 }
 function otherToday(){ const td = isoDay(T0), L = LEDGER.filter(x => x.kind === 'pay' && x.date === td && (SQX && SQX.today ? true : !x.matched));
   return {net:L.reduce((t, x) => t + x.amount, 0), tips:L.reduce((t, x) => t + (x.tip || 0), 0), n:L.length}; }
@@ -3387,6 +3394,7 @@ on('click', e => {
     case 'ty-skip': apptsOn(+v).forEach(a => { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), thanked:'skipped'}; }); render(); break;
     case 'rm-sent': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), reminded:new Date().toISOString()}; setTimeout(render, 400); } break; }
     case 'rm-ok': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), confirmed:new Date().toISOString()}; render(); toast(`${first(a.c)} is confirmed.`); } break; }
+    case 'td-open': S.td = S.td === v ? null : v; render(); break;
     case 'mon-ok': lsSet('sole-monday', isoDay(T0)); render(); break;
     case 'glgo': S.tab = 'schedule'; S.view = 'week'; S.day = monOf(0) + (v === 'next' ? 7 : 0); render(); window.scrollTo(0, 0); break;
     case 'snav': schedNav(+v); break;
