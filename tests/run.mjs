@@ -552,6 +552,45 @@ await p.click('.tab[data-v=money]'); await p.click('[data-act=snapgo][data-sec=y
   check(n1 === n0 - 1 && hasUndo === 1 && await L().count() === n0 && /Undone/.test(await p.textContent('.toast')), 'undo: a canceled visit comes back'); }
 console.log('ok digital forms');
 
+// on a computer: the sidebar, Today in two columns, the week as a calendar, clients beside their page, sheets from the right,
+// and back to the phone layout when the window narrows
+for (const [file, init, name] of [['dist/demo.html', null, null], ['index.html', `window.__SOLE_SQUARE = ${sq};`, 'Heart and Soul Massage']]) {
+  const html = '<!doctype html><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1">' + fs.readFileSync(root + file, 'utf8');
+  const d = await (await b.newContext({viewport:{width:1280, height:800}})).newPage(), L = file + ' (computer)';
+  d.on('pageerror', e => errs.push(L + ': ' + e.message));
+  if (init) await d.addInitScript(init);
+  await d.route('http://sole.test/', r => r.fulfill({contentType:'text/html; charset=utf-8', body:html}));
+  await d.goto('http://sole.test/', {waitUntil:'networkidle'});
+  if (await d.locator('[data-act=welcome-look]').count()) await d.click('[data-act=welcome-look]');
+  const box = s => d.locator(s).first().boundingBox(), fits = () => d.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
+  { const t = await box('.tabbar'); check(t && t.x === 0 && t.height >= 790 && t.width < 300, `${L}: the tabs are a sidebar`); }
+  check(await d.locator('.side-biz .biz-name').count() === 1 && await d.locator('.hdr .biz').count() === 0, `${L}: the business's name heads the sidebar`);
+  if (name) check((await d.textContent('.side-biz .biz-name')) === name, `${L}: ${name} in the sidebar`);
+  { const a = await box('.dash-a'), c = await box('.dash-b'); check(a && c && c.x > a.x + a.width - 1, `${L}: Today in two columns`); }
+  check(await fits(), `${L}: Today fits the window`);
+  await d.click('.tab[data-v=schedule]');
+  check(await d.locator('.wg .wg-day').count() === 7 && await d.locator('.wg-body .wg-col').count() === 7, `${L}: the schedule opens on the week as a calendar`);
+  if (!name) { check(await d.locator('.wg-ev[data-act=appt]').count() > 5, `${L}: visits on the calendar`);
+    await d.click('.wg-ev[data-act=appt] >> nth=0'); await d.waitForTimeout(400); const s = await box('.sheet');
+    check(s && Math.round(s.x + s.width) === 1280 && s.width <= 545, `${L}: a visit opens in a panel on the right`); await d.click('.sheet .close');
+    const g = d.locator('.wg-gap').first(); await g.hover({position:{x:20, y:4}}); await g.click({position:{x:20, y:4}});
+    check(await d.locator('.sheet #book-go').count() === 1, `${L}: clicking open time starts a booking`); await d.click('.sheet .close'); }
+  const t0 = await d.textContent('.snav b'); await d.keyboard.press('ArrowRight');
+  check((await d.textContent('.snav b')) !== t0, `${L}: the arrow keys page the week`); await d.keyboard.press('t');
+  await d.click('[data-act=sview][data-v=month]'); check(await d.locator('.mo-c .mo-list').count() > 27, `${L}: the month shows who's coming`);
+  await d.click('[data-act=sview][data-v=week]'); check(await fits(), `${L}: the week fits the window`);
+  await d.click('.tab[data-v=clients]');
+  check(await d.locator('.split-l #clt-list .li.client').count() > 0 && await d.locator('.split-r .split-hint').count() === 1, `${L}: clients list beside a place for one person`);
+  await d.click('#clt-list .li.client >> nth=1');
+  check(await d.locator('.split-r .cl-hero').count() === 1 && await d.locator('#clt-list .li.client[aria-current=true]').count() === 1, `${L}: a client opens beside the list`);
+  check(await fits(), `${L}: the clients page fits the window`);
+  await d.click('.tab[data-v=money]'); check(await d.locator('.cols2 .col').count() === 2 && await fits(), `${L}: Snapshot in two columns`);
+  await d.click('.tab[data-v=forms]'); check(await fits(), `${L}: Forms fit the window`);
+  await d.setViewportSize({width:390, height:844}); await d.waitForTimeout(200);
+  { const t = await box('.tabbar'); check(t && t.y > 700 && await d.locator('.side-biz').count() === 0 && await d.locator('.hdr .biz').count() === 1, `${L}: back to the phone layout when narrow`); }
+  console.log('ok', L);
+}
+
 await b.close();
 if (errs.length) { console.error('FAILED\n - ' + errs.join('\n - ')); process.exit(1); }
 console.log('all passed');

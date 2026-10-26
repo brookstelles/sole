@@ -714,6 +714,174 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:30;
   width:min(calc(100% - 32px),440px);background:var(--ink);color:var(--bg);border-radius:14px;padding:13px 16px;font-size:15px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.2);animation:rise .2s ease-out}
 
+/* Today's two columns exist only on a computer; on a phone these wrappers step aside */
+.dash,.dash-a,.dash-b{display:contents}
+@media (hover:hover){
+  button.li:hover,button.wk-row:hover,button.topc:hover,button.gs:hover{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+  .tile:hover,.glance button:hover,.cl-stats button:hover,.tl-card:hover,.cl-file:hover,.cl-next:hover,.mo-c:hover{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--accent) 40%,transparent),var(--shadow)}
+}
+
+/* ---------- on a computer ----------
+   The same app with room to breathe: the tabs become a sidebar under the business's name, Today splits in two,
+   the week is a calendar, each client opens beside the list, and sheets slide in from the right. */
+@media (min-width:1024px){
+  body{font-size:16px}
+  .app{max-width:none;margin:0 0 0 256px;padding:0 48px 64px}
+  .hdr,main{max-width:1240px;margin-inline:auto}
+  .hdr{padding-block:30px 22px;overflow:visible}
+  .hdr > div{display:flex;flex-direction:row-reverse;justify-content:space-between;align-items:center;gap:24px}
+  .hdr-top{margin:0;flex:none}
+  .hdr h1{font-size:40px}
+  .hdr .lily{width:190px;right:-40px;top:-62px;opacity:.4}
+  .hdr-date{font-size:14px;font-weight:500;letter-spacing:.02em;text-transform:none}
+  .hdr-right{gap:14px}
+  .hdr-book{min-height:42px;padding:8px 18px 8px 14px}
+  .hdr-book svg{width:18px;height:18px}
+  .me{width:42px;height:42px}
+  main{gap:26px}
+  .lede{font-size:20px}
+  .sec-h h2{font-size:24px}
+  body.form-only .app{margin:0 auto;max-width:680px;padding-inline:24px}
+
+  /* sidebar */
+  .tabbar{top:0;right:auto;width:256px;border-top:0;border-right:1px solid var(--line);padding:26px 18px 22px;overflow-y:auto}
+  .tabbar nav{max-width:none;margin:0;display:flex;flex-direction:column;gap:4px;min-height:100%}
+  .side-biz{padding:0 6px 22px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+  .side-biz .biz{max-width:none;width:100%;gap:12px;align-items:center}
+  .side-biz .biz-mark{width:46px;height:46px;font-size:15px}
+  .side-biz .biz-mark svg{width:38px;height:38px}
+  .side-biz .biz-name{font-family:var(--display);font-size:19px;font-weight:400;white-space:normal;line-height:1.2}
+  .tab{flex-direction:row;justify-content:flex-start;gap:12px;min-height:52px;padding:0 10px;font-size:16px;font-weight:500;color:var(--ink)}
+  .tab:hover{background:var(--sunk)}
+  .tab .ti{width:38px;height:38px;border-radius:12px}
+  .tab svg{width:22px;height:22px}
+  .tab[aria-current="page"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .tab[aria-current="page"] .ti{background:var(--surface)}
+  .tab.center .ti{width:38px;height:38px;margin:0;border:0;box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 30%,transparent)}
+  .tab.center svg{width:22px;height:22px}
+  .tab.center[aria-current="page"] .ti{box-shadow:0 0 0 3px var(--accent-soft),0 0 16px 4px color-mix(in srgb,var(--accent) 35%,transparent);animation:none}
+  .side-next{margin-top:auto;border:0;text-align:left;color:var(--hero-ink);background:linear-gradient(160deg,var(--hero-a),var(--hero-b));border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+  .side-next .eyebrow{color:inherit;opacity:.8;margin:0;font-size:11.5px}
+  .side-next b{font-family:var(--display);font-size:20px;font-weight:400}
+  .side-next span:last-child{font-size:13.5px;opacity:.85}
+  .side-next:hover{filter:brightness(1.03)}
+  body[data-page="today"] .side-next{display:none}
+
+  /* Today */
+  .dash{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(340px,1fr);gap:28px;align-items:start}
+  .dash-a,.dash-b{display:flex;flex-direction:column;gap:26px;min-width:0}
+  .next{padding:26px 28px;gap:14px}
+  .next h2{font-size:38px}
+  .next .lily{width:260px;right:-50px;bottom:-90px}
+  .next .btns{max-width:440px}
+
+  /* Schedule */
+  .sched-bar{display:flex;align-items:center;gap:14px}
+  .sched-bar .seg{flex:none;width:300px}
+  .sched-bar .snav{flex:1;justify-content:flex-start;gap:8px}
+  .sched-bar .snav b{flex:none;min-width:170px;font-family:var(--display);font-size:22px;font-weight:400}
+  .sched-bar > .btn{min-height:44px}
+  body[data-page="schedule-day"] main > :not(.sched-bar){max-width:860px}
+  .wg{background:var(--surface);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;--shut:color-mix(in srgb,var(--sunk) 60%,transparent);--hl:color-mix(in srgb,var(--line) 70%,transparent)}
+  .wg-head,.wg-tags,.wg-body{display:grid;grid-template-columns:62px repeat(7,minmax(0,1fr))}
+  .wg-head,.wg-tags{border-bottom:1px solid var(--line)}
+  .wg-day{border:0;border-left:1px solid var(--line);background:transparent;padding:12px 4px 10px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink);min-width:0}
+  .wg-day:hover{background:var(--sunk)}
+  .wg-dw{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .wg-dn{font-family:var(--display);font-size:24px;width:42px;height:42px;display:grid;place-items:center;border-radius:50%;font-variant-numeric:tabular-nums}
+  .wg-day.now .wg-dw{color:var(--accent)}
+  .wg-day.now .wg-dn{background:var(--accent);color:var(--accent-ink)}
+  .wg-day.off{opacity:.55}
+  .wg-sum{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .wg-tags > span{display:flex;flex-wrap:wrap;gap:4px;padding:6px;border-left:1px solid var(--line);min-width:0}
+  .wg-tags > span:first-child{border:0}
+  .wg-tags .tag{font-size:11.5px;padding:3px 8px;border:0;white-space:normal}
+  .wg-times{position:relative}
+  .wg-times span{position:absolute;right:10px;transform:translateY(-50%);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;background:var(--surface);padding:0 2px}
+  .wg-times span:first-child{transform:translateY(3px)}
+  .wg-col{position:relative;border-left:1px solid var(--line);
+    background:repeating-linear-gradient(to bottom,var(--hl) 0 1px,transparent 1px var(--hr)),linear-gradient(to bottom,var(--shut) 0 var(--open),transparent var(--open) var(--close),var(--shut) var(--close))}
+  .wg-col.closed{background:repeating-linear-gradient(to bottom,var(--hl) 0 1px,transparent 1px var(--hr)),repeating-linear-gradient(135deg,transparent 0 9px,var(--shut) 9px 11px)}
+  .wg-col.today{background-color:color-mix(in srgb,var(--accent) 5%,transparent)}
+  .wg-ev{position:absolute;display:flex;flex-direction:column;gap:1px;overflow:hidden;border:0;border-left:3px solid var(--accent);border-radius:10px;padding:6px 8px 6px 9px;text-align:left;color:var(--ink);
+    background:var(--accent-soft);font-size:12.5px;line-height:1.3;z-index:1;transition:transform .12s,box-shadow .12s}
+  .wg-ev:hover{z-index:2;transform:translateY(-1px);box-shadow:0 6px 16px rgba(20,45,48,.16)}
+  .wg-ev b{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wg-ev span{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wg-ev i{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.02em;margin-top:auto;color:var(--accent)}
+  .wg-ev.tight{flex-direction:row;align-items:center;gap:6px;padding-block:1px}
+  .wg-col{container-type:inline-size}
+  @container (max-width:118px){ .wg-ev i{display:none} .wg-ev{padding-inline:7px 5px} .wg-ev b{font-size:12.5px} }
+  .wg-ev.tight span{flex:1}
+  .wg-ev.paid{background:color-mix(in srgb,var(--accent-soft) 55%,var(--surface));border-left-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+  .wg-ev.owed,.wg-ev.form,.wg-ev.req{background:var(--warm-soft);border-left-color:var(--warm)}
+  .wg-ev.owed i,.wg-ev.form i,.wg-ev.req i{color:var(--warm)}
+  .wg-ev.noshow{background:var(--bad-soft);border-left-color:var(--bad)}
+  .wg-ev.noshow i{color:var(--bad)}
+  .wg-ev.blk{background:repeating-linear-gradient(135deg,var(--sunk) 0 6px,color-mix(in srgb,var(--sunk) 45%,var(--surface)) 6px 12px);border-left-color:var(--muted)}
+  .wg-ev.old{background:var(--sunk);border-left-color:var(--line)}
+  .wg-gap{position:absolute;left:4px;right:4px;border:0;background:transparent;border-radius:10px;padding:0;overflow:hidden}
+  .wg-gap span{position:absolute;left:0;right:0;top:var(--gy,0px);height:min(var(--hr),100%);display:flex;align-items:flex-start;gap:4px;padding:7px 9px;border-radius:10px;
+    border:1.5px dashed var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--surface));color:var(--accent);font-size:12.5px;font-weight:600;opacity:0;transition:opacity .12s}
+  .wg-gap:hover span,.wg-gap:focus-visible span{opacity:1}
+  .wg-gap svg{width:14px;height:14px;flex:none;margin-top:1px}
+  .wg-now{position:absolute;left:-1px;right:0;height:2px;background:var(--bad);z-index:3;pointer-events:none}
+  .wg-now::before{content:"";position:absolute;left:-4px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--bad)}
+  .wg-closed{position:absolute;inset:0;border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  .mo{gap:8px}
+  .mo-h{text-align:left;padding-left:10px;font-size:12.5px}
+  .mo-c{aspect-ratio:auto;min-height:116px;align-items:stretch;justify-content:flex-start;gap:4px;padding:8px 9px;text-align:left}
+  .mo-c.now .mo-d{color:var(--accent)}
+  .mo-c.closed .mo-list{opacity:.7}
+  .mo-list{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .mo-list i{font-style:normal;font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--accent-soft);border-radius:6px;padding:1px 6px}
+  .mo-list i small{color:var(--muted);font-size:11px;font-weight:600}
+  .mo-list i.more{background:transparent;color:var(--muted);padding-left:2px}
+  .mo-list em{font-style:normal;font-size:11.5px;font-weight:600;color:var(--warm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* Snapshot */
+  .cols2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;align-items:start}
+  .cols2 .col{display:flex;flex-direction:column;gap:22px;min-width:0}
+  .bento{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  body[data-page^="money-"]:not([data-page="money-home"]) main > *{max-width:780px}
+
+  /* Clients: the list on the left, the person beside it */
+  .split{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:30px;align-items:start}
+  .split-l{position:sticky;top:var(--hdr-h,116px);max-height:calc(100vh - var(--hdr-h,116px) - 16px);overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:2px 8px 18px 2px;scrollbar-width:thin}
+  .split-r{display:flex;flex-direction:column;gap:22px;min-width:0}
+  .split .cl-back{display:none}
+  .split .cl-chips{margin:0;padding:2px 0 4px;flex-wrap:wrap;overflow:visible}
+  .li.client[aria-current="true"]{background:var(--accent-soft)}
+  .li.client[aria-current="true"] .who b{color:var(--accent)}
+  .split-hint{position:relative;overflow:hidden;isolation:isolate;background:var(--surface);border-radius:22px;box-shadow:var(--shadow);padding:48px 28px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+  .split-hint .lily{position:static;width:110px;color:var(--art);margin-bottom:6px}
+  .split-hint b{font-family:var(--display);font-size:24px;font-weight:400}
+  .split-hint span{color:var(--muted);max-width:36ch}
+  .cl-hero{padding:30px 28px 24px}
+  .cl-acts{max-width:520px}
+
+  /* Forms */
+  .forms-sec{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+  .forms-sec .sec-h{grid-column:1 / -1}
+  body[data-page="forms"] main > *{max-width:1040px}
+
+  /* sheets slide in from the right */
+  .sheet{left:auto;right:0;top:0;bottom:0;transform:none;width:min(540px,100%);max-height:none;border-radius:26px 0 0 26px;
+    padding:26px 32px 30px;animation:slide-in .26s cubic-bezier(.2,.8,.2,1);box-shadow:-16px 0 48px rgba(10,25,28,.18)}
+  .sheet.fill{width:min(780px,100%);height:auto;max-height:none;border-radius:26px 0 0 26px}
+  .grab{display:none}
+  .sticky-go{bottom:-30px;margin-bottom:-30px;padding-bottom:6px}
+  .toast{left:calc(50% + 128px);bottom:32px}
+}
+/* a small laptop: the same, one column where two would crowd */
+@media (min-width:1024px) and (max-width:1199px){
+  .app{padding-inline:32px}
+  .dash,.cols2{grid-template-columns:minmax(0,1fr)}
+  .bento{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .split{grid-template-columns:minmax(260px,320px) minmax(0,1fr);gap:22px}
+  .sched-bar .seg{width:240px}
+}
+@keyframes slide-in{from{transform:translateX(48px);opacity:0}to{transform:none;opacity:1}}
 @keyframes rise{from{transform:translate(-50%,24px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
@@ -1237,7 +1405,9 @@ let OB = null;   // setup in progress
 let FILL = null; // a form being filled in
 
 let CTL;
-let SQ = null;     // Square payments and card customers, written into this page's database by the daily refresh
+// a computer screen gets the desktop layout: a sidebar, the week as a calendar, clients beside their page, sheets as a side panel
+const WIDE_MQ = window.matchMedia('(min-width: 1024px)'); let WIDE = WIDE_MQ.matches;
+let SQ = null;    // Square payments and card customers, written into this page's database by the daily refresh
 let KEEP = null;   // the tab to return to when the page rebuilds itself
 // the real business's own book (appointments, time off, clients, payments and costs), one database document per item;
 // REAL_SAVED mirrors what the database holds so only changed items are written
@@ -1796,17 +1966,30 @@ const MY_INITIALS = (MY_NAME ? MY_NAME.split(/\s+/).filter(Boolean).slice(0, 2).
 const TITLES = {today:`Good ${NOW < 720 ? 'morning' : NOW < 1020 ? 'afternoon' : 'evening'}, ${(MY_NAME || P.owner).split(' ')[0]}`, schedule:'Schedule', money:'Snapshot', clients:`Your ${WN}`, forms:'Forms'};
 
 function render(){
-  $('#hdr').innerHTML = `${MOTIF}<div><div class="hdr-top">${EDITION === 'private' ? `<div class="biz"><span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span></div>` : `<button class="biz" data-act="trade" aria-label="Switch business"><span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span>${I.down.replace('<svg', '<svg class="chev"')}</button>`}<span class="hdr-right"><span class="hdr-date" title="${DOW[T0.getDay()]}">${MON[T0.getMonth()].slice(0,3)} ${T0.getDate()}</span><button class="me" data-act="me" aria-label="Your account">${esc(MY_INITIALS)}</button></span></div><h1>${TITLES[S.tab]}</h1></div>`;
+  const bizIn = `<span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span>`;
+  const biz = EDITION === 'private' ? `<div class="biz">${bizIn}</div>` : `<button class="biz" data-act="trade" aria-label="Switch business">${bizIn}${I.down.replace('<svg', '<svg class="chev"')}</button>`;
+  const date = WIDE ? `${DOW[T0.getDay()]}, ${MON[T0.getMonth()]} ${T0.getDate()}` : `${MON[T0.getMonth()].slice(0,3)} ${T0.getDate()}`;
+  $('#hdr').innerHTML = `${MOTIF}<div><div class="hdr-top">${WIDE ? '' : biz}<span class="hdr-right"><span class="hdr-date" title="${DOW[T0.getDay()]}">${date}</span>${WIDE ? `<button class="btn primary sm hdr-book" data-act="book">${I.plus}Book</button>` : ''}<button class="me" data-act="me" aria-label="Your account">${esc(MY_INITIALS)}</button></span></div><h1>${TITLES[S.tab]}</h1></div>`;
+  const keep = WIDE && $('.split-l') ? $('.split-l').scrollTop : 0;
   $('#main').innerHTML = ({today:viewToday, schedule:viewSchedule, money:viewMoney, clients:viewClientsTab, forms:viewForms})[S.tab]();
+  if (keep && $('.split-l')) $('.split-l').scrollTop = keep;
+  if (WIDE) document.documentElement.style.setProperty('--hdr-h', $('#hdr').offsetHeight + 'px');
+  document.body.dataset.page = S.tab === 'money' ? 'money-' + S.money : S.tab === 'schedule' ? 'schedule-' + sView() : S.tab;
   const owes = unpaid().length > 0;
   saveState();
-  $('#tabs').innerHTML = TABS.map(([k,l]) => `<button class="tab${k==='money'?' center':''}" data-act="tab" data-v="${k}" aria-current="${S.tab===k?'page':'false'}"><span class="ti${k==='money'&&owes?' badge':''}">${I[k]}</span>${l}</button>`).join('');
+  $('#tabs').innerHTML = (WIDE ? `<div class="side-biz">${biz}</div>` : '') + TABS.map(([k,l]) => `<button class="tab${k==='money'?' center':''}" data-act="tab" data-v="${k}" aria-current="${S.tab===k?'page':'false'}"><span class="ti${k==='money'&&owes?' badge':''}">${I[k]}</span>${l}</button>`).join('') + (WIDE ? sideNext() : '');
   navNote();
+}
+// on a computer the sidebar keeps the next client in sight from every page
+function sideNext(){
+  const n = apptsOn(0).find(a => a.start >= NOW);
+  if (!n) return '';
+  return `<button class="side-next" data-act="appt" data-id="${n.id}"><span class="eyebrow">Next · ${clock(n.start)}</span><b>${esc(CL[n.c].name)}</b><span>${svLabel(n.s)} · in ${dur(n.start - NOW)}</span></button>`;
 }
 // On the website each page (tab, Snapshot page, client) is a step in the browser's history, so swiping back works
 function navNote(){
   if (!CLOUD_ON) return;
-  const nav = {tab:S.tab, money:S.money, cl:S.cl || null, rec:!!S.clRec, view:S.tab === 'schedule' ? S.view || 'day' : null}, key = JSON.stringify(nav);
+  const nav = {tab:S.tab, money:S.money, cl:S.cl || null, rec:!!S.clRec, view:S.tab === 'schedule' ? sView() : null}, key = JSON.stringify(nav);
   if (key !== NAV_KEY) { if (NAV_KEY && !NAV_POP) history.pushState({nav}, ''); else history.replaceState({nav}, ''); NAV_KEY = key; }
   NAV_POP = false;
 }
@@ -1834,7 +2017,7 @@ function viewToday(){
   const wk = sumOf('week'), td = sumOf('today');
   return `
   ${P.fresh ? setupCard() : ''}${(() => { const o = [0,1,2,3,4,5,6,7].find(d => familyOn(d).length); if (o == null) return ''; const f = familyOn(o)[0];
-    return `<button class="heads" data-act="sday" data-v="${o}">${esc(f.what)}${f.who ? ` for ${esc(f.who)}` : ''} ${o === 0 ? 'today' : o === 1 ? 'tomorrow' : DOW[dateOf(o).getDay()]} · ${esc(f.why)}</button>`; })()}<section class="sec"><p class="lede">${ap.length ? `<b>${ap.length} ${ap.length === 1 ? W1 : WN} today.</b> ${left ? `${left} still to come. Your last one ends at ${clock(end)}.` : 'All done for the day.'}` : `<b>Nothing booked today.</b> ${Object.keys(CL).length ? 'Book someone, or block time for yourself.' : `Add your first ${W1} to get going.`}`}</p></section>
+    return `<button class="heads" data-act="sday" data-v="${o}">${esc(f.what)}${f.who ? ` for ${esc(f.who)}` : ''} ${o === 0 ? 'today' : o === 1 ? 'tomorrow' : DOW[dateOf(o).getDay()]} · ${esc(f.why)}</button>`; })()}<div class="dash"><div class="dash-a"><section class="sec"><p class="lede">${ap.length ? `<b>${ap.length} ${ap.length === 1 ? W1 : WN} today.</b> ${left ? `${left} still to come. Your last one ends at ${clock(end)}.` : 'All done for the day.'}` : `<b>Nothing booked today.</b> ${Object.keys(CL).length ? 'Book someone, or block time for yourself.' : `Add your first ${W1} to get going.`}`}</p></section>
   ${next ? `<section class="next" aria-label="Next ${W1}">${MOTIF}
     <p class="eyebrow">Next · ${clock(next.start)} · in ${dur(mins)}</p>
     <h2>${c.name}</h2>
@@ -1847,13 +2030,14 @@ function viewToday(){
   ${needs.join('')}
   <section class="sec" ${ap.length ? '' : 'hidden'}><div class="sec-h"><h2>Today’s ${WN}</h2><button class="chip" data-act="tab" data-v="schedule">Full schedule</button></div>
     <div class="list">${dayRows(0)}</div></section>
+  </div><div class="dash-b">
   ${todo.length ? `<section class="sec todo"><div class="sec-h"><h2>To do</h2><span class="aside">${todo.filter(x => !x.startsWith('<div')).length}</span></div><div class="list">${todo.join('')}</div></section>` : ''}
   <section class="glance">${glanceCard(td)}  </section>
   <section class="sec">
     <form class="ask" id="ask-form"><input id="ask-in" placeholder="Ask anything about your day…" autocomplete="off" aria-label="Ask a question"><button aria-label="Ask">${I.send}</button></form>
     <div class="chips">${askChips().map(q => `<button class="chip" data-act="ask" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
     ${S.answer ? `<div class="answer"><p class="q">${esc(S.answer.q)}</p><div class="a">${S.answer.a}</div></div>` : ''}
-  </section>`;
+  </section></div></div>`;
 }
 const pressureWord = p => ['Not known','Light','Light','Medium','Firm','Firm'][p];   // her intake form: Light, Medium, Firm
 const pressureLvl = p => [0,1,1,2,3,3][p];
@@ -1930,8 +2114,10 @@ function dayHoursSheet(off){
     ${!closed || h ? `<div class="btn-row">${closed ? '' : `<button class="btn" data-act="dh-closed" data-v="${off}">Closed this day</button>`}${h ? `<button class="btn" data-act="dh-usual" data-v="${off}">Back to usual hours</button>` : ''}</div>` : ''}
     <p class="small muted">Your usual hours are ${hrs(P.hours.open)} to ${hrs(P.hours.close)}, ${usualDays()}. For a break or time away, use Time off.</p>`);
 }
+// a phone opens the schedule on the day, a computer on the week
+const sView = () => S.view || (WIDE ? 'week' : 'day');
 function schedNav(v){
-  const view = S.view || 'day';
+  const view = sView();
   if (v === 0) S.day = 0;
   else if (view === 'day') S.day += v;
   else if (view === 'week') S.day = monOf(S.day) + 7 * v;
@@ -1943,16 +2129,17 @@ function histByDay(){ const h = {}; Object.values(VISITS).forEach(v => { if (v.f
 const oldOn = (hist, o, ap) => o < 0 ? (hist[isoDay(dateOf(o))] || []).filter(v => !ap.some(a => a.c === v.c)).sort((x, y) => (x.start || 0) - (y.start || 0)) : [];
 const histRow = v => `<button class="li" data-act="cl-open" data-c="${esc(v.c)}"><span class="t">${v.start != null ? clockS(v.start) : ''}<small>${SV[v.s] ? SV[v.s].min + ' min' : ''}</small></span><span class="who"><b>${esc(CL[v.c].name)}</b><span>${esc(v.svc || (SV[v.s] || {}).name || '')}${v.price ? ' · ' + money(v.price) : ''}</span></span>${I.chev}</button>`;
 function viewSchedule(){
-  const view = S.view || 'day', off = S.day, mon = monOf(off), d0 = dateOf(off), hist = histByDay();
+  const view = sView(), off = S.day, mon = monOf(off), d0 = dateOf(off), hist = histByDay();
   const wkTitle = o => { const a = dateOf(o), b = dateOf(o + 6); return `${MON[a.getMonth()].slice(0,3)} ${a.getDate()} – ${a.getMonth() === b.getMonth() ? '' : MON[b.getMonth()].slice(0,3) + ' '}${b.getDate()}`; };
   const title = view === 'day' ? (off === 0 ? 'Today' : off === 1 ? 'Tomorrow' : off === -1 ? 'Yesterday' : dayShort(off))
     : view === 'week' ? (mon === monOf(0) ? 'This week' : wkTitle(mon)) : `${MON[d0.getMonth()]}${d0.getFullYear() !== T0.getFullYear() ? ' ' + d0.getFullYear() : ''}`;
   const isNow = view === 'day' ? off === 0 : view === 'week' ? mon === monOf(0) : d0.getMonth() === T0.getMonth() && d0.getFullYear() === T0.getFullYear();
-  const body = view === 'week' ? weekView(mon, hist) : view === 'month' ? monthView(off, hist) : dayView(off, mon, hist);
-  return `
-  ${MULTI ? `<div class="seg" role="group" aria-label="Whose schedule" style="grid-template-columns:repeat(${P.team.length},1fr)">${P.team.map(t => `<button data-act="who" data-v="${t}" aria-pressed="${S.who===t}">${t}</button>`).join('')}</div>` : ''}
+  const body = view === 'week' ? (WIDE ? weekGrid(mon, hist) : weekView(mon, hist)) : view === 'month' ? monthView(off, hist) : dayView(off, mon, hist);
+  const bar = `${MULTI ? `<div class="seg" role="group" aria-label="Whose schedule" style="grid-template-columns:repeat(${P.team.length},1fr)">${P.team.map(t => `<button data-act="who" data-v="${t}" aria-pressed="${S.who===t}">${t}</button>`).join('')}</div>` : ''}
   <div class="seg" role="group" aria-label="Show">${[['day','Day'],['week','Week'],['month','Month']].map(([k, l]) => `<button data-act="sview" data-v="${k}" aria-pressed="${view === k}">${l}</button>`).join('')}</div>
-  <div class="week snav"><button class="iconbtn" data-act="snav" data-v="-1" ${off <= -400 ? 'disabled' : ''} aria-label="Back">${I.left}</button><b>${title}</b>${isNow ? '' : `<button class="chip sm" data-act="snav" data-v="0">Today</button>`}<button class="iconbtn" data-act="snav" data-v="1" ${off >= 400 ? 'disabled' : ''} aria-label="Forward">${I.right}</button></div>
+  <div class="week snav"><button class="iconbtn" data-act="snav" data-v="-1" ${off <= -400 ? 'disabled' : ''} aria-label="Back">${I.left}</button><b>${title}</b>${isNow ? '' : `<button class="chip sm" data-act="snav" data-v="0">Today</button>`}<button class="iconbtn" data-act="snav" data-v="1" ${off >= 400 ? 'disabled' : ''} aria-label="Forward">${I.right}</button></div>`;
+  if (WIDE) return `<div class="sched-bar">${bar}<button class="btn line sm" data-act="blockt">Time off</button></div>${body}`;
+  return `${bar}
   ${body}
   <section class="btn-row"><button class="btn primary" data-act="book">${I.plus}Book a ${W1}</button><button class="btn" data-act="blockt">Time off</button></section>`;
 }
@@ -1986,6 +2173,52 @@ function weekView(mon, hist){
   return `<section class="wk">${html}</section>
   <p class="small muted" style="text-align:center">${tn} ${tn === 1 ? P.unitOne : P.unit} · ${money(tv)}${tn ? ` · about ${money(tv - feeOf(tv, tn))} after fees` : ''}</p>`;
 }
+// the week on a computer: a column a day, each visit as long as it lasts, open time to click and book
+const WG_PPM = 1.1;   // pixels a minute
+function weekGrid(mon, hist){
+  const days = Array.from({length:7}, (_, i) => mon + i);
+  const cols = days.map(o => {
+    const ap = apptsFor(o), bl = BL.filter(b => b.off === o && (!MULTI || b.w === S.who)), old = oldOn(hist, o, ap);
+    const ev = [...ap.map(a => ({s:a.start, e:endOf(a), a})), ...bl.filter(b => !allDay(b)).map(b => ({s:b.start, e:b.start + b.min, b})),
+      ...old.filter(v => v.start != null).map(v => ({s:v.start, e:v.start + ((SV[v.s] || {}).min || 60), v}))].sort((x, y) => x.s - y.s || y.e - x.e);
+    // side by side when two things overlap (a Square booking on top of one made in Sole)
+    const end = []; ev.forEach(x => { let i = end.findIndex(t => t <= x.s); if (i < 0) { i = end.length; end.push(0); } end[i] = x.e; x.lane = i; });
+    ev.forEach(x => { x.n = Math.max(...ev.filter(z => z.s < x.e && z.e > x.s).map(z => z.lane)) + 1; });
+    return {o, ap, old, ev, allOff:bl.filter(allDay), n:ap.length + old.length, val:booked([o]).$ + old.reduce((t, v) => t + (v.price || 0), 0)};
+  });
+  let h0 = Infinity, h1 = -Infinity;
+  cols.forEach(c => { if (!isOff(c.o)) { h0 = Math.min(h0, openOf(c.o)); h1 = Math.max(h1, closeOf(c.o)); } c.ev.forEach(x => { h0 = Math.min(h0, x.s); h1 = Math.max(h1, x.e); }); });
+  if (h0 === Infinity) { h0 = P.hours.open; h1 = P.hours.close; }
+  h0 = Math.floor(h0 / 60) * 60; h1 = Math.ceil(h1 / 60) * 60;
+  const y = t => Math.round((t - h0) * WG_PPM), tn = cols.reduce((t, c) => t + c.n, 0), tv = cols.reduce((t, c) => t + c.val, 0);
+  const evHTML = x => {
+    const top = y(x.s), h = Math.max(y(x.e) - top - 3, 22), pos = `top:${top}px;height:${h}px;left:calc(${x.lane} * 100% / ${x.n} + 4px);width:calc(100% / ${x.n} - 8px)`, tight = h < 46 ? ' tight' : '';
+    if (x.a) { const a = x.a, c = CL[a.c], done = a.off < 0 || (a.off === 0 && endOf(a) <= NOW);
+      const st = noShow(a) ? ' noshow' : done ? (a.paid ? ' paid' : ' owed') : a.pending ? ' req' : !c.intake ? ' form' : c.isNew ? ' new' : '';
+      const tag = noShow(a) ? 'No-show' : done ? (a.paid ? 'Paid' : 'Not paid') : a.pending ? 'Request' : !c.intake ? 'Form missing' : c.isNew ? 'New' : '';
+      return `<button class="wg-ev${st}${tight}" data-act="appt" data-id="${a.id}" style="${pos}" title="${esc(c.name)} · ${clock(a.start)} · ${esc(SV[a.s].name)}${tag ? ' · ' + tag : ''}"><b>${esc(c.name)}</b><span>${clockS(a.start)} · ${esc(SV[a.s].name)}</span>${tag && !tight ? `<i>${tag}</i>` : ''}</button>`; }
+    if (x.b) return `<button class="wg-ev blk${tight}" data-act="block" data-id="${x.b.id}" style="${pos}"><b>${esc(x.b.label)}</b><span>${clockS(x.b.start)} · ${dur(x.b.min)}</span></button>`;
+    return `<button class="wg-ev old${tight}" data-act="cl-open" data-c="${esc(x.v.c)}" style="${pos}"><b>${esc(CL[x.v.c].name)}</b><span>${clockS(x.v.start)} · ${esc(x.v.svc || (SV[x.v.s] || {}).name || '')}</span></button>`;
+  };
+  const head = cols.map(c => { const d = dateOf(c.o), closed = isOff(c.o);
+    return `<button class="wg-day${c.o === 0 ? ' now' : ''}${closed && !c.n ? ' off' : ''}" data-act="sday" data-v="${c.o}" aria-label="${dayLong(c.o)}"><span class="wg-dw">${c.o === 0 ? 'Today' : DOW[d.getDay()].slice(0,3)}</span><span class="wg-dn">${d.getDate()}</span><span class="wg-sum">${closed && !c.n ? 'Closed' : c.n ? `${c.n} · ${money(c.val)}` : `${hrs(openOf(c.o))}–${hrs(closeOf(c.o))}`}</span></button>`; }).join('');
+  const tags = cols.some(c => dayTags(c.o) || c.allOff.length) ? `<div class="wg-tags"><span></span>${cols.map(c => `<span>${dayTags(c.o)}${c.allOff.map(b => `<button class="tag new" data-act="block" data-id="${b.id}">${esc(b.label)}</button>`).join('')}</span>`).join('')}</div>` : '';
+  const hours = []; for (let t = h0; t < h1; t += 60) hours.push(t);
+  const body = cols.map(c => { const closed = isOff(c.o);
+    const gaps = c.o >= 0 && !closed ? freeGaps(c.o, S.who).map(([a, b]) => `<button class="wg-gap" data-act="gap" data-off="${c.o}" data-t="${a}" data-a="${a}" data-b="${b}" style="top:${y(a)}px;height:${y(b) - y(a) - 3}px" aria-label="Book ${dayLong(c.o)} at ${clock(a)}"><span>${I.plus}Book ${clockS(a)}</span></button>`).join('') : '';
+    const now = c.o === 0 && NOW >= h0 && NOW <= h1 ? `<i class="wg-now" style="top:${y(NOW)}px"></i>` : '';
+    return `<div class="wg-col${closed ? ' closed' : ''}${c.o === 0 ? ' today' : ''}${c.o < 0 ? ' past' : ''}" style="--open:${closed ? 0 : y(openOf(c.o))}px;--close:${closed ? 0 : y(closeOf(c.o))}px">${gaps}${c.ev.map(evHTML).join('')}${now}${closed && !c.n ? `<button class="wg-closed" data-act="dayhours" data-v="${c.o}">Closed</button>` : ''}</div>`; }).join('');
+  return `<section class="wg" style="--hr:${60 * WG_PPM}px">
+    <div class="wg-head"><span></span>${head}</div>${tags}
+    <div class="wg-body" style="height:${y(h1)}px"><div class="wg-times">${hours.map(t => `<span style="top:${y(t)}px">${hrs(t)}</span>`).join('')}</div>${body}</div>
+  </section>
+  <p class="small muted" style="text-align:center">${tn} ${tn === 1 ? P.unitOne : P.unit} · ${money(tv)}${tn ? ` · about ${money(tv - feeOf(tv, tn))} after fees` : ''}</p>`;
+}
+// on a computer each day of the month shows who's coming
+function moNames(o, ap, old, holi, fam){
+  const L = [...ap.map(a => ({t:a.start, c:a.c})), ...old.map(v => ({t:v.start || 0, c:v.c}))].sort((x, y) => x.t - y.t), nm = k => esc(CL[k].name.split(' ')[0]);
+  return `<span class="mo-list">${holi || fam.length ? `<em>${esc(holi || fam[0].what)}</em>` : ''}${L.slice(0, 3).map(x => `<i>${x.t ? `<small>${hrs(x.t)}</small> ` : ''}${nm(x.c)}</i>`).join('')}${L.length > 3 ? `<i class="more">+${L.length - 3} more</i>` : ''}</span>`;
+}
 function monthView(off, hist){
   const d = dateOf(off), first = off - (d.getDate() - 1), last = first + new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() - 1, cells = [];
   for (let o = monOf(first); o <= last || cells.length % 7; o++) cells.push(o);
@@ -1994,7 +2227,7 @@ function monthView(off, hist){
     const ap = apptsFor(o), old = oldOn(hist, o, ap), n = ap.length + old.length, inMo = o >= first && o <= last, bl = BL.some(b => b.off === o && (!MULTI || b.w === S.who));
     if (inMo) { tn += n; tv += booked([o]).$ + old.reduce((t, v) => t + (v.price || 0), 0); }
     const fam = familyOn(o), holi = holidayOn(o); if (inMo) { anyFam = anyFam || !!fam.length; anyHoli = anyHoli || !!holi; }
-    return `<button class="mo-c${inMo ? '' : ' out'}${o === 0 ? ' now' : ''}${isOff(o) && !n ? ' closed' : ''}${fam.length ? ' fam' : ''}${holi ? ' holi' : ''}" data-act="sday" data-v="${o}" aria-label="${dayLong(o)}${n ? `, ${n} booked` : ''}${fam.length ? `, ${fam[0].what} (${fam[0].why})` : ''}${holi ? ', ' + holi : ''}"><span class="mo-d">${dateOf(o).getDate()}</span>${n ? `<span class="mo-n${o < 0 ? ' past' : ''}">${n}</span>` : `<span class="mo-e${bl ? ' blk' : ''}"></span>`}</button>`; }).join('');
+    return `<button class="mo-c${inMo ? '' : ' out'}${o === 0 ? ' now' : ''}${isOff(o) && !n ? ' closed' : ''}${fam.length ? ' fam' : ''}${holi ? ' holi' : ''}" data-act="sday" data-v="${o}" aria-label="${dayLong(o)}${n ? `, ${n} booked` : ''}${fam.length ? `, ${fam[0].what} (${fam[0].why})` : ''}${holi ? ', ' + holi : ''}"><span class="mo-d">${dateOf(o).getDate()}</span>${WIDE ? moNames(o, ap, old, holi, fam) : n ? `<span class="mo-n${o < 0 ? ' past' : ''}">${n}</span>` : `<span class="mo-e${bl ? ' blk' : ''}"></span>`}</button>`; }).join('');
   return `<section class="sec"><div class="mo">${['M','T','W','T','F','S','S'].map(x => `<span class="mo-h">${x}</span>`).join('')}${html}</div>
     ${anyFam || anyHoli ? `<div class="mo-key">${anyFam ? `<span><i></i>${esc(FAMILY[0].what)}${FAMILY[0].who ? ` · ${esc(FAMILY[0].who)}` : ''}</span>` : ''}${anyHoli ? '<span><i class="h"></i>Holiday</span>' : ''}</div>` : ''}
     <p class="small muted" style="text-align:center;margin-top:10px">${tn} ${tn === 1 ? P.unitOne : P.unit} · ${money(tv)}${tn ? ` · about ${money(tv - feeOf(tv, tn))} after fees` : ''}</p></section>`;
@@ -2080,7 +2313,7 @@ function viewSnap(){
   tiles.push({wide:true, go:'data-act="snapgo" data-sec="y-costs"', h:`<span class="k">${I.wallet}Where it goes · ${P.costsYear}</span><span class="s">${COSTS[0].n} is <b>${Math.round(COSTS[0].v/COST_TOTAL*100)}%</b> of your costs.</span>${costRows()}`});
   return `
   <p class="lede"><b>${SO_FAR} ${P.unit}</b> this year. On pace for about ${PROJ}${RECORD ? ', your best year yet' : ''}.</p>
-  <section class="snap-hero">${MOTIF}
+  ${WIDE ? '<div class="cols2"><div class="col">' : ''}<section class="snap-hero">${MOTIF}
     <button class="snap-go" data-act="snapgo" data-sec="y-proj">
       <span class="snap-k">${I.trend}Your year · through ${MON[DONE-1]}</span>
       <span class="snap-big">${SO_FAR}<small>${P.unit}</small></span>
@@ -2095,8 +2328,8 @@ function viewSnap(){
     </div>
   </section>
   ${SQX ? squareCard() : ''}
-  ${moneyCard()}
-  ${clientsCard()}
+  ${WIDE ? '</div><div class="col">' : ''}${moneyCard()}
+  ${clientsCard()}${WIDE ? '</div></div>' : ''}
   <p class="eyebrow" style="margin:0">Dig in</p>
   <section class="bento">${tiles.map(t => `<button class="tile ${t.wide?'wide':''} ${t.cls||''}" ${t.go}>${t.h}</button>`).join('')}</section>
   <p class="small muted">${P.source}</p>`;
@@ -2466,7 +2699,7 @@ function viewForms(){
   return `
   <p class="lede">Everything ${WN} fill in and everything you keep on file, in one place.</p>
   ${waiting.length ? `<section class="sec"><div class="sec-h"><h2>Waiting on</h2></div>${waiting.map(a => `<div class="need"><div><p>${CL[a.c].name}</p><p class="small muted">${cap(P.intakeName)} · first visit ${dayName(a.off)} at ${clock(a.start)}</p></div><button class="btn" data-act="fillfor" data-c="${a.c}">Fill in now</button></div>`).join('')}</section>` : ''}
-  <section class="sec"><div class="sec-h"><h2>Your forms</h2><span class="aside">${FORMS.length}</span></div>
+  <section class="sec forms-sec"><div class="sec-h"><h2>Your forms</h2><span class="aside">${FORMS.length}</span></div>
   ${FORMS.map((f,i) => `<article class="form">
     <div class="form-h"><span class="doc">${I.forms}</span><div><h3>${f.name}</h3><p>${f.kind} · ${f.about}</p></div></div>
     ${f.lines ? `<div class="callout">${f.lines.map(l => `<span>${l}</span>`).join('')}</div>` : ''}
@@ -2698,19 +2931,22 @@ const clKeys = () => Object.keys(CL).filter(k => !CL[k].anon && k !== 'sq:none')
 const avTint = k => ['', ' t1', ' t2'][CL[k].name.charCodeAt(0) % 3];
 function viewClientsTab(){
   if (S.clRec) return recordsPage();
-  if (S.cl && CL[S.cl]) return clientPage(S.cl);
+  if (S.cl && CL[S.cl] && !WIDE) return clientPage(S.cl);
   const ks = clKeys(), fl = Object.fromEntries(ks.map(k => [k, clFlags(k)])), count = f => f === 'all' ? ks.length : ks.filter(k => fl[k][f]).length, f = S.clf || 'all';
-  return `
-  <section class="cl-stats">
+  const stats = `<section class="cl-stats">
     <button data-act="cl-f" data-v="all" aria-pressed="${f === 'all'}"><b>${ks.length}</b><small>${WN}</small></button>
     <button data-act="cl-f" data-v="soon" aria-pressed="${f === 'soon'}"><b>${count('soon')}</b><small>booked ahead</small></button>
     <button data-act="cl-f" data-v="due" aria-pressed="${f === 'due'}"><b>${count('due')}</b><small>due back</small></button>
   </section>
-  ${(() => { const r = recordsOf(); return r.notes ? `<button class="heads rec" data-act="cl-rec">${r.notes} ${visitForm().title.replace(/s$/, '')}${r.notes === 1 ? '' : 's'} on file for ${r.people.length} ${r.people.length === 1 ? W1 : WN} · Records</button>` : ''; })()}
-  <input class="search" id="clt-search" type="search" placeholder="Find a ${W1}" value="${esc(S.clq || '')}" autocomplete="off" aria-label="Find a ${W1}">
+  ${(() => { const r = recordsOf(); return r.notes ? `<button class="heads rec" data-act="cl-rec">${r.notes} ${visitForm().title.replace(/s$/, '')}${r.notes === 1 ? '' : 's'} on file for ${r.people.length} ${r.people.length === 1 ? W1 : WN} · Records</button>` : ''; })()}`;
+  const list = `<input class="search" id="clt-search" type="search" placeholder="Find a ${W1}" value="${esc(S.clq || '')}" autocomplete="off" aria-label="Find a ${W1}">
   <div class="chips cl-chips">${CL_FILTERS.filter(([x]) => x === 'all' || count(x) || x === f).map(([x, l]) => `<button class="chip" data-act="cl-f" data-v="${x}" aria-pressed="${f === x}">${l}<span>${count(x)}</span></button>`).join('')}</div>
   <div id="clt-list" style="display:flex;flex-direction:column;gap:16px">${clientTabRows()}</div>
   <button class="btn line" data-act="addc">${I.plus}Add a ${W1}</button>`;
+  // on a computer the list stays on the left and the person opens beside it
+  if (WIDE) return `<div class="split"><div class="split-l">${list}</div><div class="split-r">${S.cl && CL[S.cl] ? clientPage(S.cl)
+    : `${stats}<div class="split-hint">${MOTIF}<b>Pick someone on the left</b><span>Their notes, every visit, what they’ve spent and their forms open here.</span></div>`}</div></div>`;
+  return stats + list;
 }
 function clientTabRows(){
   const q = (S.clq || '').trim().toLowerCase(), f = S.clf || 'all';
@@ -2719,7 +2955,7 @@ function clientTabRows(){
   if (!ks.length) return `<p class="muted cl-empty">${q ? `No ${W1} named “${esc(S.clq)}”.` : `No ${WN} here right now.`}</p>`;
   const groups = {}; ks.forEach(k => { const L = /[a-z]/i.test(CL[k].name[0]) ? CL[k].name[0].toUpperCase() : '#'; (groups[L] = groups[L] || []).push(k); });
   return Object.entries(groups).map(([L, g]) => `<div class="cl-group"><span class="cl-letter">${L}</span><div class="list">${g.map(k => { const n = nextAppt(k), x = clFlags(k);
-    return `<button class="li client" data-act="cl-open" data-c="${esc(k)}"><span class="av${avTint(k)}">${esc(initials(k))}</span><span class="who"><b>${esc(CL[k].name)}</b><span>${n ? 'Next: ' + whenText(n) : CL[k].last != null ? 'Last in ' + lastText(k).toLowerCase() : CL[k].from && CL[k].since ? `${cap(W1)} since ${CL[k].since}` : 'Not in yet'}</span></span>
+    return `<button class="li client" data-act="cl-open" data-c="${esc(k)}"${S.cl === k ? ' aria-current="true"' : ''}><span class="av${avTint(k)}">${esc(initials(k))}</span><span class="who"><b>${esc(CL[k].name)}</b><span>${n ? 'Next: ' + whenText(n) : CL[k].last != null ? 'Last in ' + lastText(k).toLowerCase() : CL[k].from && CL[k].since ? `${cap(W1)} since ${CL[k].since}` : 'Not in yet'}</span></span>
       <span class="cl-marks">${x.flags ? '<i class="mk bad" title="Health notes">!</i>' : ''}${x.form ? `<i class="mk warn" title="${esc(cap(P.intakeName))} not filled in">${I.forms.replace('<svg', '<svg width="13" height="13"')}</i>` : ''}${I.chev}</span></button>`; }).join('')}</div></div>`).join('');
 }
 // every visit with this person, newest first: appointments, plus notes from visits outside the schedule's reach
@@ -3391,7 +3627,8 @@ on('click', e => {
     case 'req-other': openBook({c:REQ.c, s:REQ.s, off:REQ.off, fromReq:true, w:REQ.w}); break;
     case 'week': S.week += +v; S.day = S.week * 7; render(); break;
     case 'day': S.day = +v; render(); break;
-    case 'gap': openBook({off:+el.dataset.off, start:+el.dataset.t, w:S.who}); break;
+    case 'gap': { const off = +el.dataset.off, t = +el.dataset.t, st = validStarts(off, SV[Object.keys(SV)[0]].min, TURN, undefined, S.who);
+      openBook({off, start:st.includes(t) || !el.dataset.a ? t : st.filter(x => x <= t).pop() ?? +el.dataset.a, w:S.who}); break; }
     case 'who': S.who = v; render(); break;
     case 'b-w': B.w = v; fixStart(); rerenderBook(); break;
     case 'formview': { const f = FORMS[+el.dataset.i];
@@ -3566,6 +3803,12 @@ on('submit', e => {
   if (e.target.id === 'ask-form') { e.preventDefault(); const q = $('#ask-in').value.trim(); if (q) ask(q); }
 });
 on('keydown', e => { if (e.key === 'Escape' && $('#layer').innerHTML) closeSheet(); });
+on('keydown', e => { if (!WIDE || S.tab !== 'schedule' || $('#layer').innerHTML || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); schedNav(e.key === 'ArrowLeft' ? -1 : 1); } else if (e.key === 't') schedNav(0); });
+on('mousemove', e => { const g = e.target.closest && e.target.closest('.wg-gap'); if (!g) return;
+  const a = +g.dataset.a, b = +g.dataset.b, t = Math.max(a, Math.min(b - 15, a + Math.floor((e.clientY - g.getBoundingClientRect().top) / WG_PPM / 15) * 15));
+  if (+g.dataset.t !== t) { g.dataset.t = t; g.style.setProperty('--gy', (t - a) * WG_PPM + 'px'); g.querySelector('span').lastChild.textContent = 'Book ' + clockS(t); } });
+WIDE_MQ.addEventListener('change', e => { WIDE = e.matches; render(); }, {signal:CTL.signal});
 
 { let sx = null; const opt = {signal:CTL.signal, passive:true};
   document.addEventListener('touchstart', e => { sx = S.tab === 'schedule' && !$('#layer .sheet') && e.touches.length === 1 && e.touches[0].clientX > 32 ? {x:e.touches[0].clientX, y:e.touches[0].clientY} : null; }, opt);
