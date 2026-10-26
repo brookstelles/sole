@@ -720,7 +720,7 @@ const PROFILES = {
   massage: {
     trade:'Massage therapist', short:'Massage', biz:'Heart and Soul Massage', look:'seaglass', owner:'Kelli', team:['Kelli'], now:640,
     unit:'massages', unitOne:'massage', firstVisit:'first massage', treat:'birthday massage', intakeName:'intake form',
-    reviewOn:'MassageBook', booking:'MassageBook and Square', real:true,
+    reviewOn:'Google', booking:'MassageBook and Square', real:true,
     source:'Massage counts come from your Heart and Soul spreadsheets, visits from MassageBook and Sole, and card payments from Square.',
     hours:{open:540, close:1020, turn:15, closed:[0,6]},
     services:{
@@ -1519,8 +1519,8 @@ if (LIVEBOOK) {
   // Square has no name for most cards: each one belongs to the client who had a visit the days it paid (by price,
   // then time, when several did). The owner's own answers in people/merges come first (`c`: whose card, null for nobody's).
   const all = SQ.all ? SQ.all.filter(p => p.status === 'COMPLETED').map(payOf) : pays, onDay = {};
-  Object.values(VISITS).forEach(v => { if (v.date && v.c && CL[v.c]) (onDay[v.date] = onDay[v.date] || []).push({c:v.c, price:v.price || 0, start:v.start || 0}); });
-  SOLE.appts.forEach(x => { if (CL[x.c] && SV[x.s]) (onDay[x.date] = onDay[x.date] || []).push({c:x.c, price:SV[x.s].price, start:x.start}); });
+  Object.values(VISITS).forEach(v => { if (v.from && v.date && v.c && CL[v.c]) (onDay[v.date] = onDay[v.date] || []).push({c:v.c, price:v.price || 0, start:v.start || 0}); });
+  AP.forEach(a => { if (a.off <= 0 && SV[a.s]) { const d = isoDay(dateOf(a.off)); (onDay[d] = onDay[d] || []).push({c:a.c, price:SV[a.s].price, start:a.start}); } });
   const guess = {}, payBy = {}; all.forEach(p => { if (p.cust) (payBy[p.cust] = payBy[p.cust] || []).push(p); });
   Object.entries(payBy).forEach(([id, ps]) => { if (CL['sq:' + id]) return; const votes = {};
     ps.forEach(p => { let L = onDay[p.day] || []; const near = v => Math.abs(p.at - v.start - 75);
@@ -1835,6 +1835,7 @@ function viewToday(){
     <div class="list">${dayRows(0)}</div></section>
   ${mondayCard()}
   ${remindCard()}
+  ${thanksCard()}
   <section class="glance">${glanceCard(td)}  </section>`;
 }
 const pressureWord = p => ['Not known','Light','Light','Medium','Firm','Firm'][p];   // her intake form: Light, Medium, Firm
@@ -2131,6 +2132,17 @@ function glanceCard(td){
     <div class="seg gl-seg" role="group" aria-label="Money for">${GLANCE.map(([k, l]) => `<button data-act="glance" data-v="${k}" aria-pressed="${g === k}">${l}</button>`).join('')}</div>
     <button class="mt-body" ${act}><span class="mt-row">${half(L)}${half(R)}</span>
       <span class="mt-bar" aria-hidden="true"><i style="width:${Math.min(100, pct * 100).toFixed(0)}%"></i></span>${note ? `<span class="small muted">${note}</span>` : ''}</button></div>`;
+}
+// the day after: a thank-you text to each person who came in (with the review link when there is one). Off with P.thanks false.
+function thanksCard(){
+  if (P.thanks === false) return '';
+  const o = [-1, -2, -3].find(d => !isOff(d) && apptsOn(d).some(a => !noShow(a))); if (o == null) return '';
+  const st = a => VISITS[visitKey(a)] || {}, L = apptsOn(o).filter(a => !noShow(a) && !st(a).noshow && String(CL[a.c].phone || '').replace(/[^0-9+]/g, '').length >= 10).sort((x, y) => x.start - y.start);
+  const left = L.filter(a => !st(a).thanked); if (!left.length) return '';
+  return `<section class="sec"><div class="sec-h"><h2>Say thanks</h2><span class="aside">${left.length} from ${o === -1 ? 'yesterday' : DOW[dateOf(o).getDay()]}</span></div>
+    <div class="list">${left.map(a => `<div class="li rm"><button class="who" data-act="appt" data-id="${a.id}"><b>${esc(CL[a.c].name)}</b><span>${clock(a.start)} · ${esc(SV[a.s].name)}</span></button>
+      <a class="btn sm primary" href="sms:${String(CL[a.c].phone).replace(/[^0-9+]/g, '')}&body=${encodeURIComponent(messageFor(a.c, 'thanks', a))}" target="_top" data-act="ty-sent" data-id="${a.id}">Text</a></div>`).join('')}</div>
+    <p class="small muted">${P.reviewUrl ? 'A thank-you with your review link.' : 'A short thank-you.'} Tap Text, hit send. <button class="linkish" data-act="ty-skip" data-v="${o}">Skip these</button></p></section>`;
 }
 // Mondays: how last week went and what this week holds, in one look
 function mondayCard(){
@@ -2815,7 +2827,9 @@ function messageFor(k, kind){
   if (kind === 'lapsed') return `Hi ${f}! It’s been a little while and I’d love to see you. I have ${offer} open. Want one of them?`;
   if (kind === 'bday') return `Happy birthday, ${f}! I hope it’s a great one. If you’d like a ${P.treat} this month, I’ll take $15 off.`;
   if (kind === 'gift') return `Hi ${f}! Just a reminder that you have a ${money(CL[k].gift)} gift card with me. I have ${offer} open if you’d like to use it.`;
-  if (kind === 'review') return `Hi ${f}, thank you for coming in today! If you have a minute, a short review on ${P.reviewOn} really helps a small business like mine: [review link]`;
+  if (kind === 'review') return `Hi ${f}, thank you for coming in today! If you have a minute, a short review on ${P.reviewOn} really helps a small business like mine: ${P.reviewUrl || '[review link]'}`;
+  if (kind === 'thanks') { const a = arguments[2], when = !a ? 'in' : a.off === -1 ? 'in yesterday' : `in on ${DOW[dateOf(a.off).getDay()]}`;
+    return `Hi ${f}! Thank you for coming ${when}. ${P.reviewUrl ? `If you have a minute, a quick review would mean the world to me: ${P.reviewUrl}` : 'It was so good to see you.'} ${P.owner}`; }
   if (kind === 'confirm' || kind === 'remind' || kind === 'moved') { const a = arguments[2] || nextAppt(k), when = a ? `${dayName(a.off)}${a.off > 6 ? ', ' + dayShort(a.off).slice(4) : ''} at ${clock(a.start)}` : 'soon';
     return kind === 'confirm' ? `Hi ${f}! You’re booked for ${a ? svLabel(a.s) : P.unitOne} ${when}. See you then! ${P.owner}, ${P.biz}`
       : kind === 'moved' ? `Hi ${f}, your ${P.unitOne} is now ${when}. See you then! ${P.owner}`
@@ -3337,6 +3351,8 @@ on('click', e => {
     case 'dh-usual': { const o = +v; delete DAYS[isoDay(dateOf(o))]; closeSheet(); render(); toast(`${cap(dayName(o))}: back to your usual hours.`); break; }
     case 'sview': S.view = v; render(); window.scrollTo(0, 0); break;
     case 'glance': S.glance = v; render(); break;
+    case 'ty-sent': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), thanked:new Date().toISOString()}; setTimeout(render, 400); } break; }
+    case 'ty-skip': apptsOn(+v).forEach(a => { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), thanked:'skipped'}; }); render(); break;
     case 'rm-sent': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), c:a.c, date:isoDay(dateOf(a.off)), reminded:new Date().toISOString()}; setTimeout(render, 400); } break; }
     case 'rm-ok': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), confirmed:new Date().toISOString()}; render(); toast(`${first(a.c)} is confirmed.`); } break; }
     case 'mon-ok': lsSet('sole-monday', isoDay(T0)); render(); break;
