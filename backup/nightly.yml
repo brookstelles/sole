@@ -1,10 +1,12 @@
-# Nightly backup of the book in Sole. Lives in the private backup repository as .github/workflows/nightly.yml,
-# with backup/write.py as write.py. Secret: SOLE_BACKUP_KEY (the backup key; its SHA-256 is in the backup Edge Function).
+# Nightly backup of the book in Sole. Lives in the private repository brookstelles/heart-and-soul-backup as
+# .github/workflows/nightly.yml, with backup/write.py as write.py. No stored key: the job asks GitHub for an identity
+# token made for "sole-backup", and the backup Edge Function answers only this repository's main branch.
 name: Nightly backup
 on:
   schedule: [{cron: '30 6 * * *'}]   # about 2:30 am Eastern
   workflow_dispatch: {}
-permissions: {contents: write}
+  push: {branches: [main], paths: ['write.py', '.github/workflows/**']}   # and right away when the job itself changes
+permissions: {contents: write, id-token: write}
 jobs:
   backup:
     runs-on: ubuntu-latest
@@ -12,9 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Fetch the book
-        env: {KEY: '${{ secrets.SOLE_BACKUP_KEY }}'}
         run: |
-          curl -sf --retry 3 --retry-delay 20 -X POST -H "x-backup-key: $KEY" \
+          TOKEN=$(curl -sf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sole-backup" | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          curl -sf --retry 3 --retry-delay 20 -X POST -H "x-github-token: $TOKEN" \
             https://qfimqsqmxiqiydjexkfc.supabase.co/functions/v1/backup -o /tmp/book.json
       - name: Write the files
         run: python3 write.py /tmp/book.json .
