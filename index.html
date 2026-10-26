@@ -450,6 +450,8 @@ html[data-look="sole"][data-theme="dark"]{
 /* filling in forms */
 .sheet.fill{max-height:100%;height:100%;border-radius:0;gap:16px}
 body.form-only .tabbar{display:none}
+#offline-bar{position:fixed;inset:0 0 auto;z-index:60;padding:calc(env(safe-area-inset-top) + 6px) 16px 7px;background:var(--warm-soft);color:var(--warm);font-size:14px;line-height:1.35;text-align:center;box-shadow:var(--shadow)}
+body.offline .app{padding-top:34px}
 .form-page{padding-block:18px 40px;display:flex;flex-direction:column;gap:14px}
 .fill-top{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
 .fill-top b{display:block;font-weight:600}
@@ -3621,21 +3623,74 @@ function cloudDb(){
     id,
     async get(){
       if (col === 'square') { const sh = squareShape([...SQ_CACHE.pays.values()], SQ_CACHE.names); return id === 'summary' ? (SQ_CACHE.pays.size ? snap(id, sh.summary) : snap(id, null)) : snap(id, {list:sh.customers}); }
-      const { data, error } = await SB.from('items').select('data').eq('business_id', BIZ).eq('col', col).eq('id', id).maybeSingle(); if (error) throw error; return snap(id, data ? data.data : null); },
-    async set(data){ const { error } = await SB.from('items').upsert({business_id:BIZ, col, id, data, updated_at:new Date().toISOString()}); if (error) throw error; },
-    async delete(){ const { error } = await SB.from('items').delete().eq('business_id', BIZ).eq('col', col).eq('id', id); if (error) throw error; },
+      const { data, error } = await SB.from('items').select('data').eq('business_id', BIZ).eq('col', col).eq('id', id).maybeSingle(); if (error) throw error; keep(col, id, data ? data.data : null); return snap(id, data ? data.data : null); },
+    async set(data){ const { error } = await SB.from('items').upsert({business_id:BIZ, col, id, data, updated_at:new Date().toISOString()}); if (error) throw error; keep(col, id, data); },
+    async delete(){ const { error } = await SB.from('items').delete().eq('business_id', BIZ).eq('col', col).eq('id', id); if (error) throw error; keep(col, id, null); },
   });
+  const keep = (col, id, data) => { const m = BOOK_ROWS[col] = BOOK_ROWS[col] || {}; if (data == null) delete m[id]; else m[id] = data; bookSaveSoon(); };
   SB.channel('book-' + BIZ).on('postgres_changes', {event:'*', schema:'public', table:'items', filter:`business_id=eq.${BIZ}`}, ev => {
-    const row = ev.eventType === 'DELETE' ? ev.old : ev.new; (listeners[row.col] || []).forEach(fn => fn({docChanges:() => [{type:ev.eventType === 'DELETE' ? 'removed' : 'modified', doc:snap(row.id, ev.eventType === 'DELETE' ? null : row.data)}]}));
+    const row = ev.eventType === 'DELETE' ? ev.old : ev.new; if (row && row.col) keep(row.col, row.id, ev.eventType === 'DELETE' ? null : row.data); (listeners[row.col] || []).forEach(fn => fn({docChanges:() => [{type:ev.eventType === 'DELETE' ? 'removed' : 'modified', doc:snap(row.id, ev.eventType === 'DELETE' ? null : row.data)}]}));
   }).subscribe();
   return {
     doc:path => { const [col, id] = path.split('/'); return docRef(col, id); },
     collection:col => ({
       doc:id => docRef(col, id),
-      async get(){ if (!itemCols.includes(col)) return {docs:[]}; const rows = await loadAll(() => SB.from('items').select('id,data').eq('business_id', BIZ).eq('col', col)); return {docs:rows.map(r => snap(r.id, r.data))}; },
+      async get(){ if (!itemCols.includes(col)) return {docs:[]}; const rows = await loadAll(() => SB.from('items').select('id,data').eq('business_id', BIZ).eq('col', col));
+        BOOK_ROWS[col] = Object.fromEntries(rows.map(r => [r.id, r.data])); return {docs:rows.map(r => snap(r.id, r.data))}; },
       onSnapshot(next){ (listeners[col] = listeners[col] || []).push(next); return () => { listeners[col] = listeners[col].filter(f => f !== next); }; },
     }),
   };
+}
+/* ---------- no signal: the phone's own copy of the book ----------
+   After each load and as things change, the book (every row, the profile, card payments) is kept in this phone's
+   IndexedDB. With no signal Sole opens from it; changes made then wait in `pending` and are saved first thing once
+   the phone is back online (each one sets or deletes a whole document, so saving them late is safe). */
+let BOOK_ROWS = {}, OFFLINE = null, BOOK_T = null, BOOK_BIZ = null;
+const online = () => !window.__SOLE_OFFLINE && navigator.onLine !== false;   // tests: __SOLE_OFFLINE
+function idb(){ return new Promise((ok, no) => { const r = indexedDB.open('sole', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }); }
+async function idbGet(k){ try { const d = await idb(); return await new Promise(ok => { const r = d.transaction('kv').objectStore('kv').get(k); r.onsuccess = () => ok(r.result); r.onerror = () => ok(null); }); } catch (_) { return null; } }
+async function idbSet(k, v){ try { const d = await idb(); await new Promise(ok => { const t = d.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = t.onerror = () => ok(); }); } catch (_) {} }
+function bookSaveSoon(){ clearTimeout(BOOK_T); BOOK_T = setTimeout(bookSave, 2500); }
+async function bookSave(){
+  if (!BIZ || OFFLINE || !BOOK_BIZ) return;
+  await idbSet('book', {at:new Date().toISOString(), biz:BOOK_BIZ, rows:BOOK_ROWS, pays:SQ_CACHE ? [...SQ_CACHE.pays.values()] : [], names:SQ_CACHE ? SQ_CACHE.names : {}});
+}
+function offlineDb(c){
+  const snap = (id, data) => ({id, exists:data != null, data:() => data}), rows = c.rows;
+  const write = async (col, id, data) => { const m = rows[col] = rows[col] || {}; if (data == null) delete m[id]; else m[id] = data;
+    const q = (await idbGet('pending')) || []; q.push({col, id, data:data == null ? null : data}); await idbSet('pending', q); await idbSet('book', c); offlineBar(); };
+  const docRef = (col, id) => ({id,
+    async get(){ if (col === 'square') { const sh = squareShape([...SQ_CACHE.pays.values()], SQ_CACHE.names); return id === 'summary' ? (SQ_CACHE.pays.size ? snap(id, sh.summary) : snap(id, null)) : snap(id, {list:sh.customers}); }
+      return snap(id, (rows[col] || {})[id] ?? null); },
+    set:data => write(col, id, JSON.parse(JSON.stringify(data))), delete:() => write(col, id, null)});
+  return {doc:path => { const [col, id] = path.split('/'); return docRef(col, id); },
+    collection:col => ({doc:id => docRef(col, id), async get(){ return {docs:Object.entries(rows[col] || {}).map(([id, d]) => snap(id, d))}; }, onSnapshot(){ return () => {}; }})};
+}
+async function offlineBar(){
+  const q = (await idbGet('pending')) || [], at = new Date(OFFLINE.at), h = at.getHours();
+  let bar = document.getElementById('offline-bar'); if (!bar) { bar = document.createElement('div'); bar.id = 'offline-bar'; bar.setAttribute('role', 'status'); document.body.appendChild(bar); document.body.classList.add('offline'); }
+  bar.innerHTML = `<b>No signal.</b> Your book as of ${at.toDateString() === new Date().toDateString() ? '' : at.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ', '}${h % 12 || 12}:${String(at.getMinutes()).padStart(2,'0')} ${h >= 12 ? 'pm' : 'am'}.${q.length ? ` ${q.length} change${q.length === 1 ? '' : 's'} will save when you’re back.` : ''}`;
+}
+async function cloudOffline(c){
+  OFFLINE = c; BIZ = c.biz.id;
+  if (c.biz.data) PROFILES[c.biz.profile || 'massage'] = {...c.biz.data, cloud:CLOUD_CFG};
+  SQ_CACHE = {pays:new Map((c.pays || []).map(p => [p.id, p])), names:c.names || {}};
+  const db = offlineDb(c); window.claude = {use:name => Promise.resolve(name === 'db' ? db : null)};
+  await loadSquare(c.biz.profile || 'massage'); liveFromCache(); if (SQ) { SOLE_VER++; redrawLive(); }
+  offlineBar();
+  // back online: save what waited, then open the book fresh (once no sheet is open)
+  const back = setInterval(() => { if (online() && !document.querySelector('.sheet')) { clearInterval(back); location.reload(); } }, 4000);
+}
+// changes made with no signal, saved now in the order they were made
+async function savePending(){
+  const q = (await idbGet('pending')) || []; if (!q.length) return;
+  for (const x of q) {
+    const { error } = x.data == null ? await SB.from('items').delete().eq('business_id', BIZ).eq('col', x.col).eq('id', x.id)
+      : await SB.from('items').upsert({business_id:BIZ, col:x.col, id:x.id, data:x.data, updated_at:new Date().toISOString()});
+    if (error) throw error;
+  }
+  await idbSet('pending', []);
+  setTimeout(() => TOAST(`Back online. ${q.length} change${q.length === 1 ? '' : 's'} made with no signal ${q.length === 1 ? 'is' : 'are'} saved.`), 4500);
 }
 function cloudAssets(){
   return {async upload(file){ const ext = (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg'), path = `${BIZ}/${uidOf('r')}.${ext}`;
@@ -3652,9 +3707,11 @@ function liveFromCache(){
 }
 async function cloudGo(){
   cloudScreen('<p class="muted sky-wait">Opening your book…</p>');
-  const { data:biz } = await SB.from('businesses').select('id,name,profile,data').limit(1);
+  let biz = null; try { const r = await SB.from('businesses').select('id,name,profile,data').limit(1); if (r.error) throw r.error; biz = r.data; }
+  catch (_) { const c = await idbGet('book'); if (c) return cloudOffline(c); }
   if (!biz || !biz.length) { const { data:u } = await SB.auth.getUser(); cloudScreen(`${signInHTML('email', '', '')}`); $id('si-msg').textContent = `${(u && u.user && u.user.email) || 'This email'} isn’t on a business in Sole yet.`; askSignIn('email', '', `${(u && u.user && u.user.email) || 'That email'} isn’t on a business in Sole yet.`); return; }
-  BIZ = biz[0].id;
+  BIZ = biz[0].id; BOOK_BIZ = biz[0]; BOOK_ROWS = {};
+  try { await savePending(); } catch (_) { const c = await idbGet('book'); if (c && c.biz.id === BIZ) return cloudOffline(c); }
   // the website carries a made-up business; the real one (its numbers, services, forms) is read here, members only
   if (biz[0].data) PROFILES[biz[0].profile || 'massage'] = {...biz[0].data, cloud:CLOUD_CFG};
   cloudScreen(`<p class="sky-hello">${lsGet('sole-been') ? 'Welcome back' : 'Welcome'}</p><p class="sky-biz">${cloudEsc((biz[0].data && biz[0].data.biz) || biz[0].name)}</p><p class="muted sky-wait small">Opening your book…</p>`);
@@ -3664,6 +3721,7 @@ async function cloudGo(){
   introVeil();   // the book is drawn under the opening, which then hands over
   try { await loadSquare(biz[0].profile || 'massage'); } finally { introDone(); lsSet('sole-been', '1'); }
   liveFromCache(); if (SQ) { SOLE_VER++; redrawLive(); }
+  bookSave(); document.addEventListener('visibilitychange', () => { if (document.hidden) bookSave(); });
   // a card tapped in Square shows up the moment Square tells the server
   SB.channel('pays-' + BIZ).on('postgres_changes', {event:'*', schema:'public', table:'square_payments', filter:`business_id=eq.${BIZ}`}, ev => {
     if (!ev.new || !ev.new.data) return; SQ_CACHE.pays.set(ev.new.data.id, ev.new.data);
@@ -3671,7 +3729,7 @@ async function cloudGo(){
   }).subscribe();
   // catch up on anything Square sent while no one was looking (the first time, everything since 2022)
   SB.functions.invoke('square', {body:{business_id:BIZ, full:!SQ_CACHE.pays.size}}).then(async r => {
-    if (r && r.data && r.data.payments) { await loadSquareTables(); const sh = squareShape([...SQ_CACHE.pays.values()], SQ_CACHE.names); if (sh.customers.length || SQ_CACHE.pays.size) { SQ.summary = sh.summary; SQ.customers = sh.customers; liveFromCache(); SOLE_VER++; redrawLive(); } }
+    if (r && r.data && r.data.payments) { await loadSquareTables(); bookSaveSoon(); const sh = squareShape([...SQ_CACHE.pays.values()], SQ_CACHE.names); if (sh.customers.length || SQ_CACHE.pays.size) { SQ.summary = sh.summary; SQ.customers = sh.customers; liveFromCache(); SOLE_VER++; redrawLive(); } }
   }).catch(() => {});
 }
 async function sbMake(){
@@ -3698,7 +3756,9 @@ async function formLink(k){
 async function cloudStart(){
   INTRO_AT = Date.now();
   cloudScreen('<p class="muted sky-wait">Opening Sole…</p>');
-  await sbMake();
+  if ('serviceWorker' in navigator && !window.__SOLE_CLOUD_CLIENT) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if (!online()) { const c = await idbGet('book'); if (c) return cloudOffline(c); }
+  try { await sbMake(); } catch (e) { const c = await idbGet('book'); if (c) return cloudOffline(c); throw e; }
   const { data } = await SB.auth.getSession();
   if (data && data.session) return offerFace(cloudGo);
   await pkFetch('sign'); askSignIn();

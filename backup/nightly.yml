@@ -1,0 +1,26 @@
+# Nightly backup of the book in Sole. Lives in the private backup repository as .github/workflows/nightly.yml,
+# with backup/write.py as write.py. Secret: SOLE_BACKUP_KEY (the backup key; its SHA-256 is in the backup Edge Function).
+name: Nightly backup
+on:
+  schedule: [{cron: '30 6 * * *'}]   # about 2:30 am Eastern
+  workflow_dispatch: {}
+permissions: {contents: write}
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the book
+        env: {KEY: '${{ secrets.SOLE_BACKUP_KEY }}'}
+        run: |
+          curl -sf --retry 3 --retry-delay 20 -X POST -H "x-backup-key: $KEY" \
+            https://qfimqsqmxiqiydjexkfc.supabase.co/functions/v1/backup -o /tmp/book.json
+      - name: Write the files
+        run: python3 write.py /tmp/book.json .
+      - name: Save tonight's copy
+        run: |
+          git config user.name "Sole backup"; git config user.email "backup@sole.brookstelles.com"
+          git add -A
+          git diff --cached --quiet || git commit -qm "Backup $(TZ=America/New_York date '+%a %b %-d, %Y %-I:%M %p')"
+          git push

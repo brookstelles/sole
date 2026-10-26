@@ -62,6 +62,13 @@ Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`). T
 - Records on file (`recordsPage`, Clients tab): how many visit notes and forms each client has, without what's in them; `printRecord` and `printList` print through `#print` (on a phone, Print can save a PDF). Florida requires a client care record (64B7-23.009, s. 456.41); keep everything at least 7 years to be safe.
 - Each page (tab, Snapshot page, client) is a browser history step (`navNote`), so swiping back works in Safari; back with a sheet open closes the sheet. Opened from the home screen (`STANDALONE`), Sole adds swipe from the left edge to go back and pull down to reload.
 
+## Backups and no signal
+
+- No signal: `site/sw.js` keeps the app on the phone; the page keeps the book (every row, the profile, card payments) in IndexedDB (`bookSave`, `BOOK_ROWS`). With no signal Sole opens from it (`cloudOffline`, `offlineDb`) under a "No signal" bar; changes then wait in `pending` and `savePending()` saves them before the next load. Tests: `__SOLE_OFFLINE`.
+- Nightly, inside the database: `private.snapshot_books()` copies every business's book into `private.book_snapshots` (pg_cron, 06:00 UTC, kept 30 nights). Restore with SQL from the snapshot you pick.
+- Nightly, outside: the private repository `heart-and-soul-backup` runs `backup/nightly.yml` (as `.github/workflows/nightly.yml`) and `backup/write.py`: it fetches the `backup` Edge Function (verify_jwt off; the caller's key is checked against the SHA-256 in the function, the key is the repository's secret `SOLE_BACKUP_KEY`) and writes a readable schedule, clients, visits with SOAP notes, forms, money, card payments and `book.json`. Real client data lives only there, never in this repository.
+- One-time copy (Oct 26, 2026) in Drive: Business / Heart and Soul / Sole backup (CSV files).
+
 ## Digital forms
 
 - Every form can be filled in on the phone ("Fill in now"): fields come from `FIELDSETS` (`massage` is Kelli's intake form question for question, `tattoo`, `waiver`) or are built from a template's `sections` by `fieldsFor()`. Finger signature on a canvas, saved as a PNG.

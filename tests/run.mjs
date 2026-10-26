@@ -340,7 +340,25 @@ console.log('ok private Square views');
   check(await q.evaluate(() => document.querySelector('#sky-card .btn').id === 'si-face'), 'website: Face ID is the first choice once it is on');
   await q.click('#si-face'); await q.waitForSelector('.biz-name');
   check(/Cloud Test Massage/.test(await q.textContent('.biz-name')), 'website: Face ID signs in');
+  // no signal: the phone's own copy of the book opens; a change made then waits and is saved once back online
+  await q.waitForTimeout(500); await q.evaluate(() => new Promise(r => { document.dispatchEvent(new Event('visibilitychange')); setTimeout(r, 300); }));
+  const page = async (init) => { const x = await q.context().newPage(); x.on('pageerror', e => errs.push('site/index.html (offline): ' + e.message));
+    await x.addInitScript(`window.__SOLE_INTRO_MS = 0; ${init}\nnavigator.credentials.get = navigator.credentials.create = async () => ({id:'fake-pk', toJSON(){ return {id:'fake-pk'}; }});\nwindow.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
+    await x.route('https://sole.test/**', r => r.fulfill({contentType:'text/html', body:site})); await x.goto('https://sole.test/', {waitUntil:'networkidle'}); return x; };
   await q.close();
+  const off = await page('window.__SOLE_OFFLINE = true;');
+  await off.waitForSelector('#offline-bar', {timeout:5000}).catch(() => {});
+  check(/No signal/.test(await off.textContent('body')) && /Cloud Sample/.test(await off.textContent('main')), 'no signal: the book opens from the phone');
+  await off.click('.tab[data-v=clients]'); await off.click('[data-act=addc] >> nth=0'); await off.fill('#ac-name', 'Offline Person'); await off.click('[data-act=ac-save]'); await off.waitForTimeout(400);
+  check(/1 change will save/.test(await off.textContent('#offline-bar')), 'no signal: a change waits to be saved');
+  check(!(await wide(off)), 'no signal: fits the phone');
+  await off.close();
+  const on = await page('');
+  await on.waitForSelector('#si-face'); await on.click('#si-face'); await on.waitForSelector('.biz-name');
+  await on.waitForTimeout(300);
+  check(await on.evaluate(() => window.__FAKE.T.items.some(r => r.col === 'clients' && r.data && r.data.name.trim() === 'Offline Person')), 'back online: the change made with no signal is saved');
+  check(/Offline Person/.test(await (async () => { await on.click('.tab[data-v=clients]'); return on.textContent('main'); })()), 'back online: and shows in the book');
+  await on.close();
   console.log('ok website');
 }
 // the family's days and holidays show on the schedule
