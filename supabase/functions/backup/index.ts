@@ -1,5 +1,6 @@
-// The nightly backup (the private repository brookstelles/heart-and-soul-backup, job "Nightly backup") fetches every
-// business's book here: the profile, every item, card customers' names, card payments and the papers on file. No key is kept anywhere: the
+// The nightly backup (the private repository brookstelles/heart-and-soul-backup, job "Nightly backup") fetches Heart
+// and Soul's book here (no other business's; they are kept by the database's nightly snapshot): the profile, every
+// item, card customers' names, card payments and the papers on file. No key is kept anywhere: the
 // job sends the identity token GitHub signs for it, and only a token for that repository's main branch, made for
 // "sole-backup", is answered. Deploy with verify_jwt off.
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
@@ -32,9 +33,11 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return reply({ error: 'POST only' }, 405);
   if (!(await allowed(req.headers.get('x-github-token') ?? ''))) return reply({ error: 'no' }, 401);
   try {
-    const { data: bs, error } = await db.from('businesses').select('id,name,data'); if (error) throw error;
+    const { data: all_, error } = await db.from('businesses').select('id,name,data'); if (error) throw error;
+    // only Heart and Soul's book goes to its own backup repository; every other business is kept by the database's nightly snapshot
+    const bs = (all_ ?? []).filter((b: any) => b.data?.site?.slug === 'heart-and-soul');
     const out = [];
-    for (const b of bs ?? []) {
+    for (const b of bs) {
       const [items, customers, pays] = await Promise.all([all('items', 'col,id,data', b.id), all('square_customers', 'id,name', b.id), all('square_payments', 'id,created_at,status,customer_id,data', b.id)]);
       // papers on file (license, insurance...): the files themselves, so the backup has them too
       const papers: any[] = [];

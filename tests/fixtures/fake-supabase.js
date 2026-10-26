@@ -1,14 +1,20 @@
 // A stand-in for the Supabase client, enough for the website's sign-in, book and Square tables. Made-up data only.
 window.__SOLE_CLOUD_CLIENT = (() => {
   const seed = window.__FAKE_DB || {};
-  const T = {businesses:seed.businesses || [{id:'B1', name:'Test business', profile:'massage'}], items:seed.items || [], square_payments:seed.payments || [], square_customers:seed.customers || [], form_links:seed.form_links || []};
+  // __FAKE_KEEP: the data and who is signed in last across a reload (as the real server and browser would), for tests that reload
+  const KEEP = window.__FAKE_KEEP, kept = (() => { try { return KEEP ? JSON.parse(sessionStorage.getItem('__fake_T') || 'null') : null; } catch (_) { return null; } })();
+  const T = kept || {businesses:seed.businesses || [{id:'B1', name:'Test business', profile:'massage'}], items:seed.items || [], square_payments:seed.payments || [], square_customers:seed.customers || [], form_links:seed.form_links || [],
+    members:seed.members, invite_codes:seed.invite_codes || []};
   const KEYS = {items:['business_id', 'col', 'id'], square_payments:['business_id', 'id'], square_customers:['business_id', 'id'], form_links:['token']};
-  let session = null; const subs = [];
+  let session = KEEP ? JSON.parse(sessionStorage.getItem('__fake_s') || 'null') : null; const subs = [];
+  if (KEEP) addEventListener('beforeunload', () => { sessionStorage.setItem('__fake_T', JSON.stringify(T)); sessionStorage.setItem('__fake_s', JSON.stringify(session)); });
   window.__FAKE = {T, emit:(table, ev) => subs.filter(s => s.table === table).forEach(s => s.cb(ev)), invoked:[]};
   const query = table => {
     const filters = []; let mode = 'select', rows = null, one = false, lim = null, rng = null;
     const run = () => {
       let L = T[table].filter(r => filters.every(f => f(r)));
+      // members only see their own business (row level security), when the test says who the members are
+      if (table === 'businesses' && T.members) L = L.filter(b => session && T.members.some(m => m.business_id === b.id && m.email === session.user.email));
       if (mode === 'insert') { (Array.isArray(rows) ? rows : [rows]).forEach(row => T[table].push(JSON.parse(JSON.stringify(row)))); return {data:null, error:null}; }
       if (mode === 'upsert') { (Array.isArray(rows) ? rows : [rows]).forEach(row => { const k = KEYS[table], i = T[table].findIndex(r => k.every(x => r[x] === row[x])); if (i >= 0) T[table][i] = {...T[table][i], ...row}; else T[table].push(row); }); return {data:null, error:null}; }
       if (mode === 'delete') { T[table] = T[table].filter(r => !filters.every(f => f(r))); return {data:null, error:null}; }
@@ -20,6 +26,18 @@ window.__SOLE_CLOUD_CLIENT = (() => {
       maybeSingle:() => { one = true; return api; }, upsert:r => { mode = 'upsert'; rows = r; return api; }, insert:r => { mode = 'insert'; rows = r; return api; }, is:(k, v) => { filters.push(r => (r[k] ?? null) === v); return api; }, delete:() => { mode = 'delete'; return api; },
       then:(ok, no) => Promise.resolve(run()).then(ok, no)};
     return api;
+  };
+  // the signup Edge Function: an invite code, then a new business and its owner (see supabase/functions/signup)
+  const signup = ({action, code, profile, trade}) => {
+    const em = session && session.user.email; if (!em) return {data:{error:'sign in first'}};
+    if ((T.members || []).some(m => m.email === em)) return {data:{error:'already'}};
+    const inv = T.invite_codes.find(x => x.code === String(code || '').trim().toUpperCase() && x.uses < x.max_uses);
+    if (action === 'check') return {data:inv ? {ok:true} : {error:'bad code'}};
+    if (!inv || !profile || !profile.biz || JSON.stringify(profile).includes('<')) return {data:{error:inv ? 'bad profile' : 'bad code'}};
+    inv.uses++; const id = 'B' + (T.businesses.length + 1);
+    T.businesses.push({id, name:profile.biz, profile:trade, data:{...profile, real:true, fresh:true, custom:true}});
+    (T.members = T.members || []).push({business_id:id, email:em, role:'owner'});
+    return {data:{ok:true, business_id:id}};
   };
   // the intake Edge Function: a client filling in a texted form (see supabase/functions/intake)
   const intake = ({token, action, answers, sig, biz}) => {
@@ -52,6 +70,6 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     from:query,
     channel:() => { const ch = {on:(type, opts, cb) => { subs.push({table:opts.table, cb}); return ch; }, subscribe:() => ch}; return ch; },
     storage:{from:() => ({upload:async () => ({error:null}), createSignedUrl:async () => ({data:{signedUrl:'data:,'}})})},
-    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'intake' ? intake(o.body) : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
+    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'intake' ? intake(o.body) : name === 'signup' ? signup(o.body) : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
   };
 })();

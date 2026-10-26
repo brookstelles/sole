@@ -32,7 +32,9 @@ async function savePayments(business_id: string, list: any[]) {
 async function sync(business_id: string, full: boolean) {
   const { data: seller, error: se } = await db.from('square_sellers').select('*').eq('business_id', business_id).maybeSingle();
   if (se) throw se;
-  if (!seller) { const me = await square('/merchants/me'); const { error } = await db.from('square_sellers').upsert({ business_id, merchant_id: me.merchant.id }); if (error) throw error; }
+  // a business with no Square linked has nothing to pull. (This function's token is one seller's own: linking it here
+  // would hand that seller's payments to whichever business asked first, so linking is only ever sellerOf's job.)
+  if (!seller) return { payments: 0, customers: 0, linked: false };
   const since = full || !seller?.synced_at ? '2022-01-01T00:00:00Z' : new Date(new Date(seller.synced_at).getTime() - 3 * 864e5).toISOString();
   let cursor = '', n = 0, pays: any[] = [];
   do {

@@ -511,6 +511,32 @@ console.log('ok private Square views');
     check(ys.length > 10 && ys.every((y, i) => !i || y <= ys[i - 1] + 0.5), 'opening: the sun rises once, without starting over');
     check([...cards].every(c => /Welcome back\s*Cloud Test Massage/.test(c)), 'opening: a returning phone says welcome back from the start');
     await o.close(); }
+  // a new business: someone signs in with an email that isn't on one, gives an invite code, goes through setup, and
+  // opens their own empty book; nobody else's business shows
+  { const n = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); n.on('pageerror', e => errs.push('new business: ' + e.message));
+    const nseed = {businesses:[seed.businesses[0]], members:[{business_id:'B1', email:'owner@example.com', role:'owner'}], invite_codes:[{code:'TEST-CODE-1', uses:0, max_uses:1}], items:[], payments:[], customers:[]};
+    await n.addInitScript(`window.__SOLE_INTRO_MS = 0; window.__FAKE_KEEP = true; localStorage.setItem('sole-face-later', String(Date.now()));\nwindow.__FAKE_DB = ${JSON.stringify(nseed)};\n${fake}`);
+    await n.route('https://sole.test/', r => r.fulfill({contentType:'text/html', body:site})); await n.goto('https://sole.test/', {waitUntil:'networkidle'});
+    await n.fill('#si-email', 'new@example.com'); await n.click('#si-form button'); await n.fill('#si-code', '123456'); await n.click('#si-form button');
+    await n.waitForSelector('#nb-code');
+    check(/Welcome to Sole/.test(await n.textContent('.signin')) && /new@example\.com/.test(await n.textContent('.signin')), 'new business: a new email is asked for an invite code');
+    await n.fill('#nb-code', 'NOPE'); await n.click('#nb-form button'); await n.waitForTimeout(200);
+    check(/isn’t right/.test(await n.textContent('#si-msg')), 'new business: a wrong code says so');
+    await n.fill('#nb-code', ' test-code-1 '); await n.click('#nb-form button'); await n.waitForSelector('.sheet.full');
+    check(/What does your business do\?/.test(await n.textContent('.sheet')) && !(await wide(n)), 'new business: setup fills the screen');
+    await n.click('.sheet [data-act=ob-trade][data-v=barber]'); await n.click('.sheet [data-act=ob-next]');
+    await n.fill('#ob-biz', 'Fade Street Barbers'); await n.fill('#ob-owner', 'Sam'); await n.click('.sheet [data-act=ob-next]');
+    await n.click('.sheet [data-act=ob-next]');   // no logo
+    check(/What you offer/.test(await n.textContent('.sheet')), 'new business: from the logo straight to services');
+    await n.fill('.sheet [id^=ob-price-] >> nth=0', '42');
+    await n.click('.sheet [data-act=ob-done]'); await n.waitForSelector('.biz-name', {timeout:8000});
+    const nb = await n.evaluate(() => window.__FAKE.T.businesses.find(x => x.name === 'Fade Street Barbers'));
+    check(nb && nb.profile === 'barber' && nb.data.real && nb.data.fresh && !nb.data.site, 'new business: made in the database as a real, new book');
+    check(await n.evaluate(id => window.__FAKE.T.members.some(m => m.business_id === id && m.email === 'new@example.com') && window.__FAKE.T.invite_codes[0].uses === 1, nb && nb.id), 'new business: its owner is the new email, and the code is used');
+    { const t = await n.evaluate(() => ['#hdr', '#main', '#tabs', '#layer'].map(q => document.querySelector(q).textContent).join(' ')); check(/Fade Street Barbers/.test(await n.textContent('.biz-name')) && /Get set up/.test(t) && !/sample data|Tidewater|Cloud Test Massage|Cloud Sample/.test(t), 'new business: opens its own empty book, nobody else’s'); }
+    await n.click('main [data-act=gs-svc]'); check(/\$42/.test(await n.textContent('.sheet')), 'new business: its prices from setup');
+    check(await n.evaluate(id => { const r = window.__FAKE.T.items.find(x => x.business_id === id && x.col === 'people' && x.id === 'prefs'); return !!(r && r.data.steps && r.data.steps.svc); }, nb && nb.id), 'new business: setup steps are saved with the business');
+    await n.close(); }
   console.log('ok website');
 }
 // the family's days and holidays show on the schedule

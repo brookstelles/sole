@@ -182,6 +182,10 @@ main{display:flex;flex-direction:column;gap:22px}
 .sky-card .sky-biz{font-family:var(--display);font-size:30px;font-weight:300;line-height:1.15;color:#fff;animation:sky-letter .9s .15s cubic-bezier(.2,.7,.2,1) both}
 /* the opening hands over to the book: the sun's glow floods the screen, then the scene fades away */
 .signin.veil{z-index:60}
+/* setting up a new business on the website: the setup screens fill the screen */
+.sheet.full{position:fixed;inset:0!important;left:0!important;transform:none!important;max-height:none!important;height:100%!important;width:100%!important;max-width:none!important;border-radius:0!important;margin:0;animation:fade .2s ease-out!important;padding-top:calc(16px + env(safe-area-inset-top,0px))}
+.sheet.full > .grab{display:none}
+.sheet.full .ob{max-width:560px;margin-inline:auto;width:100%}
 .signin.leaving{animation:sky-out 1.1s cubic-bezier(.4,0,.2,1) forwards;pointer-events:none}
 .signin.leaving .glow{animation:sky-burst 1.1s ease-in forwards}
 .signin.leaving .sun{animation:sky-up 1.1s ease-in forwards}
@@ -1497,7 +1501,8 @@ let CTL;
 const WIDE_MQ = window.matchMedia('(min-width: 700px) and (min-height: 500px)'); let WIDE = WIDE_MQ.matches;
 let SQ = null;    // Square payments and card customers, written into this page's database by the daily refresh
 let KEEP = null;   // the tab to return to when the page rebuilds itself
-let REOPEN = null;   // a sheet to put back after the page rebuilds itself ('services')
+let REOPEN = null;   // a sheet to put back after the page rebuilds itself ('services', 'setup')
+let NEW_CODE = null;   // website: the invite code of someone setting up a new business (the setup screens cover the page)
 let TOAST_T = null; const UNDO = {arm:null, snap:null};
 let OPEN_MSG = new URLSearchParams(location.search).get('msg');   // a tapped notification opens Sole on that message   // the message on screen and what Undo puts back: both outlive a rebuild
 // the real business's own book (appointments, time off, clients, payments and costs), one database document per item;
@@ -1849,7 +1854,7 @@ Object.entries(Object.values(VISITS).reduce((o, v) => { if (v.from && v.c && v.d
   c.old = {a:sum(vs), y:sum(vs.filter(v => v.date.startsWith(yk))), m:sum(vs.filter(v => v.date.startsWith(mk)))};
 });
 const ASKNAME = LIVEBOOK ? ((Object.values(CL).filter(c => c.sq && c.visits).sort((a, b) => b.visits - a.visits)[0] || {name:P.askName}).name.split(' ')[0]) : P.askName;
-const DONE_STEPS = ACC ? (ACC.steps = ACC.steps || {}) : {};
+const DONE_STEPS = ACC ? (ACC.steps = ACC.steps || {}) : P.real ? (PREFS.steps = PREFS.steps || {}) : {};
 const RESP = [...((ACC && ACC.state && ACC.state.responses) || []), ...(P.real && SQ && SQ.responses ? SQ.responses : [])];   // filled-in forms
 const NOTE_FIELDS = ['phone', 'email', 'address', 'born', 'from', 'pressure', 'focus', 'avoid', 'reason', 'health', 'setup', 'note', 'rows'];
 function saveState(){
@@ -2177,6 +2182,13 @@ const pressureWord = p => ['Not known','Light','Light','Medium','Firm','Firm'][p
 const pressureLvl = p => [0,1,1,2,3,3][p];
 /* the getting-started list a new business sees until it's done */
 function setupSteps(){
+  if (P.real) return [   // a new business on the website: its own book from day one
+    {done:Object.keys(CL).length > 0, t:`Add your first ${W1}`, s:'Name and phone. Notes can come later.', act:'addc'},
+    {done:AP.length > 0, t:`Book your first ${P.unitOne}`, s:'Pick who, what and when.', act:'book'},
+    {done:!!DONE_STEPS.svc, t:'Check your services and prices', s:'Add what you offer, change a length or a price.', act:'gs-svc'},
+    {done:!!DONE_STEPS.forms, t:`Check your ${P.intakeName}`, s:'Make sure it says what you need before you send it.', act:'checkforms'},
+    {done:PAPERS.length > 0, t:'Add your license', s:'A photo of it and when it renews. Sole reminds you before it’s due.', act:'pp-add', v:'License'},
+  ];
   return [
     {done:Object.keys(CL).length > 0, t:`Add your first ${W1}`, s:'Name and phone. Notes can come later.', act:'addc'},
     {done:AP.length > 0, t:`Book your first ${P.unitOne}`, s:'Pick who, what and when.', act:'book'},
@@ -2192,7 +2204,7 @@ function setupCard(){
   return `<section class="card sec getstarted"><div class="sec-h"><h2>Get set up</h2><span class="aside">${n} of ${st.length} done</span></div>
     <div class="gs-bar"><i style="width:${n / st.length * 100}%"></i></div>
     <div class="gs-list">${st.map(x => `<button class="gs ${x.done ? 'done' : ''}" data-act="${x.act}" ${x.v ? `data-v="${x.v}"` : ''} ${x.done ? 'disabled' : ''}><span class="gs-dot">${x.done ? I.check : ''}</span><span><b>${x.t}</b><span>${x.s}</span></span>${x.done ? '' : I.chev}</button>`).join('')}</div>
-    <button class="linkbtn" data-act="fillsample">Or fill ${esc(P.biz)} with sample data to look around</button></section>`;
+    ${P.real ? '' : `<button class="linkbtn" data-act="fillsample">Or fill ${esc(P.biz)} with sample data to look around</button>`}</section>`;
 }
 function rowsOf(c){
   if (c.rows) return [...c.rows.map(([l,v]) => ({l, v})), ...(c.avoid ? [{l:'Avoid', v:c.avoid, bad:true}] : [])];
@@ -2487,10 +2499,11 @@ function viewSnapFresh(){
     <button class="btn ${ks.length ? 'line' : 'primary'}" data-act="addc">${I.plus}Add ${ks.length ? `a ${W1}` : `your first ${W1}`}</button>
   </section>
   ${moneyCard()}
-  <section class="card sec"><div class="sec-h"><h2>Bring in your history</h2></div>
+  ${P.real ? `<section class="card sec"><div class="sec-h"><h2>Your year fills in as you go</h2></div>
+    <p class="muted">Each ${P.unitOne} you mark paid in Sole adds to your year, your busy and slow months, and what you kept. Connecting your own Square is coming soon.</p></section>` : `<section class="card sec"><div class="sec-h"><h2>Bring in your history</h2></div>
     <p class="muted">Connect Square, or upload a spreadsheet of past sales, and Sole fills in your year, your busy and slow months, and what you kept.</p>
     <div class="btn-row"><button class="btn primary" data-act="connect" data-v="square" ${DONE_STEPS.square ? 'disabled' : ''}>${DONE_STEPS.square ? 'Square connected' : 'Connect Square'}</button><button class="btn" data-act="fillsample">See it with sample data</button></div>
-  </section>
+  </section>`}
   <section class="bento">
     ${owe.length ? `<button class="tile attn" data-act="money" data-v="today"><span class="k">${I.money}Not paid</span><span class="big">${money(owe.reduce((s,a)=>s+prOf(a),0))}</span><span class="s">${owe.map(a => first(a.c)).join(', ')}</span></button>` : ''}
     <button class="tile" data-act="addcost"><span class="k">${I.wallet}Costs</span><span class="big">Add</span><span class="s">snap a receipt for rent, supplies or fuel</span></button>
@@ -3462,7 +3475,7 @@ function sheet(html, cls){
   $('#layer').innerHTML = `<div class="scrim" data-act="close"></div><div class="sheet ${cls || ''}" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
   const f = $('.sheet .close'); if (f) f.focus({preventScroll:true});
 }
-const closeSheet = () => { $('#layer').innerHTML = ''; if (ME_DIRTY) { ME_DIRTY = false; KEEP = {...S}; boot(KEY); return; } if (LIVEBOOK) setTimeout(redrawLive, 0); };   // a change that came in while a sheet was open shows now
+const closeSheet = () => { if (NEW_CODE) { location.reload(); return; } $('#layer').innerHTML = ''; if (ME_DIRTY) { ME_DIRTY = false; KEEP = {...S}; boot(KEY); return; } if (LIVEBOOK) setTimeout(redrawLive, 0); };   // a change that came in while a sheet was open shows now
 const top = (h, sub) => `<div class="sh-top"><div><h2>${h}</h2>${sub?`<p>${sub}</p>`:''}</div><button class="close" data-act="close">Done</button></div>`;
 
 function notesHTML(k){
@@ -3733,9 +3746,10 @@ function obRender(){
       <p class="small muted">Add more services, and connect your booking app and Square, from the app once you’re in.</p>
       ${nav('ob-done', `Open ${esc(OB.biz)}`)}`;
   const html = `<div class="ob">${OB.step ? `<div class="sh-top"><div class="brand" style="gap:8px">${SUNMARK.replace('<svg', '<svg style="width:26px;height:26px"')}<b style="font-size:22px">Sole</b></div><button class="close" data-act="close">Cancel</button></div>` : ''}${body}</div>`;
-  if ($('.sheet')) { $('.sheet').innerHTML = `<div class="grab"></div>${html}`; $('.sheet').scrollTop = 0; } else sheet(html);
+  if ($('.sheet')) { $('.sheet').innerHTML = `<div class="grab"></div>${html}`; $('.sheet').scrollTop = 0; } else sheet(html, OB.cloud ? 'full' : '');
 }
 function obFinish(){
+  if (OB.cloud) return obCloud();
   const id = 'acct-' + Date.now().toString(36);
   const docs = OB.docs.filter(d => d.kind !== 'Spreadsheet');
   ACCOUNTS[id] = {trade:OB.trade, what:OB.trade === 'other' ? OB.what.trim() : '', who:OB.trade === 'other' ? WHO_WORDS[OB.who] : null, unit:OB.trade === 'other' ? UNIT_WORDS[OB.unit] : null, names:OB.names, biz:OB.biz.trim(), owner:OB.owner.trim(), mate:OB.two ? OB.mate.trim() : '', logo:OB.logo, color:OB.color, prices:OB.prices,
@@ -3745,6 +3759,18 @@ function obFinish(){
   const sheets = OB.docs.length - docs.length, biz = OB.biz.trim();
   OB = null; closeSheet(); window.scrollTo(0,0); boot(id);
   setTimeout(() => toast(`${biz} is set up.${sheets ? ` In the real app, Sole reads your past sales from ${sheets === 1 ? 'that spreadsheet' : 'those spreadsheets'}.` : ''}`), 50);
+}
+async function obCloud(){
+  const id = 'acct-new', T = TRADES.find(t => t.id === OB.trade), go = $('[data-act=ob-done]');
+  ACCOUNTS[id] = {trade:OB.trade, what:OB.trade === 'other' ? OB.what.trim() : '', who:OB.trade === 'other' ? WHO_WORDS[OB.who] : null, unit:OB.trade === 'other' ? UNIT_WORDS[OB.unit] : null, names:OB.names, biz:OB.biz.trim(), owner:OB.owner.trim(), mate:OB.two ? OB.mate.trim() : '', logo:OB.logo, color:OB.color, prices:OB.prices, docs:[]};
+  let profile; try { profile = JSON.parse(JSON.stringify(makeProfile(id))); } finally { delete ACCOUNTS[id]; }
+  if (go) { go.disabled = true; go.textContent = 'Setting up…'; }
+  try {
+    const r = await SB.functions.invoke('signup', {body:{action:'create', code:NEW_CODE, trade:T.base, profile}}), d = (r && r.data) || {};
+    if (d.ok || d.error === 'already') { NEW_CODE = null; lsSet('sole-biz-name', profile.biz); lsSet('sole-been', ''); location.reload(); return; }
+    toast(d.error === 'bad code' ? 'That invite code has just been used up. Ask for another one.' : 'That didn’t go through. Try again in a minute.');
+  } catch (_) { toast('That didn’t go through. Check your signal and try again.'); }
+  if (go) { go.disabled = false; go.textContent = `Open ${OB.biz.trim()}`; }
 }
 function obLogo(file){
   if (!file) return;
@@ -4033,8 +4059,8 @@ on('click', e => {
       <button class="btn primary" data-act="ob-start">${I.plus}Set up a new business</button>`); break;
     case 'pick': if (v !== KEY) { closeSheet(); window.scrollTo(0,0); boot(v); } else closeSheet(); break;
     case 'ob-start': OB = {step:0, trade:null, what:'', who:0, unit:0, biz:'', owner:'', mate:'', two:false, logo:null, colors:[], color:null, docs:[], prices:{}, names:{}}; obRender(); break;
-    case 'ob-next': if (obOk()) { OB.step++; obRender(); } break;
-    case 'ob-back': OB.step = Math.max(0, OB.step - 1); obRender(); break;
+    case 'ob-next': if (obOk()) { OB.step++; if (OB.cloud && OB.step === 4) OB.step++; obRender(); } break;
+    case 'ob-back': OB.step = Math.max(OB.cloud ? 1 : 0, OB.step - 1); if (OB.cloud && OB.step === 4) OB.step--; obRender(); break;
     case 'ob-trade': OB.trade = v; OB.prices = {}; OB.names = {}; obRender(); break;
     case 'ob-who': OB.who = +v; obRender(); break;
     case 'ob-unit': OB.unit = +v; obRender(); break;
@@ -4094,7 +4120,8 @@ on('click', e => {
       ${sq ? '<button class="btn primary" data-act="connect-go" data-v="square">Connect Square</button>' : `<button class="btn line" data-act="connect-go" data-v="cal">I’ll book everything in Sole</button>`}
       <p class="small muted">This preview marks it as connected. In the real app you sign in to ${sq ? 'Square' : 'that app'} and your ${sq ? 'payments' : 'bookings'} come in.</p>`); break; }
     case 'connect-go': DONE_STEPS[v] = true; closeSheet(); render(); toast(v === 'square' ? 'Square connected.' : 'Calendar set.'); break;
-    case 'checkforms': DONE_STEPS.forms = true; S.tab = 'forms'; render(); window.scrollTo(0,0); break;
+    case 'checkforms': DONE_STEPS.forms = true; if (P.real) savePrefs(); S.tab = 'forms'; render(); window.scrollTo(0,0); break;
+    case 'gs-svc': DONE_STEPS.svc = true; savePrefs(); render(); sheet(servicesHTML()); break;
     case 'addlicense': sheet(`${top('Add your license', 'Sole reminds you three months before it renews.')}
       <div class="field"><span class="label">License</span><input class="text-in" id="lic-name" autocomplete="off" placeholder="State license, insurance or certification"></div>
       <div class="field"><span class="label">Renews</span><input class="text-in" id="lic-when" type="month"></div>
@@ -4237,6 +4264,7 @@ CLIENT_NAME = k => CL[k] ? CL[k].name.trim() : ''; TOAST = toast;
 RESP.forEach(r => applyResponse(r, true));
 render();
 if (REOPEN === 'services') { REOPEN = null; sheet(servicesHTML()); }
+if (REOPEN === 'setup') { REOPEN = null; OB = {step:1, trade:null, what:'', who:0, unit:0, biz:'', owner:'', mate:'', two:false, logo:null, colors:[], color:null, docs:[], prices:{}, names:{}, cloud:true}; obRender(); }
 if (OPEN_MSG && INBOX.some(m => m.id === OPEN_MSG)) { const id = OPEN_MSG; OPEN_MSG = null; try { history.replaceState(history.state, '', location.pathname); } catch (_) {} inboxSheet(id); }
 if (P.real && !SQ) loadSquare(KEY);
 if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.getItem('sole-seen'); } catch (_) {}
@@ -4505,11 +4533,33 @@ function liveFromCache(){
   SQ.all = [...SQ_CACHE.pays.values()];
   SQ.live = {payments:pays, from:isoDay(from), at:new Date(), sig:pays.length + ':' + pays.map(p => p.id + p.status + (p.updated_at || '')).join().length};
 }
+// signed in, but this email isn't on a business yet: with an invite code, Sole's setup screens make their own
+async function cloudNew(){
+  const { data:u } = await SB.auth.getUser(), em = (u && u.user && u.user.email) || '';
+  lsSet('sole-biz-name', '');
+  cloudScreen(`<p class="sky-big">Welcome to Sole</p><p class="muted">You’re signed in as <b>${cloudEsc(em)}</b>. Set up your business in a few minutes.</p>
+    <form id="nb-form"><input class="text-in" id="nb-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Invite code" aria-label="Invite code" required>
+      <button class="btn primary" style="width:100%">Set up my business</button></form>
+    <p class="small muted" id="si-msg" role="alert"></p>
+    <p class="small muted">Sole is by invitation for now. Your code came from whoever told you about it.</p>
+    <button class="btn line" id="nb-out" type="button">Use a different email</button>`);
+  $id('nb-out').onclick = async () => { try { await SB.auth.signOut(); } catch (_) {} location.reload(); };
+  $id('nb-form').onsubmit = async e => {
+    e.preventDefault(); const c = $id('nb-code').value.trim(), btn = e.target.querySelector('button'); if (!c) return;
+    btn.disabled = true; $id('si-msg').textContent = '';
+    try { const r = await SB.functions.invoke('signup', {body:{action:'check', code:c}}), d = (r && r.data) || {};
+      if (d.ok) { NEW_CODE = c; REOPEN = 'setup'; boot('massage'); return; }   // the setup screens cover the made-up business under them
+      if (d.error === 'already') { location.reload(); return; }
+      $id('si-msg').textContent = 'That code isn’t right, or it has been used. Check it and try again.';
+    } catch (_) { $id('si-msg').textContent = 'That didn’t go through. Check your signal and try again.'; }
+    btn.disabled = false;
+  };
+}
 async function cloudGo(){
   if (!lsGet('sole-biz-name')) cloudScreen('<p class="muted sky-wait">Opening your book…</p>');
   let biz = null; try { const r = await SB.from('businesses').select('id,name,profile,data').limit(1); if (r.error) throw r.error; biz = r.data; }
   catch (_) { const c = await idbGet('book'); if (c) return cloudOffline(c); }
-  if (!biz || !biz.length) { const { data:u } = await SB.auth.getUser(); cloudScreen(`${signInHTML('email', '', '')}`); $id('si-msg').textContent = `${(u && u.user && u.user.email) || 'This email'} isn’t on a business in Sole yet.`; askSignIn('email', '', `${(u && u.user && u.user.email) || 'That email'} isn’t on a business in Sole yet.`); return; }
+  if (!biz || !biz.length) return cloudNew();
   BIZ = biz[0].id; BOOK_BIZ = biz[0]; BOOK_ROWS = {};
   try { const { data:ss } = await SB.auth.getSession(); USER_EMAIL = ((ss && ss.session && ss.session.user && ss.session.user.email) || '').toLowerCase(); } catch (_) {}
   try { await savePending(); } catch (_) { const c = await idbGet('book'); if (c && c.biz.id === BIZ) return cloudOffline(c); }
