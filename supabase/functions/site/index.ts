@@ -1,6 +1,7 @@
-// What a business's public website shows, read live from Sole: its name, words, services and prices, usual hours,
-// address and contact, about, specialties and reviews (the profile's `site`), and where new clients fill in the intake
-// form. Never clients, the book or money. GET ?b=<site slug> (heart-and-soul). Deploy with verify_jwt off.
+// What a business's public website shows, read live from Sole: its name, words, services with prices and descriptions,
+// usual hours, address, about, specialties and reviews (the profile's `site`), and where new clients fill in the intake form.
+// Never a phone number or email (visitors send a message through intake instead), clients, the book or money.
+// GET ?b=<site slug> (heart-and-soul). Deploy with verify_jwt off.
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
@@ -20,11 +21,11 @@ Deno.serve(async (req) => {
   if (!p) return reply({ error: 'not found' }, 404);
   const s = p.site, h = p.hours || {}, closed: number[] = h.closed || [];
   const open = DAYS.map((d, i) => ({ day: d, open: !closed.includes(i), from: h.open != null ? clock(h.open) : null, to: h.close != null ? clock(h.close) : null }));
-  const services = Object.values(p.services || {}).map((v: any) => ({ name: v.name, minutes: v.min, price: v.price }));
+  const services = Object.values(p.services || {}).map((v: any) => ({ name: v.name, minutes: v.min, price: v.price, description: v.desc || '' }));
   return reply({
     business: p.biz, owner: p.owner, trade: p.trade || null, unit: p.unitOne || 'appointment',
     tagline: s.tagline || '', about: s.about || [], specialties: s.specialties || [], reviews: s.reviews || [],
-    address: s.address || '', phone: s.phone || '', email: s.email || '', hoursNote: s.hoursNote || '',
+    address: s.address || '', hoursNote: s.hoursNote || '',
     hours: open, services,
     intakeUrl: `https://app.solepro.app/?new=${encodeURIComponent(s.slug)}`,
     updated: new Date().toISOString(),
