@@ -248,8 +248,9 @@ main{display:flex;flex-direction:column;gap:22px}
 .glance .big{font-family:var(--display);font-size:30px;font-weight:400;font-variant-numeric:tabular-nums}
 /* today: what's in against what's booked */
 .glance .mt{grid-column:1 / -1;display:flex;flex-direction:column;gap:12px;background:var(--surface);border-radius:20px;box-shadow:var(--shadow);padding:10px 12px 14px}
-.gl-seg{grid-template-columns:repeat(4,1fr)}
-.gl-seg button{font-size:13.5px;min-height:38px;white-space:nowrap;padding:0 2px}
+.glance .gl-seg{grid-template-columns:repeat(4,1fr)}
+.glance .gl-seg button{font-size:13.5px;min-height:38px;white-space:nowrap;padding:0 2px;align-items:center;justify-content:center;text-align:center;box-shadow:none;border-radius:10px;background:transparent}
+.glance .gl-seg button[aria-pressed="true"]{background:var(--surface);box-shadow:var(--shadow)}
 .mt-body{border:0;background:transparent;display:flex;flex-direction:column;gap:10px;text-align:left;color:var(--ink);padding:0 4px}
 .mt-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%}
 .mt-row > span{display:flex;flex-direction:column;gap:2px;min-width:0}
