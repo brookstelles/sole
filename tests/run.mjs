@@ -19,9 +19,9 @@ async function open(file, init){
 }
 const wide = p => p.evaluate(() => document.documentElement.scrollWidth > 390);
 
-async function tour(p, label){
-  for (const k of ['massage','hair','barber','tattoo','landscape','tennis']) {
-    await p.click('[data-act=trade]'); await p.click(`[data-act=pick][data-v=${k}]`);
+async function tour(p, label, keys = ['massage','hair','barber','tattoo','landscape','tennis']){
+  for (const k of keys) {
+    if (keys.length > 1) { await p.click('[data-act=trade]'); await p.click(`[data-act=pick][data-v=${k}]`); }
     { const g = await p.textContent('.glance'); check(/Today so far/.test(g) && /Booked today/.test(g) && /This week\s*\$[\d,]+/.test(g) && /after .*fees/.test(g), `${label} ${k}: today in against booked, and the week`); }
     await p.click('[data-act=ask][data-q*="spent"]');
     await p.click('.tab[data-v=schedule]'); await p.click('[data-act=day] >> nth=2');
@@ -261,7 +261,9 @@ console.log('ok private Square views');
   await q.close();
   console.log('ok website');
 }
-await tour(p, 'private');
+// Kelli's app is only her business: no switcher, no sample businesses
+check(await p.locator('[data-act=trade]').count() === 0, 'private: no business switcher or sample businesses');
+await tour(p, 'private', ['massage']);
 
 // public demo: welcome first, no private business anywhere
 p = await open('dist/demo.html');
@@ -269,6 +271,35 @@ check(await p.locator('[data-act=welcome-look]').count() === 1, 'demo shows the 
 await p.click('[data-act=welcome-look]');
 check((await p.textContent('.biz-name')) === 'Tidewater Massage', 'demo opens on the sample massage business');
 await tour(p, 'demo');
+
+// time off: a vacation over days with clients booked, a weekly lunch, and removing a whole series
+{
+  await p.click('[data-act=trade]'); await p.click('[data-act=pick][data-v=massage]');
+  await p.click('.tab[data-v=schedule]'); await p.click('[data-act=blockt]');
+  await p.click('[data-act=b-l][data-v=Vacation]');
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`, a = new Date(), b = new Date();
+  a.setDate(a.getDate() + 1); b.setDate(b.getDate() + 10);
+  await p.fill('#b-from', iso(a)); await p.fill('#b-to', iso(b)); await p.fill('#b-name', 'Beach week');
+  check(/working days? off/.test(await p.textContent('.sheet')) && /booked then/.test(await p.textContent('.sheet')), 'time off: a vacation counts working days and shows who is booked then');
+  const go = await p.textContent('#book-go'); check(/Take \d+ days off/.test(go), 'time off: the button says how many days');
+  await p.click('#book-go'); await p.waitForTimeout(150);
+  check(/Beach week: \d+ days off/.test(await p.textContent('.toast')), 'time off: vacation saved');
+  await p.click('[data-act=day] >> nth=1');
+  check(/All day/.test(await p.textContent('main')) && /Beach week/.test(await p.textContent('main')), 'time off: the day shows the vacation all day');
+  await p.click('[data-act=block] >> nth=0');
+  check(/Remove all \d+/.test(await p.textContent('.sheet')), 'time off: a vacation can be removed in one go');
+  await p.click('[data-act=unblock-grp]');
+  check(await p.locator('[data-act=block]').count() === 0 || !/Beach week/.test(await p.textContent('main')), 'time off: removing the vacation frees the days');
+  await p.click('[data-act=blockt]'); await p.click('[data-act=b-l][data-v=Lunch]');
+  for (let i = 0; i < 5 && !(await p.locator('[data-act=b-t]').count()); i++) await p.click(`[data-act=b-d] >> nth=${i + 1}`);
+  await p.click('[data-act=b-t] >> nth=0'); await p.click('[data-act=b-rep]');
+  check(/^Every \w+day at/.test(await p.textContent('#book-go')), 'time off: a weekly lunch');
+  await p.click('#book-go'); await p.waitForTimeout(150);
+  check(/Lunch every \w+day at .*: \d+ weeks? blocked/.test(await p.textContent('.toast')), 'time off: weekly lunch saved for the coming weeks');
+  check(!(await wide(p)), 'time off: wider than the phone');
+  await p.click('.tab[data-v=today]');
+  console.log('ok time off');
+}
 
 // setup for a business that isn't on the list, then day one
 await p.click('[data-act=trade]'); await p.click('[data-act=ob-start]'); await p.click('[data-act=ob-next]');

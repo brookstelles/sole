@@ -115,6 +115,8 @@ main{display:flex;flex-direction:column;gap:22px}
 .lbl-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .stat3.two{grid-template-columns:repeat(2,1fr)}
 .two-in{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.two-in > *{min-width:0}
+.text-in[type="date"]{min-width:0;width:100%;-webkit-appearance:none;appearance:none}
 .list.flat{box-shadow:none;background:transparent}
 .list.flat .li{padding-inline:0}
 .num.out{color:var(--muted)}
@@ -1365,7 +1367,7 @@ if (ACC && ACC.state) {
   Object.assign(CL, JSON.parse(JSON.stringify(ACC.state.clients || {})));
   (ACC.state.appts || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number), off = Math.round((new Date(y, m-1, d) - T0) / 864e5);
     if (off >= -400 && CL[x.c] && SV[x.s]) add(x.c, x.s, off, x.start, {paid:x.paid, tip:x.tip || 0, w:x.w || ME, method:x.method, uid:x.uid, mine:true}); });
-  (ACC.state.blocks || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number); BL.push({id:seq++, off:Math.round((new Date(y, m-1, d) - T0) / 864e5), start:x.start, min:x.min, label:x.label, w:x.w || ME, uid:x.uid, mine:true}); });
+  (ACC.state.blocks || []).forEach(x => { const [y, m, d] = x.date.split('-').map(Number); BL.push({id:seq++, off:Math.round((new Date(y, m-1, d) - T0) / 864e5), start:x.start, min:x.min, label:x.label, w:x.w || ME, uid:x.uid, grp:x.grp, mine:true}); });
 }
 if (NOTES) Object.entries(NOTES).forEach(([k, x]) => { if (CL[k]) Object.assign(CL[k], x, {edited:true}); });
 const PAYS = ((SQ && SQ.live && SQ.live.payments) || []).filter(p => p.status === 'COMPLETED').map(p => { const d = new Date(p.created_at);
@@ -1383,7 +1385,7 @@ if (LIVEBOOK) {
   Object.entries(SOLE.clients).forEach(([k, x]) => { if (x.mine) CL[k] = {...x}; else if (CL[k] || k.startsWith('sq:')) CL[k] = {...(CL[k] || sqClient(k.slice(3), x.name)), ...x, edited:true}; });
   // Sole's own bookings and time off
   SOLE.appts.forEach(x => { const off = offOf(x.date); if (off >= -400 && CL[x.c] && SV[x.s]) add(x.c, x.s, off, x.start, {paid:!!x.paid, tip:x.tip || 0, w:x.w || ME, method:x.method, uid:x.uid, mine:true}); });
-  SOLE.blocks.forEach(x => BL.push({id:seq++, off:offOf(x.date), start:x.start, min:x.min, label:x.label, w:x.w || ME, uid:x.uid, mine:true}));
+  SOLE.blocks.forEach(x => BL.push({id:seq++, off:offOf(x.date), start:x.start, min:x.min, label:x.label, w:x.w || ME, uid:x.uid, grp:x.grp, mine:true}));
   const pays = PAYS, used = PAY_USED;
   // anything booked in Square shows too; it's changed in Square
   bk.bookings.filter(b => b.status === 'ACCEPTED' || b.status === 'PENDING').forEach(b => {
@@ -1422,7 +1424,7 @@ const NOTE_FIELDS = ['phone', 'email', 'address', 'born', 'from', 'pressure', 'f
 function saveState(){
   if (!ACC && !SOLE) return;
   const appts = AP.filter(a => a.mine).map(a => ({uid:a.uid || (a.uid = uidOf('a')), c:a.c, s:a.s, date:isoDay(dateOf(a.off)), start:a.start, paid:!!a.paid && !a.auto, tip:a.auto ? 0 : a.tip || 0, w:a.w, method:a.auto ? undefined : a.method}));
-  const blocks = BL.filter(b => b.mine).map(b => ({uid:b.uid || (b.uid = uidOf('b')), date:isoDay(dateOf(b.off)), start:b.start, min:b.min, label:b.label, w:b.w}));
+  const blocks = BL.filter(b => b.mine).map(b => ({uid:b.uid || (b.uid = uidOf('b')), date:isoDay(dateOf(b.off)), start:b.start, min:b.min, label:b.label, w:b.w, grp:b.grp}));
   const own = ([k, c]) => [k, JSON.parse(JSON.stringify({...c, ...(c._saved || {}), _saved:undefined, old:undefined, birthday:undefined, edited:undefined}))];
   const ledger = LEDGER.map(x => ({...x, matched:undefined, photoUrl:undefined}));
   if (SOLE) {
@@ -1637,7 +1639,7 @@ const TABS = [['today','Today'],['schedule','Schedule'],['money','Snapshot'],['c
 const TITLES = {today:`Good ${NOW < 720 ? 'morning' : NOW < 1020 ? 'afternoon' : 'evening'}, ${P.owner}`, schedule:'Schedule', money:'Snapshot', clients:`Your ${WN}`, forms:'Forms'};
 
 function render(){
-  $('#hdr').innerHTML = `${MOTIF}<div><div class="hdr-top"><button class="biz" data-act="trade" aria-label="Switch business"><span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span>${I.down.replace('<svg', '<svg class="chev"')}</button><span class="hdr-date">${dayShort(0).slice(0,3)}, ${MON[T0.getMonth()].slice(0,3)} ${T0.getDate()}</span></div><h1>${TITLES[S.tab]}</h1></div>`;
+  $('#hdr').innerHTML = `${MOTIF}<div><div class="hdr-top">${EDITION === 'private' ? `<div class="biz"><span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span></div>` : `<button class="biz" data-act="trade" aria-label="Switch business"><span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span>${I.down.replace('<svg', '<svg class="chev"')}</button>`}<span class="hdr-date">${dayShort(0).slice(0,3)}, ${MON[T0.getMonth()].slice(0,3)} ${T0.getDate()}</span></div><h1>${TITLES[S.tab]}</h1></div>`;
   $('#main').innerHTML = ({today:viewToday, schedule:viewSchedule, money:viewMoney, clients:viewClientsTab, forms:viewForms})[S.tab]();
   const owes = unpaid().length > 0;
   saveState();
@@ -1752,7 +1754,7 @@ function dayRows(off){
       else if (c.isNew) tag = '<span class="tag new">New</span>';
       out += `<button class="li${done?' done':''}" data-act="appt" data-id="${a.id}"><span class="t">${clockS(a.start)}<small>${SV[a.s].min} min</small></span><span class="who"><b>${c.name}</b><span>${SV[a.s].name}${MULTI && S.tab !== 'schedule' ? ` · <span class="who-tag">${a.w}</span>` : ''}${rowsOf(c).some(r => r.bad)?' · <span style="color:var(--bad)">see notes</span>':''}</span></span>${tag || I.chev}</button>`;
     } else if (it.b) {
-      out += `<button class="li block" data-act="block" data-id="${it.b.id}"><span class="t">${clockS(it.b.start)}<small>${it.b.min} min</small></span><span class="who"><b>${esc(it.b.label)}</b><span>Blocked</span></span>${I.chev}</button>`;
+      out += `<button class="li block" data-act="block" data-id="${it.b.id}"><span class="t">${it.b.min >= CLOSE - OPEN ? 'All day' : clockS(it.b.start)}<small>${it.b.min >= CLOSE - OPEN ? '' : dur(it.b.min)}</small></span><span class="who"><b>${esc(it.b.label)}</b><span>${it.b.grp ? 'Time off · part of a series' : 'Time off'}</span></span>${I.chev}</button>`;
     } else {
       const [a,b] = it.g;
       out += `<button class="li gap" data-act="gap" data-off="${off}" data-t="${a}"><span class="t">${clockS(a)}</span><span class="who"><b>Open until ${clock(b)}</b><span>${dur(b-a)} free</span></span><span class="open">Book</span></button>`;
@@ -1782,7 +1784,7 @@ function viewSchedule(){
     <div class="sec-h"><h2>${off===0?'Today':dayLong(off)}</h2><span class="aside">${isOff(off) && !ap.length?'Day off':`${ap.length} ${ap.length===1?W1:WN} · ${open?dur(open)+' open':'full'}`}</span></div>
     ${isOff(off) && !ap.length ? `<div class="empty">Weekends are your days off.</div>` : `<div class="list">${dayRows(off)}</div>`}
   </section>
-  <section class="btn-row"><button class="btn primary" data-act="book">${I.plus}Book a ${W1}</button><button class="btn" data-act="blockt">Block time</button></section>`;
+  <section class="btn-row"><button class="btn primary" data-act="book">${I.plus}Book a ${W1}</button><button class="btn" data-act="blockt">Time off</button></section>`;
 }
 
 /* ---------- Money ---------- */
@@ -2514,45 +2516,71 @@ function messageFor(k, kind){
 let B = null;
 const recent = () => Object.keys(CL).filter(k => CL[k].visits > 0 || CL[k].mine);
 function openBook(o){
-  B = Object.assign({kind:'client', mode:'new', c:null, newName:'', s:Object.keys(SV)[0], off:S.tab==='schedule'?S.day:1, start:null, label:'Lunch', len:30, w:S.tab==='schedule'?S.who:ME}, o);
+  B = Object.assign({kind:'client', mode:'new', c:null, newName:'', s:Object.keys(SV)[0], off:S.tab==='schedule'?S.day:1, start:null, label:'Lunch', name:'', len:30, rep:false, w:S.tab==='schedule'?S.who:ME}, o);
   if (o.c && !o.s && CL[o.c] && CL[o.c].usual) B.s = CL[o.c].usual;
   while (isOff(B.off) || B.off < 0) B.off++;
+  B.to = B.off;
   fixStart(); sheet(bookHTML());
 }
-const bLen = () => B.kind === 'client' ? SV[B.s].min : B.len;
+const TIME_OFF = [['Lunch', 30], ['Break', 15], ['Errand', 60], ['Appointment', 60], ['Day off', 0], ['Vacation', 0]];
+const wholeDays = () => B.kind === 'block' && (B.label === 'Day off' || B.label === 'Vacation');
+const offOfIso = v => Math.round((new Date(v + 'T00:00:00') - T0) / 864e5);
+const workDays = (a, b) => { const out = []; for (let o = a; o <= b; o++) if (!isOff(o)) out.push(o); return out; };
+const bLen = () => B.kind === 'client' ? SV[B.s].min : wholeDays() ? CLOSE - OPEN : B.len;
 const bStarts = () => validStarts(B.off, bLen(), B.kind === 'client' ? TURN : 0, B.id, B.w);
 function fixStart(){ if (!bStarts().includes(B.start)) B.start = null; }
-function bookReady(){ return B.start != null && (B.kind !== 'client' || (B.c && (B.c !== 'new' || B.newName.trim()))); }
+function bookReady(){ if (wholeDays()) return workDays(B.off, B.to).length > 0; return B.start != null && (B.kind !== 'client' || (B.c && (B.c !== 'new' || B.newName.trim()))); }
 function bookLabel(){
+  if (wholeDays()) { const n = workDays(B.off, B.to).length; return n ? `Take ${n} day${n === 1 ? '' : 's'} off` : 'Pick working days'; }
   if (!bookReady()) return B.kind === 'client' ? (B.c ? 'Pick a time' : 'Pick who and a time') : 'Pick a time';
   const when = `${dayShort(B.off).slice(0,3)} ${clock(B.start)}`;
-  if (B.kind === 'block') return `Block ${when}`;
+  if (B.kind === 'block') return B.rep ? `Every ${DOW[dateOf(B.off).getDay()]} at ${clock(B.start)}` : `Block ${when}`;
   const who = B.c === 'new' ? B.newName.trim().split(' ')[0] : first(B.c);
   return B.mode === 'move' ? `Move to ${when}` : `Book ${who} · ${when}`;
 }
 function bookHTML(){
-  const days = []; for (let o = 0; days.length < 18; o++) if (!isOff(o)) days.push(o);
+  const days = []; for (let o = 0; days.length < (B.kind === 'block' ? 30 : 18); o++) if (!isOff(o)) days.push(o);
   const st = bStarts();
-  const head = B.kind === 'block' ? top('Block time', `For lunch, errands or time off. ${cap(WN)} can’t book it online.`)
+  const head = B.kind === 'block' ? top('Time off', `Breaks, your own appointments and days away. ${cap(WN)} can’t be booked over it.`)
     : B.mode === 'move' ? top(`Move ${first(B.c)}`, `${svLabel(B.s)}, now ${whenText(AP.find(a=>a.id===B.id))}`)
     : top(`Book a ${W1}`, B.fromReq ? `${CL[B.c].name} asked for ${dayName(REQ.off)} at ${clock(REQ.start)}` : TURN ? `${TURN} minutes to reset is added after each ${P.unitOne}.` : 'Booked back to back.');
   const who = B.kind === 'client' && B.mode === 'new' ? `<div class="field"><span class="label">Who</span>
       <div class="chips">${recent().map(k => `<button class="chip" data-act="b-c" data-v="${k}" aria-pressed="${B.c===k}">${first(k)} ${CL[k].name.split(' ')[1][0]}.</button>`).join('')}<button class="chip" data-act="b-c" data-v="new" aria-pressed="${B.c==='new'}">+ Someone new</button></div>
       ${B.c === 'new' ? `<input class="text-in" id="new-name" placeholder="Their name" value="${esc(B.newName)}" autocomplete="off" aria-label="New ${W1} name">` : ''}</div>` : '';
   const what = B.kind === 'client' ? (B.mode === 'new' ? `<div class="field"><span class="label">What</span><div class="svc">${Object.entries(SV).map(([k,v]) => `<button data-act="b-s" data-v="${k}" aria-pressed="${B.s===k}"><b>${v.name}</b><span>${v.min} min · ${money(v.price)}</span></button>`).join('')}</div></div>` : '')
-    : `<div class="field"><span class="label">What</span><div class="chips">${['Lunch','Personal','Errand','Day off'].map(l => `<button class="chip" data-act="b-l" data-v="${l}" aria-pressed="${B.label===l}">${l}</button>`).join('')}</div>
-       <span class="label" style="margin-top:6px">How long</span><div class="chips">${[30,60,120,240].map(m => `<button class="chip" data-act="b-len" data-v="${m}" aria-pressed="${B.len===m}">${dur(m)}</button>`).join('')}</div></div>`;
+    : `<div class="field"><span class="label">What</span><div class="chips">${TIME_OFF.map(([l]) => `<button class="chip" data-act="b-l" data-v="${l}" aria-pressed="${B.label===l}">${l}</button>`).join('')}</div>
+       <input class="text-in" id="b-name" placeholder="Name it if you like: Dentist, school pickup…" value="${esc(B.name)}" autocomplete="off" aria-label="Name it">
+       ${wholeDays() ? '' : `<span class="label" style="margin-top:6px">How long</span><div class="chips">${[15,30,45,60,90,120,180,240].map(m => `<button class="chip" data-act="b-len" data-v="${m}" aria-pressed="${B.len===m}">${dur(m)}</button>`).join('')}</div>`}</div>`;
   const withWho = MULTI && B.kind === 'client' ? `<div class="field"><span class="label">With</span><div class="chips">${P.team.map(t => `<button class="chip" data-act="b-w" data-v="${t}" aria-pressed="${B.w===t}">${t}</button>`).join('')}</div></div>` : '';
+  if (wholeDays()) {   // a day off or a vacation: a range of dates, every working day in it blocked
+    const n = workDays(B.off, B.to).length, clash = AP.filter(a => a.off >= B.off && a.off <= B.to && !noShow(a)).sort((x, y) => x.off - y.off || x.start - y.start);
+    return `${head}${what}
+      <div class="two-in"><label class="field"><span class="label">From</span><input class="text-in" type="date" id="b-from" value="${isoDay(dateOf(B.off))}" min="${isoDay(T0)}"></label>
+        <label class="field"><span class="label">To</span><input class="text-in" type="date" id="b-to" value="${isoDay(dateOf(B.to))}" min="${isoDay(dateOf(B.off))}"></label></div>
+      <p class="muted">${n ? `${n} working day${n === 1 ? '' : 's'} off. ${cap(WN)} can’t be booked then.` : 'Those are already days you don’t work.'}</p>
+      ${clash.length ? `<div class="card facts2"><p><b>${clash.length} ${clash.length === 1 ? W1 + ' is' : WN + ' are'} booked then.</b> Move or cancel ${clash.length === 1 ? 'it' : 'them'} from the schedule:</p>
+        <div class="list flat">${clash.slice(0, 8).map(a => `<button class="li" data-act="appt" data-id="${a.id}"><span class="t">${dayShort(a.off).slice(0,3)}<small>${clock(a.start)}</small></span><span class="who"><b>${esc(CL[a.c].name)}</b><span>${dayShort(a.off).slice(4)}</span></span>${I.chev}</button>`).join('')}</div>
+        ${clash.length > 8 ? `<p class="small muted">and ${clash.length - 8} more</p>` : ''}</div>` : ''}
+      <div class="sticky-go"><button class="btn primary" id="book-go" data-act="b-go" ${bookReady()?'':'disabled'}>${esc(bookLabel())}</button></div>`;
+  }
   return `${head}${who}${withWho}${what}
     <div class="field"><span class="label">Day</span><div class="scroller">${days.map(o => `<button class="chip" data-act="b-d" data-v="${o}" aria-pressed="${B.off===o}">${o===0?'Today':o===1?'Tomorrow':dayShort(o).slice(0,3)+' '+dateOf(o).getDate()}</button>`).join('')}</div></div>
     <div class="field"><span class="label">Time</span>${st.length ? `<div class="chips">${st.map(t => `<button class="chip num" data-act="b-t" data-v="${t}" aria-pressed="${B.start===t}">${clock(t)}</button>`).join('')}</div>` : `<p class="muted">No room for ${dur(bLen())} that day. Try another day.</p>`}</div>
+    ${B.kind === 'block' ? `<div class="field"><button class="chip" data-act="b-rep" aria-pressed="${B.rep}" style="align-self:flex-start">Every week</button>${B.rep ? `<span class="small muted">Every ${DOW[dateOf(B.off).getDay()]} for the next 3 months. Weeks that are already busy then are skipped.</span>` : ''}</div>` : ''}
     <div class="sticky-go"><button class="btn primary" id="book-go" data-act="b-go" ${bookReady()?'':'disabled'}>${esc(bookLabel())}</button></div>`;
 }
 function rerenderBook(){ const sc = $('.sheet').scrollTop; $('.sheet').innerHTML = `<div class="grab"></div>${bookHTML()}`; $('.sheet').scrollTop = sc; }
 function bookGo(){
   if (!bookReady()) return;
   let msg;
-  if (B.kind === 'block') { BL.push({id:seq++, off:B.off, start:B.start, min:B.len, label:B.label, w:B.w, mine:true, uid:uidOf('b')}); msg = `Blocked ${dayName(B.off)} ${clock(B.start)} for ${dur(B.len)}.`; }
+  if (B.kind === 'block') {
+    const label = B.name.trim() || B.label, grp = uidOf('g');
+    if (wholeDays()) { const ds = workDays(B.off, B.to); ds.forEach(o => BL.push({id:seq++, off:o, start:OPEN, min:CLOSE - OPEN, label, w:B.w, mine:true, uid:uidOf('b'), grp:ds.length > 1 ? grp : undefined}));
+      msg = `${label}: ${ds.length} day${ds.length === 1 ? '' : 's'} off${ds.length > 1 ? `, ${dayShort(ds[0]).slice(4)} to ${dayShort(ds[ds.length - 1]).slice(4)}` : ` ${dayName(ds[0])}`}.`; }
+    else { let n = 0, skip = 0;
+      (B.rep ? Array.from({length:13}, (_, i) => B.off + 7 * i) : [B.off]).forEach(o => { if (!isOff(o) && validStarts(o, B.len, 0, undefined, B.w).includes(B.start)) { BL.push({id:seq++, off:o, start:B.start, min:B.len, label, w:B.w, mine:true, uid:uidOf('b'), grp:B.rep ? grp : undefined}); n++; } else skip++; });
+      msg = B.rep ? `${label} every ${DOW[dateOf(B.off).getDay()]} at ${clock(B.start)}: ${n} week${n === 1 ? '' : 's'} blocked${skip ? `, ${skip} skipped because ${skip === 1 ? 'that one is' : 'they’re'} already busy` : ''}.` : `${label}: ${dayName(B.off)} ${clock(B.start)}, ${dur(B.len)}.`; }
+  }
   else if (B.mode === 'move') { const a = AP.find(x => x.id === B.id); a.off = B.off; a.start = B.start; a.w = B.w;
     if (LIVEBOOK) { closeSheet(); render(); toast(`Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}.`); msgSheet(`Let ${first(a.c)} know`, messageFor(a.c, 'moved', a), CL[a.c].phone); return; }
     msg = `Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}. In the real app, ${first(a.c)} gets a text.`; }
@@ -2822,8 +2850,13 @@ on('click', e => {
     case 'cancel': $('#confirm').hidden = false; $('#confirm').scrollIntoView({block:'nearest'}); break;
     case 'cancel-no': $('#confirm').hidden = true; break;
     case 'cancel-yes': { const i = AP.findIndex(x => x.id === id), a = AP[i]; AP.splice(i,1); closeSheet(); render(); toast(`Canceled ${first(a.c)}’s ${clock(a.start)}. That time is open again.`); break; }
-    case 'block': { const b = BL.find(x => x.id === id); sheet(`${top(b.label, `${cap(dayName(b.off))} · ${clock(b.start)} to ${clock(b.start + b.min)}`)}<button class="btn danger" data-act="unblock" data-id="${b.id}">Remove this block</button>`); break; }
-    case 'unblock': { BL.splice(BL.findIndex(x => x.id === id), 1); closeSheet(); render(); toast('Block removed. That time is open again.'); break; }
+    case 'block': { const b = BL.find(x => x.id === id), g = b.grp ? BL.filter(x => x.grp === b.grp).sort((x, y) => x.off - y.off) : [];
+      sheet(`${top(esc(b.label), b.min >= CLOSE - OPEN ? `${cap(dayLong(b.off))} · all day` : `${cap(dayName(b.off))} · ${clock(b.start)} to ${clock(b.start + b.min)}`)}
+        ${g.length > 1 ? `<p class="muted">One of ${g.length}, ${dayShort(g[0].off).slice(4)} to ${dayShort(g[g.length - 1].off).slice(4)}.</p>` : ''}
+        <div class="btn-row"><button class="btn danger" data-act="unblock" data-id="${b.id}">${g.length > 1 ? 'Remove just this one' : 'Remove it'}</button>
+        ${g.length > 1 ? `<button class="btn" data-act="unblock-grp" data-v="${b.grp}">Remove all ${g.length}</button>` : ''}</div>`); break; }
+    case 'unblock': { BL.splice(BL.findIndex(x => x.id === id), 1); closeSheet(); render(); toast('Removed. That time is open again.'); break; }
+    case 'unblock-grp': { const n = BL.filter(x => x.grp === v).length; for (let i = BL.length - 1; i >= 0; i--) if (BL[i].grp === v) BL.splice(i, 1); closeSheet(); render(); toast(`Removed all ${n}. That time is open again.`); break; }
     case 'req-ok': add(REQ.c, REQ.s, REQ.off, REQ.start, {w:REQ.w, mine:true}); REQ.open = false; render(); toast(`Booked ${first(REQ.c)} for ${dayName(REQ.off)} at ${clock(REQ.start)}. In the real app, ${first(REQ.c)} gets a confirmation.`); break;
     case 'req-other': openBook({c:REQ.c, s:REQ.s, off:REQ.off, fromReq:true, w:REQ.w}); break;
     case 'week': S.week += +v; S.day = S.week * 7; render(); break;
@@ -2923,7 +2956,8 @@ on('click', e => {
     case 'wi': { const k = el.dataset.k; S[k] = k === 'wiC' ? Math.max(0, Math.min(10, S[k] + +v)) : Math.max(-30, Math.min(50, S[k] + +v)); render(); break; }
     case 'b-c': B.c = v; rerenderBook(); if (v === 'new') $('#new-name').focus(); break;
     case 'b-s': B.s = v; fixStart(); rerenderBook(); break;
-    case 'b-l': B.label = v; if (v === 'Day off') { B.len = CLOSE - OPEN; B.start = null; fixStart(); } rerenderBook(); break;
+    case 'b-l': B.label = v; if (wholeDays()) B.to = Math.max(B.to, B.off); else { B.len = (TIME_OFF.find(t => t[0] === v) || [, B.len])[1] || B.len; fixStart(); } rerenderBook(); break;
+    case 'b-rep': B.rep = !B.rep; rerenderBook(); break;
     case 'b-len': B.len = +v; fixStart(); rerenderBook(); break;
     case 'b-d': B.off = +v; fixStart(); rerenderBook(); break;
     case 'b-t': B.start = +v; rerenderBook(); break;
@@ -2936,6 +2970,8 @@ on('change', e => {
   if (e.target.id === 'ob-docs' && OB) obDocs(e.target.files);
   if (e.target.id === 'rc-file' && RC && e.target.files[0]) takeReceipt(e.target.files[0]);
   if (e.target.id === 'pv-c') { const f = $('#pv-new-f'); if (f) f.hidden = e.target.value !== 'new'; }
+  if (B && (e.target.id === 'b-from' || e.target.id === 'b-to') && e.target.value) { const o = Math.max(0, offOfIso(e.target.value));
+    if (e.target.id === 'b-from') { B.off = o; B.to = Math.max(B.to, o); } else B.to = Math.max(o, B.off); rerenderBook(); }
 });
 on('input', e => {
   if (OB && e.target.id === 'ob-biz') OB.biz = e.target.value;
@@ -2947,6 +2983,7 @@ on('input', e => {
   if (e.target.id === 'cl-search') { S.search = e.target.value; $('#cl-list').innerHTML = clientRows(); }
   if (e.target.id === 'clt-search') { S.clq = e.target.value; $('#clt-list').innerHTML = clientTabRows(); }
   if (e.target.id === 'snap-search') { S.search = e.target.value; $('#snap-res').innerHTML = S.search.trim() ? `<div class="list">${clientRows()}</div>` : ''; }
+  if (e.target.id === 'b-name' && B) { B.name = e.target.value; const g = $('#book-go'); if (g) g.textContent = bookLabel(); }
   if (e.target.id === 'new-name' && B) { B.newName = e.target.value; const g = $('#book-go'); g.disabled = !bookReady(); g.textContent = bookLabel(); }
 });
 on('submit', e => {
@@ -3204,5 +3241,6 @@ async function cloudStart(){
 
 let START = 'massage';
 try { START = localStorage.getItem('sole-current') || START; } catch (_) {}
-if (CLOUD_ON) cloudStart(); else boot(PROFILES[START] || ACCOUNTS[START] ? START : 'massage');
+// the private edition opens on its own business only; the sample businesses and setup are in the public demo
+if (CLOUD_ON) cloudStart(); else boot(EDITION === 'private' ? 'massage' : PROFILES[START] || ACCOUNTS[START] ? START : 'massage');
 </script>
