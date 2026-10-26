@@ -295,6 +295,9 @@ console.log('ok private Square views');
     customers:[{business_id:'B1', id:'TESTCUST1', name:'Test Card Person'}]};
   // the website carries a made-up business; the real one comes from the database after signing in (members only)
   const demoMassage = new Function('genHist', `return ({${fs.readFileSync(root + 'demo/massage.js', 'utf8')}})`)(() => ({2025:Array(12).fill(30), 2026:Array(9).fill(30)})).massage;
+  { const d = new Date(now); d.setDate(d.getDate() + 2); while ([0, 6].includes(d.getDay())) d.setDate(d.getDate() + 1);
+    seed.items.push({business_id:'B1', col:'clients', id:'nL', data:{name:'Weekly Tester', phone:'', since:2026, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}});
+    [0, 7, 14].forEach(n => { const x = new Date(d); x.setDate(x.getDate() + n); seed.items.push({business_id:'B1', col:'appts', id:'aL' + n, data:{c:'nL', s:'sw90', date:iso(x), start:630, paid:false, tip:0, w:'Kelli'}}); }); }
   seed.businesses = [{id:'B1', name:'Cloud Test Massage', profile:'massage', data:{...demoMassage, site:{slug:'cloud-test'}, biz:'Cloud Test Massage', owner:'Robin', real:true, books:{2024:{take:28000, rent:8000, other:900, kept:19100}, 2025:{take:30000, rent:8000, other:1000, kept:21000}}, booksNote:''}}];
   const fake = fs.readFileSync(fx + 'fake-supabase.js', 'utf8');
   const site = fs.readFileSync(root + 'site/index.html', 'utf8');
@@ -432,6 +435,38 @@ console.log('ok private Square views');
   check(await q.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'people' && x.id === 'prefs'); return r && r.data.thanks === false && r.data.names['test@example.com'] === 'Test Owner'; }), 'account: choices saved for the business');
   check(!(await wide(q)), 'account: the top row fits the phone');
   check(!(await wide(q)), 'website: wider than the phone');
+  // services and prices: add a 2 hour one, change a price (visits before today keep theirs), stop offering one; then a
+  // booked visit changes to the new one, with the client's other upcoming ones
+  { await q.click('[data-act=me]'); await q.click('.sheet [data-act=sv-list]');
+    check(/Services and prices/.test(await q.textContent('.sheet')) && await q.locator('.sheet [data-act=sv-edit]').count() >= 8, 'services: the list opens from the account menu');
+    await q.click('.sheet [data-act=sv-new]'); await q.fill('#sv-name', 'Swedish'); await q.fill('#sv-price', ''); await q.click('.sheet [data-act=sv-save]');
+    check(/Add its price/.test(await q.textContent('#sv-err')), 'services: it asks for a price');
+    await q.click('.sheet [data-act=sv-min][data-v="120"]'); check(await q.inputValue('#sv-name') === 'Swedish', 'services: picking a length keeps what she typed');
+    await q.fill('#sv-price', '$195'); await q.click('.sheet [data-act=sv-save]'); await q.waitForTimeout(500);
+    const pref = () => q.evaluate(() => (window.__FAKE.T.items.find(x => x.col === 'people' && x.id === 'prefs') || {}).data || {});
+    const two = ((await pref()).services || []).find(x => x.name === 'Swedish' && x.min === 120);
+    check(two && two.price === 195, 'services: a new one is saved for the business');
+    check(/Swedish\s*1 hr\s*\$\d+[\s\S]*Swedish\s*1 hr 30 min[\s\S]*Swedish\s*2 hr\s*\$195/.test(await q.textContent('.sheet')), 'services: the new length sits with the others of its name');
+    await q.click('.sheet [data-act=sv-edit][data-v=tp60]'); await q.fill('#sv-price', '120'); await q.click('.sheet [data-act=sv-save]'); await q.waitForTimeout(500);
+    const tp = (await pref()).services.find(x => x.k === 'tp60');
+    check(tp.price === 120 && tp.was && tp.was[0].price === 110 && tp.was[0].to === iso(new Date()), 'services: a new price counts from today, the old one stays with earlier days');
+    await q.click('.sheet [data-act=sv-edit][data-v=gs60]'); await q.click('.sheet [data-act=sv-off]'); await q.waitForTimeout(500);
+    check(/Not offered right now[\s\S]*Gua sha/.test(await q.textContent('.sheet')) && (await pref()).services.find(x => x.k === 'gs60').off === true, 'services: one she stops offering moves aside');
+    check(!(await wide(q)), 'services: fits the phone');
+    await q.click('.sheet .close'); await q.waitForTimeout(300);
+    await q.click('.tab[data-v=schedule]'); await q.click('main [data-act=book]');
+    { const t = await q.textContent('.sheet'); check(/2 hr · \$195/.test(t) && !/Gua sha/.test(t) && /Trigger point\s*60 min · \$120/.test(t), 'services: booking offers the new list'); }
+    await q.click('.sheet .close'); await q.waitForTimeout(300);
+    // Weekly Tester is booked 90 minutes three weeks running: the first one becomes 2 hours, and the other two with it
+    await q.click('.tab[data-v=clients]'); await q.click('#clt-list [data-c=nL]'); await q.click('main .cl-next'); await q.click('.sheet [data-act=move]');
+    check(/Move or change Weekly’s massage/.test(await q.textContent('.sheet')), 'services: a booked visit can be changed');
+    await q.click('.sheet [data-act=b-s]:has-text("2 hr")');
+    check(/Weekly’s other 2 upcoming massages too/.test(await q.textContent('.sheet [data-act=b-also]')), 'services: offers the client’s other upcoming visits too');
+    await q.click('.sheet [data-act=b-also]'); check(/Save the change/.test(await q.textContent('#book-go')), 'services: same day and time, a different service');
+    await q.click('#book-go'); await q.waitForTimeout(500);
+    check(/now 2 hr swedish .* and 2 more/.test(await q.textContent('.toast')), 'services: says what changed');
+    check(await q.evaluate(k => ['aL0', 'aL7', 'aL14'].every(id => window.__FAKE.T.items.find(x => x.col === 'appts' && x.id === id).data.s === k), two.k), 'services: all three are saved as the new service');
+    await q.click('.tab[data-v=today]'); }
   // signed out (a new day, a cleared session): Face ID comes first and opens the book without a code
   await q.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('sb-')) localStorage.removeItem(k); });
   await q.reload({waitUntil:'networkidle'}); await q.waitForSelector('#si-face');

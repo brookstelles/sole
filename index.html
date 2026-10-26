@@ -247,6 +247,8 @@ main{display:flex;flex-direction:column;gap:22px}
 .list{background:var(--surface);border-radius:20px;box-shadow:var(--shadow);overflow:hidden}
 .li{display:grid;grid-template-columns:76px 1fr auto;gap:12px;align-items:center;width:100%;border:0;background:transparent;text-align:left;padding:14px 16px;min-height:64px}
 .li + .li{border-top:1px solid var(--line)}
+.li.sv{grid-template-columns:1fr auto auto}
+.li.sv .sv-pr{font-size:17px;font-variant-numeric:tabular-nums}
 .li .t{font-weight:600;font-variant-numeric:tabular-nums;font-size:16px}
 .li .t small{display:block;font-weight:400;color:var(--muted);font-size:13px}
 .li .who{min-width:0}
@@ -1495,6 +1497,7 @@ let CTL;
 const WIDE_MQ = window.matchMedia('(min-width: 700px) and (min-height: 500px)'); let WIDE = WIDE_MQ.matches;
 let SQ = null;    // Square payments and card customers, written into this page's database by the daily refresh
 let KEEP = null;   // the tab to return to when the page rebuilds itself
+let REOPEN = null;   // a sheet to put back after the page rebuilds itself ('services')
 let TOAST_T = null; const UNDO = {arm:null, snap:null};
 let OPEN_MSG = new URLSearchParams(location.search).get('msg');   // a tapped notification opens Sole on that message   // the message on screen and what Undo puts back: both outlive a rebuild
 // the real business's own book (appointments, time off, clients, payments and costs), one database document per item;
@@ -1537,6 +1540,11 @@ function watchSole(db){
     });
     if (changed) { SOLE_VER++; redrawLive(); }
   }, () => {}); } catch (_) {} });
+  // the business's choices changed on another phone (services and prices, texts on or off, names)
+  try { db.collection('people').onSnapshot(snap => { let changed = false;
+    snap.docChanges().forEach(ch => { if (ch.doc.id !== 'prefs' || ch.type === 'removed' || !SQ) return; const r = JSON.parse(JSON.stringify(ch.doc.data())); if (canon(r) !== canon(SQ.prefs || {})) { SQ.prefs = r; changed = true; } });
+    if (changed) { SOLE_VER++; redrawLive(); }
+  }, () => {}); } catch (_) {}
   // a message from the website shows up the moment it's sent (her phone also buzzes, see supabase/functions/push)
   try { db.collection('inbox').onSnapshot(snap => { const fresh = [];
     snap.docChanges().forEach(ch => { if (!SQ) return; const L = SQ.inbox = SQ.inbox || [], id = ch.doc.id, i = L.findIndex(x => x.id === id);
@@ -1728,12 +1736,23 @@ const nextOffWith = (from, dow) => { for (let i = from; i < from + 8; i++) if (d
 const prevWork = () => { let o = -1; while (P.hours.closed.includes(dateOf(o).getDay())) o--; return o; };
 
 /* ---------- this business (from its profile) ---------- */
-const SV = {...P.services};
+// the business's own choices (people/prefs in the book); a setup account keeps them with the account
+const PREFS = P.real && SQ ? (SQ.prefs = SQ.prefs || {}) : ACCOUNTS[KEY] ? (ACCOUNTS[KEY].prefs = ACCOUNTS[KEY].prefs || {}) : (PREFS_MEM[KEY] = PREFS_MEM[KEY] || {});
+// services: the owner's own list (PREFS.services, in her order, changed in the account menu) or the profile's. One is
+// never deleted, only stopped (`off`), so visits booked with it still read right; `was` keeps what it cost and how long
+// it took before a change ({to: the day the change began, price, min}), so earlier visits keep their own numbers.
+const SV = {...Object.fromEntries((PREFS.services || []).map(({k, ...v}) => [k, v])), ...Object.fromEntries(Object.entries(P.services).filter(([k]) => !(PREFS.services || []).some(x => x.k === k)))};
+const svOn = (s, off) => { const v = SV[s]; if (!v || !v.was || off == null) return v; const d = isoDay(dateOf(off)), w = v.was.find(x => d < x.to); return w ? {...v, price:w.price, min:w.min} : v; };
+const prOf = a => svOn(a.s, a.off).price, minOf = a => svOn(a.s, a.off).min;
+// what can be booked, in her order, with each name's lengths together (a 2 hr Swedish added later sits by the others)
+const svOpen = () => { const L = Object.keys(SV).filter(k => !SV[k].off && !k.startsWith('sq:')), at = n => L.findIndex(k => SV[k].name.toLowerCase() === n.toLowerCase());
+  return L.map((k, i) => [k, at(SV[k].name), i]).sort((a, b) => a[1] - b[1] || SV[a[0]].min - SV[b[0]].min || a[2] - b[2]).map(x => x[0]); };
 const offOf = d => { const [y, m, dd] = d.split('-').map(Number); return Math.round((new Date(y, m-1, dd) - T0) / 864e5); };
 // a service as you'd say it in a text: "Swedish massage", "deep tissue massage", "CBD massage"
 const svText = id => { const n = SV[id].name, w = new RegExp(`\\b(${P.unitOne}|massage|session|lesson|appointment|cut|facial)\\b`, 'i').test(n) ? n : `${n} ${P.unitOne}`;
   return /^[A-Z][a-z]/.test(w) && !/^(Swedish|Thai|Reiki)\b/.test(w) ? w[0].toLowerCase() + w.slice(1) : w; };
-const svLabel = id => `${SV[id].min < 120 ? SV[id].min + ' min' : dur(SV[id].min)} ${SV[id].name.toLowerCase()}`;
+const svLen = m => m < 120 ? m + ' min' : dur(m);
+const svLabel = id => `${svLen(SV[id].min)} ${SV[id].name.toLowerCase()}`;
 const LAST = prevWork();
 const CL = JSON.parse(JSON.stringify(P.clients));
 Object.values(CL).forEach(c => { if (c.intake === undefined) c.intake = true; if (c.bdow != null) c.birthday = nextOffWith(1, c.bdow); });
@@ -1795,7 +1814,7 @@ if (LIVEBOOK) {
   // then time, when several did). The owner's own answers in people/merges come first (`c`: whose card, null for nobody's).
   const all = SQ.all ? SQ.all.filter(p => p.status === 'COMPLETED').map(payOf) : pays, onDay = {};
   Object.values(VISITS).forEach(v => { if (v.from && v.date && v.c && CL[v.c]) (onDay[v.date] = onDay[v.date] || []).push({c:v.c, price:v.price || 0, start:v.start || 0}); });
-  AP.forEach(a => { if (a.off <= 0 && SV[a.s]) { const d = isoDay(dateOf(a.off)); (onDay[d] = onDay[d] || []).push({c:a.c, price:SV[a.s].price, start:a.start}); } });
+  AP.forEach(a => { if (a.off <= 0 && SV[a.s]) { const d = isoDay(dateOf(a.off)); (onDay[d] = onDay[d] || []).push({c:a.c, price:prOf(a), start:a.start}); } });
   const guess = {}, payBy = {}; all.forEach(p => { if (p.cust) (payBy[p.cust] = payBy[p.cust] || []).push(p); });
   Object.entries(payBy).forEach(([id, ps]) => { if (CL['sq:' + id]) return; const votes = {};
     ps.forEach(p => { let L = onDay[p.day] || []; const near = v => Math.abs(p.at - v.start - 75);
@@ -1811,7 +1830,7 @@ if (LIVEBOOK) {
   CARD_GROUPS.forEach(g => { if (!g.c) return; CARDS_OF[g.c] = new Set(g.ids); const c = CL[g.c]; if (c.sq === undefined) { c.sq = g.ids[0]; c.cardAuto = true; } });
   // a visit is paid when a card payment from that person, or for that price, came in that day
   AP.filter(a => a.off <= 0 && !a.paid).sort((x, y) => (x.c.startsWith('sq:') ? 0 : 1) - (y.c.startsWith('sq:') ? 0 : 1)).forEach(a => {
-    const dk = isoDay(dateOf(a.off)), mine = CARDS_OF[a.c] || new Set(CL[a.c].sq ? [CL[a.c].sq] : []), p = pays.find(x => !used.has(x.id) && x.day === dk && mine.has(x.cust)) || pays.find(x => !used.has(x.id) && x.day === dk && x.net === SV[a.s].price);
+    const dk = isoDay(dateOf(a.off)), mine = CARDS_OF[a.c] || new Set(CL[a.c].sq ? [CL[a.c].sq] : []), p = pays.find(x => !used.has(x.id) && x.day === dk && mine.has(x.cust)) || pays.find(x => !used.has(x.id) && x.day === dk && x.net === prOf(a));
     if (p) { used.add(p.id); a.paid = true; a.auto = true; a.tip = p.tip; a.method = 'Card'; } });
 }
 // payments logged in Sole mark that day's visit paid
@@ -1849,7 +1868,7 @@ function saveState(){
 }
 
 /* ---------- schedule logic ---------- */
-const endOf = a => a.start + SV[a.s].min;
+const endOf = a => a.start + minOf(a);
 const apptsOn = off => AP.filter(a => a.off === off).sort((x,y) => x.start - y.start);
 const busy = (off, skip, w = ME) => [
   ...AP.filter(a => a.off === off && a.id !== skip && a.w === w).map(a => [a.start, endOf(a) + TURN]),
@@ -1906,10 +1925,10 @@ function spendBase(k){
     return {price:x.all.n ? x.all.net / x.all.n : 0, m:{v:x.month.n, $:x.month.net}, y:{v:x.year.n, $:x.year.net}, a:{v:x.all.n, $:x.all.net}, tipsY:x.year.tips || 0, tipsA:x.all.tips || 0}; }
   if (LIVEBOOK) {   // someone added in Sole: card payments matched to their visits (cash and the rest come from the ledger)
     const v = AP.filter(a => a.c === k && a.paid && a.method === 'Card' && a.off <= 0), mo = T0.getDate() - 1, yd = DOY, at = (L, d) => L.filter(a => -a.off <= d);
-    const pk = L => ({v:L.length, $:L.reduce((t, a) => t + SV[a.s].price, 0)});
+    const pk = L => ({v:L.length, $:L.reduce((t, a) => t + prOf(a), 0)});
     return {price:SV[CL[k].usual || Object.keys(SV)[0]].price, m:pk(at(v, mo)), y:pk(at(v, yd)), a:pk(v), tipsY:at(v, yd).reduce((t, a) => t + (a.tip || 0), 0), tipsA:v.reduce((t, a) => t + (a.tip || 0), 0)}; }
   const c = CL[k], price = SV[c.usual || Object.keys(SV)[0]].price;
-  const paidNow = AP.filter(a => a.c === k && a.off === 0 && a.paid).reduce((s,a) => s + SV[a.s].price, 0), nNow = AP.filter(a => a.c === k && a.off === 0 && a.paid).length;
+  const paidNow = AP.filter(a => a.c === k && a.off === 0 && a.paid).reduce((s,a) => s + prOf(a), 0), nNow = AP.filter(a => a.c === k && a.off === 0 && a.paid).length;
   const within = days => (c.last == null || !c.every || c.last > days) ? 0 : Math.floor((days - c.last) / c.every) + 1;
   const mk = v => ({v:v + nNow, $:v * price + paidNow});
   const yv = within(DOY), y = mk(yv);     // c.visits counts the years before this one
@@ -1924,8 +1943,8 @@ function take(off){
   return {net:t.net + L.reduce((a, x) => a + x.amount, 0), tips:t.tips + L.reduce((a, x) => a + (x.tip || 0), 0), n:t.n + L.length};
 }
 function takeBase(off){
-  if (off === 0) { const p = apptsOn(0).filter(a => a.paid); return {net:p.reduce((s,a)=>s+SV[a.s].price,0), tips:p.reduce((s,a)=>s+a.tip,0), n:p.length}; }
-  if (P.fresh) { const p = apptsOn(off).filter(a => a.paid); return {net:p.reduce((s,a)=>s+SV[a.s].price,0), tips:p.reduce((s,a)=>s+a.tip,0), n:p.length}; }
+  if (off === 0) { const p = apptsOn(0).filter(a => a.paid); return {net:p.reduce((s,a)=>s+prOf(a),0), tips:p.reduce((s,a)=>s+a.tip,0), n:p.length}; }
+  if (P.fresh) { const p = apptsOn(off).filter(a => a.paid); return {net:p.reduce((s,a)=>s+prOf(a),0), tips:p.reduce((s,a)=>s+a.tip,0), n:p.length}; }
   if (P.hours.closed.includes(dateOf(off).getDay())) return {net:0, tips:0, n:0};
   const x = Math.abs(Math.sin(off * 12.9898 + 4.1) * 43758.5453) % 1;
   const n = 3 + Math.floor(x * 4);
@@ -2053,12 +2072,11 @@ const SUNMARK = `<svg viewBox="-32 -32 64 64" aria-hidden="true"><g fill="none" 
 const S = {tab:'today', week:0, day:0, range:'week', bar:0, answer:null, search:'', yr:2026, wiC:0, wiP:0, money:'home', who:ME, ...(KEEP || {})};
 KEEP = null; CUR_S = S; CUR_KEY = KEY; if (LIVEBOOK) LIVE_DRAWN = liveSig();
 const TABS = [['today','Today'],['schedule','Schedule'],['money','Snapshot'],['clients',cap(WN)],['forms','Forms']];
-// the business's own choices (people/prefs in the book: thank-you texts, everyone's name) and who's looking
+// who's looking: their name from the business's choices (PREFS.names), else the owner
 // papers kept on file (license, insurance, certificates): the book's people/papers, a setup account's state, or the visit
 // messages people sent from the business's website (the intake Edge Function writes them; she marks them answered)
 const INBOX = P.real && SQ ? (SQ.inbox = SQ.inbox || []) : (INBOX_MEM[KEY] = INBOX_MEM[KEY] || []);
 const PAPERS = P.real && SQ ? (SQ.papers = SQ.papers || []) : ACC ? ((ACC.state = ACC.state || {}).papers = ACC.state.papers || []) : (PAPERS_MEM[KEY] = PAPERS_MEM[KEY] || []);
-const PREFS = P.real && SQ ? (SQ.prefs = SQ.prefs || {}) : (PREFS_MEM[KEY] = PREFS_MEM[KEY] || {});
 const MY_NAME = (PREFS.names || {})[USER_EMAIL] || (USER_EMAIL ? '' : P.owner);
 const MY_INITIALS = (MY_NAME ? MY_NAME.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]) : [USER_EMAIL[0] || P.owner[0]]).join('').toUpperCase();
 const TITLES = {today:`Good ${NOW < 720 ? 'morning' : NOW < 1020 ? 'afternoon' : 'evening'}, ${(MY_NAME || P.owner).split(' ')[0]}`, schedule:'Schedule', money:'Snapshot', clients:`Your ${WN}`, forms:'Forms'};
@@ -2104,7 +2122,7 @@ function viewToday(){
   // To do: one line each; the ones with a list open in place (S.td)
   const todo = [], row = (t, sub, icon, attrs) => todo.push(`<button class="li td" ${attrs}><span class="td-i">${icon}</span><span class="who"><b>${t}</b><span>${sub}</span></span>${I.chev}</button>`);
   INBOX.filter(m => !m.done).sort((x, y) => String(x.at).localeCompare(String(y.at))).forEach(m => row(`${esc(String(m.name || 'Someone').split(' ')[0])} wrote from your website`, `${esc(msgWhen(m.at))} · ${esc(String(m.message || '').slice(0, 60))}${String(m.message || '').length > 60 ? '…' : ''}`, I.send, `data-act="inb" data-v="${esc(m.id)}"`));
-  unpaid().filter(a => a.off >= -7).forEach(a => row(`${esc(CL[a.c].name)} hasn’t paid`, `${cap(dayName(a.off))} · ${svLabel(a.s)} · ${money(SV[a.s].price)}`, I.wallet, `data-act="charge" data-id="${a.id}"`));
+  unpaid().filter(a => a.off >= -7).forEach(a => row(`${esc(CL[a.c].name)} hasn’t paid`, `${cap(dayName(a.off))} · ${svLabel(a.s)} · ${money(prOf(a))}`, I.wallet, `data-act="charge" data-id="${a.id}"`));
   { const dn = notesDue(), ft = visitForm().title.toLowerCase().replace('soap', 'SOAP'), today = dn.every(a => a.off === 0);
     if (dn.length) row(dn.length === 1 ? `Write ${esc(first(dn[0].c))}’s ${ft}` : `Write ${today ? 'today’s' : 'your'} ${ft}`,
       `${dn.length === 1 ? 'About a minute' : `${dn.length} ${WN}, about ${Math.max(2, Math.ceil(dn.length / 2))} minutes`} · ${[...new Set(dn.map(a => esc(first(a.c))))].slice(0, 4).join(', ')}`, I.forms, `data-act="vn-run"`); }
@@ -2203,7 +2221,7 @@ function dayRows(off){
       else if (a.pending) tag = '<span class="tag new">Request</span>';
       else if (!c.intake) tag = '<span class="tag warn">Form missing</span>';
       else if (c.isNew) tag = '<span class="tag new">New</span>';
-      out += `<button class="li${done?' done':''}" data-act="appt" data-id="${a.id}"><span class="t">${clockS(a.start)}<small>${SV[a.s].min} min</small></span><span class="who"><b>${c.name}</b><span>${SV[a.s].name}${MULTI && S.tab !== 'schedule' ? ` · <span class="who-tag">${a.w}</span>` : ''}${rowsOf(c).some(r => r.bad)?' <i class="hn" title="Health notes: read before the visit" aria-label="Health notes">!</i>':''}</span></span>${tag || I.chev}</button>`;
+      out += `<button class="li${done?' done':''}" data-act="appt" data-id="${a.id}"><span class="t">${clockS(a.start)}<small>${minOf(a)} min</small></span><span class="who"><b>${c.name}</b><span>${SV[a.s].name}${MULTI && S.tab !== 'schedule' ? ` · <span class="who-tag">${a.w}</span>` : ''}${rowsOf(c).some(r => r.bad)?' <i class="hn" title="Health notes: read before the visit" aria-label="Health notes">!</i>':''}</span></span>${tag || I.chev}</button>`;
     } else if (it.b) {
       out += `<button class="li block" data-act="block" data-id="${it.b.id}"><span class="t">${allDay(it.b) ? 'All day' : clockS(it.b.start)}<small>${allDay(it.b) ? '' : dur(it.b.min)}</small></span><span class="who"><b>${esc(it.b.label)}</b><span>${it.b.grp ? 'Time off · part of a series' : 'Time off'}</span></span>${I.chev}</button>`;
     } else {
@@ -2397,7 +2415,7 @@ function monthAhead(y, m){
   const last = new Date(y, m + 1, 0).getDate(), offs = [];
   for (let d = 1; d <= last; d++) { const o = offOfDate(new Date(y, m, d)); if (o >= 0 && o <= 400) offs.push(o); }
   const L = AP.filter(a => offs.includes(a.off) && (a.off > 0 || a.start >= NOW) && !noShow(a) && SV[a.s]);
-  return {n:L.length, $:L.reduce((t, a) => t + SV[a.s].price, 0), open:offs.reduce((t, o) => t + openMin(o, S.who), 0), days:offs.filter(o => !isOff(o)).length};
+  return {n:L.length, $:L.reduce((t, a) => t + prOf(a), 0), open:offs.reduce((t, o) => t + openMin(o, S.who), 0), days:offs.filter(o => !isOff(o)).length};
 }
 function viewMonth(){
   const [y, m1] = (S.mo || isoDay(T0).slice(0, 7)).split('-').map(Number), m = m1 - 1, nowY = T0.getFullYear(), nowM = T0.getMonth(), day = T0.getDate();
@@ -2443,10 +2461,10 @@ function dayMoney(){
     <p class="sub num"><span><b>+ ${money(t.tips)}</b> in tips</span><span><b>${t.n}</b> sessions</span>${t.n?`<span><b>${money(per)}</b> each</span>`:''}</p>
   </section>
   <section class="card chart">${chart()}</section>
-  ${owe.length ? `<section class="sec"><div class="sec-h"><h2>Not paid yet</h2><span class="aside">${money(owe.reduce((s,a)=>s+SV[a.s].price,0))}</span></div>
-    <div class="list">${owe.map(a => `<div class="li"><span class="t">${cap(dayName(a.off)).slice(0,3)}<small>${clockS(a.start)}</small></span><span class="who"><b>${CL[a.c].name}</b><span>${svLabel(a.s)}</span></span><button class="btn warm" style="min-height:44px" data-act="charge" data-id="${a.id}">Charge ${money(SV[a.s].price)}</button></div>`).join('')}</div></section>` : ''}
+  ${owe.length ? `<section class="sec"><div class="sec-h"><h2>Not paid yet</h2><span class="aside">${money(owe.reduce((s,a)=>s+prOf(a),0))}</span></div>
+    <div class="list">${owe.map(a => `<div class="li"><span class="t">${cap(dayName(a.off)).slice(0,3)}<small>${clockS(a.start)}</small></span><span class="who"><b>${CL[a.c].name}</b><span>${svLabel(a.s)}</span></span><button class="btn warm" style="min-height:44px" data-act="charge" data-id="${a.id}">Charge ${money(prOf(a))}</button></div>`).join('')}</div></section>` : ''}
   <section class="sec"><div class="sec-h"><h2>Recent payments</h2><span class="aside">from Square</span></div>
-    <div class="list">${paid.map(a => `<button class="li" data-act="appt" data-id="${a.id}"><span class="t">${cap(dayName(a.off)).slice(0,3)}<small>${clockS(a.start)}</small></span><span class="who"><b>${CL[a.c].name}</b><span>${svLabel(a.s)}</span></span><span class="num" style="text-align:right"><b>${money(SV[a.s].price)}</b><br><span class="small muted">${a.tip?'+ '+money(a.tip)+' tip':'no tip'}</span></span></button>`).join('')}</div></section>`;
+    <div class="list">${paid.map(a => `<button class="li" data-act="appt" data-id="${a.id}"><span class="t">${cap(dayName(a.off)).slice(0,3)}<small>${clockS(a.start)}</small></span><span class="who"><b>${CL[a.c].name}</b><span>${svLabel(a.s)}</span></span><span class="num" style="text-align:right"><b>${money(prOf(a))}</b><br><span class="small muted">${a.tip?'+ '+money(a.tip)+' tip':'no tip'}</span></span></button>`).join('')}</div></section>`;
 }
 function viewSnapFresh(){
   const m = sumOf('month'), w = sumOf('week'), ahead = AP.filter(a => a.off > 0 || (a.off === 0 && a.start >= NOW)).length, owe = unpaid();
@@ -2472,7 +2490,7 @@ function viewSnapFresh(){
     <div class="btn-row"><button class="btn primary" data-act="connect" data-v="square" ${DONE_STEPS.square ? 'disabled' : ''}>${DONE_STEPS.square ? 'Square connected' : 'Connect Square'}</button><button class="btn" data-act="fillsample">See it with sample data</button></div>
   </section>
   <section class="bento">
-    ${owe.length ? `<button class="tile attn" data-act="money" data-v="today"><span class="k">${I.money}Not paid</span><span class="big">${money(owe.reduce((s,a)=>s+SV[a.s].price,0))}</span><span class="s">${owe.map(a => first(a.c)).join(', ')}</span></button>` : ''}
+    ${owe.length ? `<button class="tile attn" data-act="money" data-v="today"><span class="k">${I.money}Not paid</span><span class="big">${money(owe.reduce((s,a)=>s+prOf(a),0))}</span><span class="s">${owe.map(a => first(a.c)).join(', ')}</span></button>` : ''}
     <button class="tile" data-act="addcost"><span class="k">${I.wallet}Costs</span><span class="big">Add</span><span class="s">snap a receipt for rent, supplies or fuel</span></button>
     <button class="tile ${owe.length ? 'wide' : ''}" data-act="${ACC && ACC.license ? 'license' : 'addlicense'}"><span class="k">${I.badge}License</span><span class="big">${LICENSE.short}</span><span class="s">${LICENSE.tile}</span></button>
   </section>
@@ -2495,7 +2513,7 @@ function viewSnap(){
     {go:'data-act="license"', h:`<span class="k">${I.badge}License</span><span class="big">${LICENSE.short}</span><span class="s">${LICENSE.tile}</span>`},
   ];
   if (MULTI) tiles.push({go:'data-act="snapgo" data-sec="y-proj"', h:`<span class="k">${I.clients}Team · ${CUR}</span><span class="team">${P.team.map((t,i) => `<span class="cost" style="grid-template-columns:52px 1fr 44px"><span>${t}</span><span class="tr"><i style="width:${P.teamSplit[i]*100}%"></i></span><b>${Math.round(P.teamSplit[i]*100)}%</b></span>`).join('')}</span><span class="s">share of this year’s ${P.unit}</span>`});
-  if (owe.length) tiles.unshift({cls:'attn', go:'data-act="money" data-v="today"', h:`<span class="k">${I.money}Not paid</span><span class="big">${money(owe.reduce((s,a)=>s+SV[a.s].price,0))}</span><span class="s">${owe.map(a => first(a.c)).join(', ')}</span>`});
+  if (owe.length) tiles.unshift({cls:'attn', go:'data-act="money" data-v="today"', h:`<span class="k">${I.money}Not paid</span><span class="big">${money(owe.reduce((s,a)=>s+prOf(a),0))}</span><span class="s">${owe.map(a => first(a.c)).join(', ')}</span>`});
   if (tiles.length % 2) tiles[tiles.length-1].wide = true;
   tiles.push({wide:true, go:'data-act="snapgo" data-sec="y-costs"', h:`<span class="k">${I.wallet}Where it goes · ${P.costsYear}</span><span class="s">${COSTS[0].n} is <b>${Math.round(COSTS[0].v/COST_TOTAL*100)}%</b> of your costs.</span>${costRows()}`});
   return `
@@ -2530,14 +2548,14 @@ const PAY_WAYS = ['Cash', 'Zelle', 'Venmo', 'Check', 'Other'];
 const CARDCO = () => SQX || /square/i.test(P.booking || '') ? 'Square' : 'card';
 function feeOf(amt, n){ const y = SQX && SQX.years && SQX.years[String(T0.getFullYear())]; return y && y.collected > 500 && y.fees ? amt * y.fees / y.collected : amt * 0.026 + 0.15 * n; }
 function booked(offs){ const L = AP.filter(a => offs.includes(a.off) && !noShow(a) && SV[a.s]);
-  return {n:L.length, $:L.reduce((t, a) => t + (a.paid && a.paidAmt != null ? a.paidAmt : SV[a.s].price), 0)}; }
+  return {n:L.length, $:L.reduce((t, a) => t + (a.paid && a.paidAmt != null ? a.paidAmt : prOf(a)), 0)}; }
 // what came in on a day: Square's card payments once connected, plus payments logged in Sole; otherwise the paid visits
 function inOn(off){
   const dk = isoDay(dateOf(off)), L = LEDGER.filter(x => x.kind === 'pay' && x.date === dk), add = (t, u) => ({net:t.net + u.reduce((a, x) => a + x.amount, 0), tips:t.tips + u.reduce((a, x) => a + (x.tip || 0), 0), n:t.n + u.length});
   if (SQX && SQX.byDay) return add({...(SQX.byDay[dk] || {net:0, tips:0, n:0})}, L);
   if (!LIVEBOOK) return take(off);
   const p = AP.filter(a => a.off === off && a.paid && !(a.auto && a.method !== 'Card'));
-  return add({net:p.reduce((t, a) => t + (a.paidAmt != null ? a.paidAmt : SV[a.s].price), 0), tips:p.reduce((t, a) => t + (a.tip || 0), 0), n:p.length}, L.filter(x => !x.matched));
+  return add({net:p.reduce((t, a) => t + (a.paidAmt != null ? a.paidAmt : prOf(a)), 0), tips:p.reduce((t, a) => t + (a.tip || 0), 0), n:p.length}, L.filter(x => !x.matched));
 }
 const GLANCE = [['today', 'Today'], ['week', 'This week'], ['next', 'Next week'], ['year', 'This year']];
 function glanceCard(td){
@@ -2553,7 +2571,7 @@ function glanceCard(td){
   } else if (g === 'week' || g === 'next') {
     const days = week(g === 'week' ? mon : mon + 7), t = booked(days), x = sumIn(days.filter(d => d <= 0).map(inOn));
     const open = days.filter(d => d >= 0).reduce((u, d) => u + openMin(d, S.who), 0), cap = days.reduce((u, d) => u + (isOff(d) ? 0 : closeOf(d) - openOf(d)), 0);
-    const used = days.reduce((u, d) => u + apptsFor(d).reduce((v, a) => v + SV[a.s].min, 0), 0);
+    const used = days.reduce((u, d) => u + apptsFor(d).reduce((v, a) => v + minOf(a), 0), 0);
     L = g === 'week' ? ['In so far', money(x.net), `+ ${money(x.tips)} tips`] : ['Booked', t.n ? money(t.$) : '—', `${t.n} ${unit(t.n)}`];
     R = g === 'week' ? ['Booked this week', money(t.$), `${t.n} ${unit(t.n)} · about ${after(t)} after fees`] : ['After fees', t.n ? after(t) : '—', `${dur(open)} still open`];
     pct = g === 'week' ? (t.$ ? x.net / t.$ : 0) : cap ? used / cap : 0;
@@ -2593,8 +2611,62 @@ function meHTML(){
     <div class="field"><span class="label">Light or dark</span>${seg('me-theme', th, [['', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']])}<span class="small muted">Automatic follows your phone’s setting. Just on this phone.</span></div>
     ${face ? `<div class="field"><span class="label">${FACE}</span>${lsGet('sole-face') ? `<p class="small muted">On. Sole opens with a glance.</p><button class="btn line" data-act="me-face-off">Turn off ${FACE} on this phone</button>` : `<button class="btn line" data-act="me-face-on">${FACE_ICON}Turn on ${FACE}</button>`}</div>` : ''}
     ${pushHTML()}
+    <div class="field"><span class="label">Services and prices</span><button class="btn line" data-act="sv-list">Change services and prices</button><span class="small muted">${svOpen().length} offered, from ${money(Math.min(...svOpen().map(k => SV[k].price)))}. Add one, change a price or length, or stop offering one.</span></div>
     <div class="field"><span class="label">Thank-you texts the day after</span>${seg('me-thanks', PREFS.thanks === false ? 'off' : 'on', [['on', 'On'], ['off', 'Off']])}<span class="small muted">For everyone on ${esc(P.biz)}.</span></div>
     ${CLOUD_ON && USER_EMAIL ? `<button class="btn line danger-line" data-act="me-out" style="width:100%;margin-top:8px">Sign out</button>` : ''}`;
+}
+/* ---------- services and prices (asked for Oct 26, 2026): the owner adds one, changes its name, length, price or
+   website words, or stops offering it. Saved with the business's choices (PREFS.services), so every phone, the computer
+   and the website follow. A new price or length counts from today: `was` keeps the old one for visits before today. */
+let SVE = null;   // the service being added or changed
+const SV_LENS = [30, 45, 60, 75, 90, 105, 120, 150, 180];
+const svAll = () => Object.keys(SV).filter(k => !k.startsWith('sq:'));
+function servicesHTML(){
+  const on = svOpen(), off = svAll().filter(k => SV[k].off);
+  const row = k => `<button class="li sv" data-act="sv-edit" data-v="${esc(k)}"><span class="who"><b>${esc(SV[k].name)}</b><span>${dur(SV[k].min)}</span></span><b class="sv-pr">${money(SV[k].price)}</b>${I.chev}</button>`;
+  return `${top('Services and prices', `What you offer, how long each one takes and what it costs.${P.site ? ' Your website shows the same.' : ''}`)}
+    <div class="list">${on.map(row).join('')}</div>
+    <button class="btn primary" data-act="sv-new" style="width:100%">${I.plus}Add a service</button>
+    ${off.length ? `<div class="field"><span class="label">Not offered right now</span><div class="list">${off.map(row).join('')}</div></div>` : ''}`;
+}
+function serviceHTML(){
+  const e = SVE, cur = e.k ? SV[e.k] : null, lens = [...new Set([...SV_LENS, e.min].filter(Boolean))].sort((a, b) => a - b);
+  const ahead = cur ? AP.filter(a => a.s === e.k && a.off >= 0).length : 0;
+  return `${top(cur ? 'Change a service' : 'Add a service', cur ? `${esc(cur.name)} · ${dur(cur.min)} · ${money(cur.price)}` : `It shows up when you book${P.site ? ', and on your website' : ''}.`)}
+    <label class="field"><span class="label">Name</span><input class="text-in" id="sv-name" value="${esc(e.name || '')}" placeholder="${P.look === 'seaglass' ? 'Swedish, Hot stone…' : 'What clients call it'}" autocomplete="off"></label>
+    <div class="field"><span class="label">How long</span><div class="chips">${lens.map(m => `<button class="chip" data-act="sv-min" data-v="${m}" aria-pressed="${e.min === m}">${dur(m)}</button>`).join('')}</div></div>
+    <label class="field"><span class="label">Price</span><input class="text-in" id="sv-price" inputmode="decimal" autocomplete="off" placeholder="$0" value="${e.price != null && e.price !== '' ? '$' + esc(String(e.price).replace(/^\$/, '')) : ''}"></label>
+    ${P.site ? `<label class="field"><span class="label">On your website, if you like</span><textarea class="text-in" id="sv-desc" rows="3" placeholder="A sentence or two about what’s included.">${esc(e.desc || '')}</textarea></label>` : ''}
+    ${cur && ahead ? `<p class="small muted">A new price or length counts from today. Visits before today keep theirs; the ${ahead} booked from today on follow the change.</p>` : ''}
+    <p class="small sv-err" id="sv-err" role="alert" hidden></p>
+    <button class="btn primary" data-act="sv-save" style="width:100%">${cur ? 'Save' : 'Add it'}</button>
+    ${cur ? (cur.off ? `<button class="btn line" data-act="sv-on" style="width:100%">Offer it again</button>`
+      : `<button class="btn line" data-act="sv-off" style="width:100%">Stop offering it</button><span class="small muted">It comes off the list when you book${P.site ? ' and off your website' : ''}. Visits already booked with it stay as they are.</span>`) : ''}
+    <button class="btn" data-act="sv-list" style="width:100%">All services</button>`;
+}
+function svRead(){ [['name', '#sv-name'], ['price', '#sv-price'], ['desc', '#sv-desc']].forEach(([f, id]) => { const el = $(id); if (el) SVE[f] = el.value; }); }
+function svStore(edit, msg){
+  const today = isoDay(dateOf(0)), list = svAll().map(k => ({k, ...JSON.parse(JSON.stringify(SV[k]))}));
+  const i = edit.k ? list.findIndex(x => x.k === edit.k) : -1;
+  if (i >= 0) { const was = list[i];
+    // the old price and length stay with the days before today (once: a second change today keeps the first one's record)
+    if ((was.price !== edit.price || was.min !== edit.min) && !(was.was || []).some(w => w.to === today)) was.was = [...(was.was || []), {to:today, price:was.price, min:was.min}];
+    Object.assign(was, edit.v); Object.keys(was).forEach(f => { if (was[f] === undefined || was[f] === '') delete was[f]; }); }
+  else list.push({k:'s' + Date.now().toString(36), ...edit.v});
+  PREFS.services = list; savePrefs();
+  KEEP = {...S}; REOPEN = 'services'; boot(KEY); toast(msg);
+}
+function svSave(){
+  svRead();
+  const name = String(SVE.name || '').trim().replace(/\s+/g, ' '), raw = String(SVE.price == null ? '' : SVE.price).replace(/[^0-9.]/g, ''), price = Math.round(Number(raw) * 100) / 100;
+  const err = t => { const el = $('#sv-err'); el.textContent = t; el.hidden = false; };
+  if (!name) return err('Give it a name.');
+  if (!SVE.min) return err('Pick how long it takes.');
+  if (raw === '' || !isFinite(price)) return err('Add its price.');
+  const twin = svOpen().find(k => k !== SVE.k && SV[k].name.toLowerCase() === name.toLowerCase() && SV[k].min === SVE.min);
+  if (twin) return err(`You already have ${SV[twin].name}, ${dur(SV[twin].min)}. Change that one instead.`);
+  const v = {name, min:SVE.min, price}; if ($('#sv-desc')) v.desc = String(SVE.desc || '').trim();
+  svStore({k:SVE.k, price, min:SVE.min, v}, SVE.k ? `Saved. ${name}, ${dur(SVE.min)}, ${money(price)}.` : `Added ${name}, ${dur(SVE.min)}, ${money(price)}. It’s ready to book.`);
 }
 /* ---------- messages from the website ---------- */
 const msgWhen = at => { const d = new Date(at), off = offOfDate(d), t = clock(d.getHours() * 60 + d.getMinutes());
@@ -2649,6 +2721,7 @@ async function pushOff(){
   lsSet('sole-push', ''); closeSheet(); render(); toast('Notifications are off on this phone.');
 }
 async function savePrefs(){
+  if (ACC && !P.real) { saveAccounts(); return; }   // a setup account keeps its choices with the account
   try { const db = P.real && window.claude && window.claude.use ? await window.claude.use('db') : null; if (db) await db.doc('people/prefs').set(JSON.parse(JSON.stringify(PREFS))); }
   catch (_) { toast('Saved on this phone. It couldn’t reach your account just now.'); }
 }
@@ -2729,7 +2802,7 @@ function viewCheck(){
   <section class="hero"><p class="eyebrow">Weekly check · ${range}</p>
     <p class="amt">${w.todo ? `${w.todo} to look at` : w.rec.checked ? 'All checked' : 'All matched'}</p>
     <p class="sub num"><span><b>${w.visits.length}</b> ${w.visits.length === 1 ? P.unitOne : P.unit}</span>${SQX ? `<span><b>${money(w.cardTotal)}</b> cards</span>` : ''}<span><b>${money(w.cashTotal)}</b> cash and other</span><span><b>${money(w.costTotal)}</b> costs</span></p></section>
-  ${w.open.length ? `<section class="sec"><div class="sec-h"><h2>Not paid</h2><span class="aside">${w.open.length}</span></div><div class="list">${w.open.map(a => `<div class="li wk">${dayT(a.off, a.start)}<span class="who" data-act="appt" data-id="${a.id}" role="button"><b>${esc(CL[a.c].name)}</b><span>${svLabel(a.s)} · ${money(SV[a.s].price)}</span></span>
+  ${w.open.length ? `<section class="sec"><div class="sec-h"><h2>Not paid</h2><span class="aside">${w.open.length}</span></div><div class="list">${w.open.map(a => `<div class="li wk">${dayT(a.off, a.start)}<span class="who" data-act="appt" data-id="${a.id}" role="button"><b>${esc(CL[a.c].name)}</b><span>${svLabel(a.s)} · ${money(prOf(a))}</span></span>
       <span class="wk-btns"><button class="btn sm" data-act="payfor" data-id="${a.id}">Paid</button><button class="btn sm" data-act="wk-noshow" data-id="${a.id}">No-show</button></span></div>`).join('')}</div>
     <p class="small muted">Paid in cash or Zelle? Tap Paid to add it. Paid by card? It shows up once Square has it.</p></section>` : ''}
   ${w.loose.length ? `<section class="sec"><div class="sec-h"><h2>Card payments with no ${P.unitOne}</h2><span class="aside">${w.loose.length}</span></div><div class="list">${w.loose.map(p => `<div class="li wk">${dayT(offOf(p.day), p.at)}<span class="who"><b>${esc(payName(p))}</b><span>${money(p.net)}${p.tip ? ' + ' + money(p.tip) + ' tip' : ''} by card</span></span>
@@ -2744,7 +2817,7 @@ function viewCheck(){
 let PV = null;
 function openPastVisit(pid){
   const p = PAYS.find(x => x.id === pid); if (!p) return;
-  const known = p.cust && CL['sq:' + p.cust] ? 'sq:' + p.cust : '', svs = Object.keys(SV).filter(k => !k.startsWith('sq:'));
+  const known = p.cust && CL['sq:' + p.cust] ? 'sq:' + p.cust : '', svs = svOpen();
   PV = {p, s:svs.find(k => SV[k].price === p.net) || CL[known] && CL[known].usual || svs[0]};
   const opts = Object.keys(CL).filter(k => !CL[k].anon).sort((a, b) => CL[a].name.localeCompare(CL[b].name));
   sheet(`${top(`Add the ${P.unitOne}`, `${cap(DOW[dateOf(offOf(p.day)).getDay()])} at ${clock(p.at)} · ${money(p.net)} by card`)}
@@ -2840,7 +2913,7 @@ function openEntry(id){
 let PF = null;
 function openCharge(a){
   if (!a) return;
-  sheet(`${top(`${first(a.c)} · ${money(SV[a.s].price)}`, `${cap(dayName(a.off))} · ${svLabel(a.s)}`)}
+  sheet(`${top(`${first(a.c)} · ${money(prOf(a))}`, `${cap(dayName(a.off))} · ${svLabel(a.s)}`)}
     ${LIVEBOOK ? `<p>Take a card in Square as usual. It shows here as paid a minute or two later.</p>` : `<button class="btn primary" style="width:100%" data-act="charge-card" data-id="${a.id}">Charge a card with Square</button>`}
     <button class="btn${LIVEBOOK ? ' primary' : ''}" style="width:100%;margin-top:10px" data-act="payfor" data-id="${a.id}">Paid with cash, Zelle or another way</button>`);
 }
@@ -3365,7 +3438,7 @@ function ask(q){
       <div class="btn-row" style="margin-top:10px"><button class="btn primary" data-act="money" data-v="year">See your year</button></div>`;
   } else if (/(paid|owe|unpaid|charge)/.test(s)) {
     const u = unpaid();
-    a = u.length ? `<ul>${u.map(x => `<li><b>${CL[x.c].name}</b>: ${money(SV[x.s].price)} for ${dayName(x.off)}</li>`).join('')}</ul>` : 'Everyone has paid. Nice.';
+    a = u.length ? `<ul>${u.map(x => `<li><b>${CL[x.c].name}</b>: ${money(prOf(x))} for ${dayName(x.off)}</li>`).join('')}</ul>` : 'Everyone has paid. Nice.';
   } else if (/(open|free|room|available|opening|gap)/.test(s)) {
     const off = dayHit(), g = freeGaps(off);
     a = isOff(off) ? `${cap(dayName(off))} is your day off.` : g.length ? `${cap(dayName(off))} you’re open:<ul>${g.map(([x,y]) => `<li><b>${clock(x)} to ${clock(y)}</b> (${dur(y-x)})</li>`).join('')}</ul>` : `${cap(dayName(off))} is fully booked.`;
@@ -3404,19 +3477,19 @@ function notesHTML(k){
 function openAppt(id){
   const a = AP.find(x => x.id === id); if (!a) return;
   const c = CL[a.c], done = a.off < 0 || (a.off === 0 && endOf(a) <= NOW), future = !done;
-  const status = a.paid ? `<span class="tag ok">Paid ${money(a.paidAmt != null ? a.paidAmt : SV[a.s].price)}${a.tip?' + '+money(a.tip)+' tip':''}${a.method && a.method !== 'Card' ? ' · ' + esc(a.method) : ''}</span>` : done ? '<span class="tag warn">Not paid</span>' : c.isNew ? `<span class="tag new">New ${W1}</span>` : '';
-  sheet(`${top(c.name, `${cap(dayName(a.off))} · ${clock(a.start)} to ${clock(endOf(a))}<br>${svLabel(a.s)} · ${money(SV[a.s].price)}`)}
+  const status = a.paid ? `<span class="tag ok">Paid ${money(a.paidAmt != null ? a.paidAmt : prOf(a))}${a.tip?' + '+money(a.tip)+' tip':''}${a.method && a.method !== 'Card' ? ' · ' + esc(a.method) : ''}</span>` : done ? '<span class="tag warn">Not paid</span>' : c.isNew ? `<span class="tag new">New ${W1}</span>` : '';
+  sheet(`${top(c.name, `${cap(dayName(a.off))} · ${clock(a.start)} to ${clock(endOf(a))}<br>${svLabel(a.s)} · ${money(prOf(a))}`)}
     ${status ? `<div>${status}</div>` : ''}
     ${done ? (() => { const v = VISITS[visitKey(a)] || {}; return v.noshow ? `<div class="card facts2"><p>Marked as a no-show.</p></div>` : `<div class="field"><span class="label lbl-row">${visitForm().title}${v.at ? `<button class="chip sm" data-act="vnotes" data-id="${a.id}">Edit</button>` : ''}</span>
       ${v.at ? `<div class="card vnote">${visitSummary(v)}</div>` : `<button class="btn primary" style="width:100%" data-act="vnotes" data-id="${a.id}">Write ${visitForm().title.toLowerCase().replace('soap', 'SOAP')}</button>`}</div>`; })() : ''}
     ${(() => { const lv = !done && lastVisitNote(a.c, isoDay(dateOf(a.off))); return lv ? `<div class="field"><span class="label">From last time · ${(() => { const d = new Date(lv.date + 'T12:00:00'); return `${MON[d.getMonth()].slice(0,3)} ${d.getDate()}`; })()}</span><div class="card vnote">${visitSummary(lv)}</div></div>` : ''; })()}
     <div class="field"><span class="label lbl-row">${done ? 'About them' : 'Before you start'}<button class="chip sm" data-act="editnotes" data-c="${a.c}" data-back="${a.id}">Edit</button></span>${notesHTML(a.c)}</div>
     <div class="btn-row">
-      ${!a.paid ? `<button class="btn primary" data-act="charge" data-id="${a.id}">Charge ${money(SV[a.s].price)}</button>` : ''}
+      ${!a.paid ? `<button class="btn primary" data-act="charge" data-id="${a.id}">Charge ${money(prOf(a))}</button>` : ''}
       ${future && a.off === 0 ? `<button class="btn" data-act="late" data-id="${a.id}">Running late</button>` : ''}
       ${future && a.off > 0 && LIVEBOOK ? `<button class="btn" data-act="reach" data-c="${a.c}" data-kind="remind" data-id="${a.id}">Text a reminder</button>` : ''}
       ${!c.intake ? `<button class="btn" data-act="fillfor" data-c="${a.c}">Fill in ${P.intakeName}</button><button class="btn" data-act="intake" data-c="${a.c}">Text the form</button>` : ''}
-      ${future ? `<button class="btn" data-act="move" data-id="${a.id}">Move</button>` : ''}
+      ${future ? `<button class="btn" data-act="move" data-id="${a.id}">${a.sq ? 'Move' : 'Move or change'}</button>` : ''}
       ${done && !a.paid && !noShow(a) ? `<button class="btn" data-act="wk-noshow" data-id="${a.id}">No-show</button>` : ''}
       <button class="btn" data-act="rebook" data-id="${a.id}">Book again</button>
       ${future ? `<button class="btn danger" data-act="cancel" data-id="${a.id}">Cancel</button>` : ''}
@@ -3435,7 +3508,7 @@ function openClient(k){
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><span class="label">Next visit</span><p style="font-weight:600;margin-top:2px">${n ? `${whenText(n)} · ${svLabel(n.s)}` : 'Nothing booked'}</p></div>${n?`<button class="close" data-act="appt" data-id="${n.id}">Open</button>`:''}</div>
     <div class="field"><span class="label lbl-row">Notes<button class="chip sm" data-act="editnotes" data-c="${k}">Edit</button></span>${notesHTML(k)}</div>
     ${(() => { const vs = AP.filter(a => a.c === k && (VISITS[visitKey(a)] || {}).at).sort((x, y) => y.off - x.off).slice(0, 6);
-      return vs.length ? `<div class="field"><span class="label">${visitForm().title}</span><div class="list flat">${vs.map(a => `<button class="li" data-act="appt" data-id="${a.id}"><span class="t">${dayShort(a.off).slice(4)}<small>${SV[a.s].min} min</small></span><span class="who"><b>${esc(SV[a.s].name)}</b><span>${esc((VISITS[visitKey(a)][visitForm().text.find(t => t.plan).k] || (visitForm().chips[0] ? VISITS[visitKey(a)][visitForm().chips[0].k] || [] : []).join(', ') || 'Notes written'))}</span></span>${I.chev}</button>`).join('')}</div></div>` : ''; })()}
+      return vs.length ? `<div class="field"><span class="label">${visitForm().title}</span><div class="list flat">${vs.map(a => `<button class="li" data-act="appt" data-id="${a.id}"><span class="t">${dayShort(a.off).slice(4)}<small>${minOf(a)} min</small></span><span class="who"><b>${esc(SV[a.s].name)}</b><span>${esc((VISITS[visitKey(a)][visitForm().text.find(t => t.plan).k] || (visitForm().chips[0] ? VISITS[visitKey(a)][visitForm().chips[0].k] || [] : []).join(', ') || 'Notes written'))}</span></span>${I.chev}</button>`).join('')}</div></div>` : ''; })()}
     ${(() => { const rs = RESP.filter(r => r.client === k); const intakeI = FORMS.findIndex(x => x.intake);
       return `<div class="field"><span class="label">Forms</span>${rs.map(r => `<button class="li" data-act="resp" data-v="${r.id}" style="background:var(--surface);border-radius:14px;box-shadow:var(--shadow)"><span class="t">${I.check.replace('<svg', '<svg width="20" height="20" style="color:var(--accent)"')}</span><span class="who"><b>${esc(r.form)}</b><span>Filled in ${MON[+r.date.slice(5,7)-1].slice(0,3)} ${+r.date.slice(8,10)}</span></span>${I.chev}</button>`).join('')}
         ${intakeI >= 0 && !rs.some(r => r.form === FORMS[intakeI].name) ? `<button class="btn line" data-act="fillfor" data-c="${k}">Fill in ${esc(FORMS[intakeI].name.toLowerCase())} now</button>` : ''}</div>`; })()}
@@ -3503,8 +3576,9 @@ function whoChips(){
   return `${ks.map(k => `<button class="chip" data-act="b-c" data-v="${esc(k)}" aria-pressed="${B.c===k}">${esc(shortName(k))}</button>`).join('')}${q && !ks.length ? `<span class="small muted">No one named “${esc(B.find)}”.</span>` : ''}<button class="chip" data-act="b-c" data-v="new" aria-pressed="${B.c==='new'}">+ Someone new</button>`;
 }
 function openBook(o){
-  B = Object.assign({kind:'client', mode:'new', c:null, newName:'', s:Object.keys(SV)[0], off:S.tab==='schedule'?S.day:1, start:null, label:'Lunch', name:'', len:30, rep:false, w:S.tab==='schedule'?S.who:ME}, o);
-  if (o.c && !o.s && CL[o.c] && CL[o.c].usual) B.s = CL[o.c].usual;
+  B = Object.assign({kind:'client', mode:'new', c:null, newName:'', s:svOpen()[0], off:S.tab==='schedule'?S.day:1, start:null, label:'Lunch', name:'', len:30, rep:false, w:S.tab==='schedule'?S.who:ME}, o);
+  if (o.c && !o.s && CL[o.c] && CL[o.c].usual && SV[CL[o.c].usual] && !SV[CL[o.c].usual].off) B.s = CL[o.c].usual;
+  B.s0 = B.s; B.off0 = B.off; B.start0 = B.start;
   if (B.off != null) { while (isOff(B.off) || B.off < 0) B.off++; }
   B.to = B.off; B.calM = B.off != null ? B.off : B.hint != null ? B.hint : 0;
   fixStart(); sheet(bookHTML());
@@ -3513,6 +3587,7 @@ const TIME_OFF = [['Lunch', 30], ['Break', 15], ['Errand', 60], ['Appointment', 
 const wholeDays = () => B.kind === 'block' && (B.label === 'Day off' || B.label === 'Vacation');
 const offOfIso = v => Math.round((new Date(v + 'T00:00:00') - T0) / 864e5);
 const workDays = (a, b) => { const out = []; for (let o = a; o <= b; o++) if (!isOff(o)) out.push(o); return out; };
+const alsoUpcoming = () => AP.filter(a => a.c === B.c && a.s === B.s0 && a.id !== B.id && !a.sq && (a.off > 0 || (a.off === 0 && a.start > NOW))).sort((x, y) => x.off - y.off);
 const bLen = () => B.kind === 'client' ? SV[B.s].min : wholeDays() ? closeOf(B.off) - openOf(B.off) : B.len;
 const bStarts = () => validStarts(B.off, bLen(), B.kind === 'client' ? TURN : 0, B.id, B.w, B.wide);
 function fixStart(){ if (B.off == null || !bStarts().includes(B.start)) B.start = null; }
@@ -3523,11 +3598,11 @@ function bookLabel(){
   const when = `${dayShort(B.off).slice(0,3)} ${clock(B.start)}`;
   if (B.kind === 'block') return B.rep ? `Every ${DOW[dateOf(B.off).getDay()]} at ${clock(B.start)}` : `Block ${when}`;
   const who = B.c === 'new' ? B.newName.trim().split(' ')[0] : first(B.c);
-  return B.mode === 'move' ? `Move to ${when}` : `Book ${who} · ${when}`;
+  return B.mode === 'move' ? (B.off === B.off0 && B.start === B.start0 ? (B.s === B.s0 ? 'Keep it as it is' : 'Save the change') : `Move to ${when}`) : `Book ${who} · ${when}`;
 }
 function bookHTML(){
   const head = B.kind === 'block' ? top('Time off', `Breaks, your own appointments and days away. ${cap(WN)} can’t be booked over it.`)
-    : B.mode === 'move' ? top(`Move ${first(B.c)}`, `${svLabel(B.s)}, now ${whenText(AP.find(a=>a.id===B.id))}`)
+    : B.mode === 'move' ? top(`Move or change ${esc(first(B.c))}’s ${P.unitOne}`, `${svLabel(B.s0)}, now ${whenText(AP.find(a=>a.id===B.id))}`)
     : B.rebook ? top(`Book ${esc(first(B.c))} again`, 'Same as last time. Pick a day on the calendar.')
     : top(`Book a ${W1}`, B.fromReq ? `${CL[B.c].name} asked for ${dayName(REQ.off)} at ${clock(REQ.start)}` : TURN ? `${TURN} minutes to reset is added after each ${P.unitOne}.` : 'Booked back to back.');
   if (B.rebook) return `${head}
@@ -3537,7 +3612,9 @@ function bookHTML(){
       <input class="search" id="b-find" type="search" placeholder="Find a ${W1}" value="${esc(B.find || '')}" autocomplete="off" aria-label="Find a ${W1}">
       <div class="chips" id="b-who">${whoChips()}</div>
       ${B.c === 'new' ? `<input class="text-in" id="new-name" placeholder="Their name" value="${esc(B.newName)}" autocomplete="off" aria-label="New ${W1} name">` : ''}</div>` : '';
-  const what = B.kind === 'client' ? (B.mode === 'new' ? `<div class="field"><span class="label">What</span><div class="svc">${Object.entries(SV).map(([k,v]) => `<button data-act="b-s" data-v="${k}" aria-pressed="${B.s===k}"><b>${v.name}</b><span>${v.min} min · ${money(v.price)}</span></button>`).join('')}</div></div>` : '')
+  const svcs = [...new Set([...(B.mode === 'move' ? [B.s0] : []), ...svOpen()])], same = B.mode === 'move' && B.s !== B.s0 ? alsoUpcoming() : [];
+  const what = B.kind === 'client' ? (B.mode === 'new' || (B.mode === 'move' && !String(B.s0).startsWith('sq:')) ? `<div class="field"><span class="label">What</span><div class="svc">${svcs.map(k => `<button data-act="b-s" data-v="${esc(k)}" aria-pressed="${B.s===k}"><b>${esc(SV[k].name)}</b><span>${svLen(SV[k].min)} · ${money(SV[k].price)}</span></button>`).join('')}</div>
+      ${same.length ? `<button class="chip" data-act="b-also" aria-pressed="${!!B.also}" style="align-self:flex-start">${esc(first(B.c))}’s other ${same.length} upcoming ${same.length === 1 ? P.unitOne : P.unit} too</button><span class="small muted">${same.map(a => dayShort(a.off)).join(', ')}</span>` : ''}</div>` : '')
     : `<div class="field"><span class="label">What</span><div class="chips">${TIME_OFF.map(([l]) => `<button class="chip" data-act="b-l" data-v="${l}" aria-pressed="${B.label===l}">${l}</button>`).join('')}</div>
        <input class="text-in" id="b-name" placeholder="Name it if you like: Dentist, school pickup…" value="${esc(B.name)}" autocomplete="off" aria-label="Name it">
        ${wholeDays() ? '' : `<span class="label" style="margin-top:6px">How long</span><div class="chips">${[15,30,45,60,90,120,180,240].map(m => `<button class="chip" data-act="b-len" data-v="${m}" aria-pressed="${B.len===m}">${dur(m)}</button>`).join('')}</div>`}</div>`;
@@ -3589,9 +3666,15 @@ function bookGo(){
       (B.rep ? Array.from({length:13}, (_, i) => B.off + 7 * i) : [B.off]).forEach(o => { if (!isOff(o) && validStarts(o, B.len, 0, undefined, B.w).includes(B.start)) { BL.push({id:seq++, off:o, start:B.start, min:B.len, label, w:B.w, mine:true, uid:uidOf('b'), grp:B.rep ? grp : undefined}); n++; } else skip++; });
       msg = B.rep ? `${label} every ${DOW[dateOf(B.off).getDay()]} at ${clock(B.start)}: ${n} week${n === 1 ? '' : 's'} blocked${skip ? `, ${skip} skipped because ${skip === 1 ? 'that one is' : 'they’re'} already busy` : ''}.` : `${label}: ${dayName(B.off)} ${clock(B.start)}, ${dur(B.len)}.`; }
   }
-  else if (B.mode === 'move') { const a = AP.find(x => x.id === B.id); a.off = B.off; a.start = B.start; a.w = B.w;
-    if (LIVEBOOK) { closeSheet(); render(); toast(`Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}.`); msgSheet(`Let ${first(a.c)} know`, messageFor(a.c, 'moved', a), CL[a.c].phone); return; }
-    msg = `Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}. In the real app, ${first(a.c)} gets a text.`; }
+  else if (B.mode === 'move') { const a = AP.find(x => x.id === B.id), moved = a.off !== B.off || a.start !== B.start, svc = B.s !== B.s0;
+    // a different service: this one, and the client's other upcoming ones with the old service if she asked (each only where it still fits)
+    let also = 0, skip = 0;
+    if (svc && B.also) alsoUpcoming().forEach(o => { if (validStarts(o.off, SV[B.s].min, TURN, o.id, o.w, true).includes(o.start)) { o.s = B.s; also++; } else skip++; });
+    a.off = B.off; a.start = B.start; a.w = B.w; a.s = B.s;
+    const changed = svc ? `${first(a.c)} is now ${svLabel(a.s)}${also ? ` on ${dayName(a.off)} and ${also} more` : ''}.${skip ? ` ${skip} didn’t fit and stay as they were.` : ''}` : '';
+    if (!moved) { closeSheet(); render(); if (svc) toast(changed); return; }
+    if (LIVEBOOK) { closeSheet(); render(); toast(`Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}.${svc ? ' ' + changed : ''}`); msgSheet(`Let ${first(a.c)} know`, messageFor(a.c, 'moved', a), CL[a.c].phone); return; }
+    msg = `Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}.${svc ? ' ' + changed : ''} In the real app, ${first(a.c)} gets a text.`; }
   else {
     let k = B.c;
     if (k === 'new') { k = 'n' + Date.now().toString(36); CL[k] = {name:B.newName.trim(), phone:'Not added yet', since:T0.getFullYear(), visits:0, last:null, isNew:true, intake:false, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true, ...(P.look === 'seaglass' ? {} : {rows:[]})}; if (!CL[k].name.includes(' ')) CL[k].name += ' '; }
@@ -3868,8 +3951,8 @@ on('click', e => {
       try { navigator.clipboard.writeText(t).then(() => toast('Copied. Paste it into Messages.'), () => { ta.select(); toast('Press and hold the text to copy it.'); }); }
       catch (_) { ta.select(); toast('Press and hold the text to copy it.'); } break; }
     case 'charge': openCharge(AP.find(x => x.id === id)); break;
-    case 'charge-card': { const a = AP.find(x => x.id === id); a.paid = true; a.method = 'Card'; closeSheet(); render(); toast(`Marked ${first(a.c)} paid, ${money(SV[a.s].price)}. In the real app, this opens Square with the amount ready.`); break; }
-    case 'payfor': { const a = AP.find(x => x.id === id); openPay({c:a.c, amt:SV[a.s].price, date:isoDay(dateOf(a.off))}); break; }
+    case 'charge-card': { const a = AP.find(x => x.id === id); a.paid = true; a.method = 'Card'; closeSheet(); render(); toast(`Marked ${first(a.c)} paid, ${money(prOf(a))}. In the real app, this opens Square with the amount ready.`); break; }
+    case 'payfor': { const a = AP.find(x => x.id === id); openPay({c:a.c, amt:prOf(a), date:isoDay(dateOf(a.off))}); break; }
     case 'addpay': openPay(el.dataset.c ? {c:el.dataset.c} : {}); break;
     case 'pf-m': PF.method = v; document.querySelectorAll('[data-act=pf-m]').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); break;
     case 'pf-save': savePay(); break;
@@ -4029,7 +4112,8 @@ on('click', e => {
     case 'yr': S.yr = +v; render(); break;
     case 'wi': { const k = el.dataset.k; S[k] = k === 'wiC' ? Math.max(0, Math.min(10, S[k] + +v)) : Math.max(-30, Math.min(50, S[k] + +v)); render(); break; }
     case 'b-c': B.c = v; rerenderBook(); if (v === 'new') $('#new-name').focus(); break;
-    case 'b-s': B.s = v; fixStart(); rerenderBook(); break;
+    case 'b-s': B.s = v; if (B.mode === 'move' && v === B.s0) B.also = false; fixStart(); rerenderBook(); break;
+    case 'b-also': B.also = !B.also; rerenderBook(); break;
     case 'b-l': B.label = v; if (wholeDays()) B.to = Math.max(B.to, B.off); else { B.len = (TIME_OFF.find(t => t[0] === v) || [, B.len])[1] || B.len; fixStart(); } rerenderBook(); break;
     case 'b-rep': B.rep = !B.rep; rerenderBook(); break;
     case 'b-wide': B.wide = !B.wide; fixStart(); rerenderBook(); break;
@@ -4052,6 +4136,12 @@ on('click', e => {
     case 'rm-ok': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), confirmed:new Date().toISOString()}; render(); toast(`${first(a.c)} is confirmed.`); } break; }
     case 'me': if (CLOUD_ON && typeof pkOk === 'function' && pkOk() && !lsGet('sole-face')) pkFetch('reg'); if (pushOk()) pushFetchKey(); sheet(meHTML()); break;
     case 'me-theme': setTheme(v || null); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
+    case 'sv-list': sheet(servicesHTML()); break;
+    case 'sv-new': SVE = {k:null, name:'', min:60, price:'', desc:''}; sheet(serviceHTML()); setTimeout(() => { const n = $('#sv-name'); if (n) n.focus(); }, 50); break;
+    case 'sv-edit': { const c = SV[v]; SVE = {k:v, name:c.name, min:c.min, price:c.price, desc:c.desc || ''}; sheet(serviceHTML()); break; }
+    case 'sv-min': { svRead(); SVE.min = +v; const sc = $('.sheet').scrollTop; $('.sheet').innerHTML = `<div class="grab"></div>${serviceHTML()}`; $('.sheet').scrollTop = sc; break; }
+    case 'sv-save': svSave(); break;
+    case 'sv-off': case 'sv-on': { const c = SV[SVE.k]; svStore({k:SVE.k, price:c.price, min:c.min, v:{off:el.dataset.act === 'sv-off' ? true : undefined}}, el.dataset.act === 'sv-off' ? `${c.name}, ${dur(c.min)}, is off the list. Visits already booked with it stay.` : `${c.name}, ${dur(c.min)}, is offered again.`); break; }
     case 'me-thanks': PREFS.thanks = v !== 'off'; savePrefs(); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
     case 'me-face-off': try { localStorage.removeItem('sole-face'); } catch (_) {} $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; toast(`${FACE} is off on this phone. Next time, sign in with a code.`); break;
     case 'me-face-on': if (!pkOk()) { toast(`${FACE} isn’t ready on this address yet. Try again later.`); break; } el.disabled = true; pkCeremony('reg').then(() => true, err => err && (err.code === 'webauthn_credential_exists' || err.name === 'InvalidStateError'))
@@ -4144,6 +4234,7 @@ if (FORM_LINK) { formPage(FORM_LINK); return; }
 CLIENT_NAME = k => CL[k] ? CL[k].name.trim() : ''; TOAST = toast;
 RESP.forEach(r => applyResponse(r, true));
 render();
+if (REOPEN === 'services') { REOPEN = null; sheet(servicesHTML()); }
 if (OPEN_MSG && INBOX.some(m => m.id === OPEN_MSG)) { const id = OPEN_MSG; OPEN_MSG = null; try { history.replaceState(history.state, '', location.pathname); } catch (_) {} inboxSheet(id); }
 if (P.real && !SQ) loadSquare(KEY);
 if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.getItem('sole-seen'); } catch (_) {}
