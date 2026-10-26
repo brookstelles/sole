@@ -562,6 +562,7 @@ a.btn{text-decoration:none}
 .note + .note{border-top:1px solid var(--line)}
 .note dt{font-size:14px;color:var(--muted);font-weight:600}
 .note dd{margin:0;min-width:0}
+.notes a{color:var(--accent);font-weight:600;text-decoration:none}
 .note.avoid dd{color:var(--bad);font-weight:600}
 .pressure{display:flex;align-items:center;gap:10px}
 .pressure .meter{display:flex;gap:4px}
@@ -1391,7 +1392,7 @@ LEDGER.filter(x => x.kind === 'pay').forEach(x => { x.matched = false; if (!x.c)
 const ASKNAME = LIVEBOOK ? ((Object.values(CL).filter(c => c.sq && c.visits).sort((a, b) => b.visits - a.visits)[0] || {name:P.askName}).name.split(' ')[0]) : P.askName;
 const DONE_STEPS = ACC ? (ACC.steps = ACC.steps || {}) : {};
 const RESP = [...((ACC && ACC.state && ACC.state.responses) || []), ...(P.real && SQ && SQ.responses ? SQ.responses : [])];   // filled-in forms
-const NOTE_FIELDS = ['phone', 'pressure', 'focus', 'avoid', 'reason', 'health', 'setup', 'note', 'rows'];
+const NOTE_FIELDS = ['phone', 'email', 'address', 'born', 'from', 'pressure', 'focus', 'avoid', 'reason', 'health', 'setup', 'note', 'rows'];
 function saveState(){
   if (!ACC && !SOLE) return;
   const appts = AP.filter(a => a.mine).map(a => ({uid:a.uid || (a.uid = uidOf('a')), c:a.c, s:a.s, date:isoDay(dateOf(a.off)), start:a.start, paid:!!a.paid && !a.auto, tip:a.auto ? 0 : a.tip || 0, w:a.w, method:a.auto ? undefined : a.method}));
@@ -2229,6 +2230,8 @@ function chart(){
 }
 
 /* ---------- Clients ---------- */
+const bdayOff = born => { if (!born) return null; const d = new Date(T0.getFullYear(), +born.slice(5,7) - 1, +born.slice(8,10)); if (d < new Date(T0.getFullYear(), T0.getMonth(), T0.getDate())) d.setFullYear(d.getFullYear() + 1);
+  const off = Math.round((d - new Date(T0.getFullYear(), T0.getMonth(), T0.getDate())) / 864e5); return off <= 14 ? off : null; };
 function reachList(){
   const r = [];
   Object.keys(CL).forEach(k => {
@@ -2236,7 +2239,7 @@ function reachList(){
     if (nextAppt(k)) return;
     if (c.every && d != null && d > c.every * 1.5) r.push({k, why:`Last in ${lastText(k).toLowerCase()}, usually every ${Math.round(c.every/7)} weeks`, kind:'lapsed'});
   });
-  Object.keys(CL).forEach(k => { const c = CL[k]; if (c.birthday != null) r.push({k, why:`Birthday ${dayName(c.birthday)}`, kind:'bday'}); if (c.gift) r.push({k, why:`${money(c.gift)} gift card from ${c.giftFrom}, not used`, kind:'gift'}); if (c.review) r.push({k, why:`${c.visits} visits, no review yet`, kind:'review'}); });
+  Object.keys(CL).forEach(k => { const c = CL[k], bo = c.birthday != null ? c.birthday : bdayOff(c.born); if (bo != null) r.push({k, why:`Birthday ${dayName(bo)}`, kind:'bday'}); if (c.gift) r.push({k, why:`${money(c.gift)} gift card from ${c.giftFrom}, not used`, kind:'gift'}); if (c.review) r.push({k, why:`${c.visits} visits, no review yet`, kind:'review'}); });
   return r;
 }
 function viewClients(){
@@ -2262,7 +2265,7 @@ function clientRows(){
 const CL_FILTERS = [['all','All'], ['soon','Coming up'], ['due','Due back'], ['new','New'], ['flags','Health notes'], ['form','Needs a form']];
 function clFlags(k){
   const c = CL[k], n = nextAppt(k);
-  return {soon:!!n, due:!n && !!c.every && c.last != null && c.last > c.every + 7, new:!!c.isNew || !c.visits, flags:!!(c.health || c.avoid), form:!c.intake};
+  return {soon:!!n, due:!n && !!c.every && c.last != null && c.last > c.every + 7, new:!!c.isNew || (!c.visits && !c.from), flags:!!(c.health || c.avoid), form:!c.intake};
 }
 const clKeys = () => Object.keys(CL).filter(k => !CL[k].anon && k !== 'sq:none');
 const avTint = k => ['', ' t1', ' t2'][CL[k].name.charCodeAt(0) % 3];
@@ -2282,11 +2285,12 @@ function viewClientsTab(){
 }
 function clientTabRows(){
   const q = (S.clq || '').trim().toLowerCase(), f = S.clf || 'all';
-  const ks = clKeys().filter(k => (!q || CL[k].name.toLowerCase().includes(q)) && (f === 'all' || clFlags(k)[f])).sort((a, b) => CL[a].name.localeCompare(CL[b].name));
+  const qd = q.replace(/\D/g, ''), hit = k => !q || CL[k].name.toLowerCase().includes(q) || (qd.length >= 3 && String(CL[k].phone || '').replace(/\D/g, '').includes(qd));
+  const ks = clKeys().filter(k => hit(k) && (f === 'all' || clFlags(k)[f])).sort((a, b) => CL[a].name.localeCompare(CL[b].name));
   if (!ks.length) return `<p class="muted cl-empty">${q ? `No ${W1} named “${esc(S.clq)}”.` : `No ${WN} here right now.`}</p>`;
   const groups = {}; ks.forEach(k => { const L = /[a-z]/i.test(CL[k].name[0]) ? CL[k].name[0].toUpperCase() : '#'; (groups[L] = groups[L] || []).push(k); });
   return Object.entries(groups).map(([L, g]) => `<div class="cl-group"><span class="cl-letter">${L}</span><div class="list">${g.map(k => { const n = nextAppt(k), x = clFlags(k);
-    return `<button class="li client" data-act="cl-open" data-c="${esc(k)}"><span class="av${avTint(k)}">${esc(initials(k))}</span><span class="who"><b>${esc(CL[k].name)}</b><span>${n ? 'Next: ' + whenText(n) : CL[k].last == null ? 'Not in yet' : 'Last in ' + lastText(k).toLowerCase()}</span></span>
+    return `<button class="li client" data-act="cl-open" data-c="${esc(k)}"><span class="av${avTint(k)}">${esc(initials(k))}</span><span class="who"><b>${esc(CL[k].name)}</b><span>${n ? 'Next: ' + whenText(n) : CL[k].last != null ? 'Last in ' + lastText(k).toLowerCase() : CL[k].from && CL[k].since ? `${cap(W1)} since ${CL[k].since}` : 'Not in yet'}</span></span>
       <span class="cl-marks">${x.flags ? '<i class="mk bad" title="Health notes">!</i>' : ''}${x.form ? `<i class="mk warn" title="${esc(cap(P.intakeName))} not filled in">${I.forms.replace('<svg', '<svg width="13" height="13"')}</i>` : ''}${I.chev}</span></button>`; }).join('')}</div></div>`).join('');
 }
 // every visit with this person, newest first: appointments, plus notes from visits outside the schedule's reach
@@ -2324,6 +2328,11 @@ function clientPage(k){
     </div>
   </section>
   ${n ? `<button class="card cl-next" data-act="appt" data-id="${n.id}"><span class="when"><span class="label">Next visit</span><b>${whenText(n)}</b><span>${svLabel(n.s)}</span></span>${I.chev}</button>` : ''}
+  ${tel || c.email || c.address || c.born ? `<section class="field"><span class="label">Contact</span><dl class="notes" style="margin:0">
+    ${tel ? `<div class="note"><dt>Phone</dt><dd><a href="tel:${tel}" target="_top">${esc(c.phone)}</a></dd></div>` : ''}
+    ${c.email ? `<div class="note"><dt>Email</dt><dd style="word-break:break-all"><a href="mailto:${esc(c.email)}" target="_top">${esc(c.email)}</a></dd></div>` : ''}
+    ${c.address ? `<div class="note"><dt>Address</dt><dd><a href="https://maps.apple.com/?q=${encodeURIComponent(c.address)}" target="_blank" rel="noopener">${esc(c.address)}</a></dd></div>` : ''}
+    ${c.born ? `<div class="note"><dt>Birthday</dt><dd>${MON[+c.born.slice(5,7) - 1]} ${+c.born.slice(8,10)}</dd></div>` : ''}</dl></section>` : ''}
   <section class="field"><span class="label lbl-row">Before you start<button class="chip sm" data-act="editnotes" data-c="${esc(k)}">Edit</button></span>${notesHTML(k)}</section>
   <section class="field"><span class="label">Spent with you</span><div class="spend">
     <div><span>This month</span><b>${money(sp.m.$)}</b><span>${sp.m.v} visit${sp.m.v === 1 ? '' : 's'}</span></div>
