@@ -28,6 +28,15 @@ async function tour(p, label){
       if (await p.locator('[data-act=b-t]').count()) { await p.click('[data-act=b-t] >> nth=0'); await p.click('#book-go'); if (await p.locator('.sheet .close').count()) await p.click('.sheet .close'); } else await p.click('.sheet .close'); }
     await p.click('.tab[data-v=money]'); await p.click('.topc >> nth=0'); await p.click('.sheet .close');
     await p.click('[data-act=snapgo][data-sec=y-costs] >> nth=0');
+    // Clients tab: the list, a filter, one person's page with their visits and forms, and back
+    await p.click('.tab[data-v=clients]');
+    check(await p.locator('#clt-list .li.client').count() > 0, `${label} ${k}: the Clients tab lists people`);
+    await p.click('[data-act=cl-f][data-v=soon] >> nth=0'); await p.click('[data-act=cl-f][data-v=all] >> nth=0');
+    await p.fill('#clt-search', 'zzzz'); check(/No .* named/.test(await p.textContent('#clt-list')), `${label} ${k}: client search`); await p.fill('#clt-search', '');
+    await p.click('#clt-list .li.client >> nth=0');
+    check(await p.locator('.cl-hero').count() === 1 && await p.locator('.tl, .sec .muted').count() > 0, `${label} ${k}: a client's page`);
+    check(!(await wide(p)), `${label} ${k}: client page wider than the phone`);
+    await p.click('[data-act=cl-back]');
     await p.click('.tab[data-v=forms]'); await p.click('.tab[data-v=today]');
     check(!(await wide(p)), `${label} ${k}: wider than the phone`);
     console.log('ok', label, k, '-', await p.textContent('.biz-name'));
@@ -211,7 +220,7 @@ console.log('ok private Square views');
   const q = await (await b.newContext({viewport:{width:390, height:844}})).newPage();
   q.on('pageerror', e => errs.push('site/index.html: ' + e.message));
   // the phone's Face ID, standing in for the real prompt
-  await q.addInitScript(`navigator.credentials.get = navigator.credentials.create = async () => ({id:'fake-pk', toJSON(){ return {id:'fake-pk'}; }});\nwindow.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
+  await q.addInitScript(`window.__SOLE_INTRO_MS = 0;\nnavigator.credentials.get = navigator.credentials.create = async () => ({id:'fake-pk', toJSON(){ return {id:'fake-pk'}; }});\nwindow.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
   await q.route('https://sole.test/', r => r.fulfill({contentType:'text/html', body:site}));   // https: Face ID needs a secure page
   await q.goto('https://sole.test/', {waitUntil:'networkidle'});
   check(/Send me a code/.test(await q.textContent('main')), 'website: asks to sign in');

@@ -5,7 +5,7 @@ Sole (spelled S-O-L-E, as in sole proprietor; never "Soleil") is a phone app for
 ## Rules
 
 - The business's identity comes first inside the app (its logo, name and colors); Sole appears on the welcome screen, setup and the business switcher.
-- Every business gets the same framework (Today, Schedule, Snapshot, Forms). What changes per business lives in data: words (clients/customers/students, appointments/jobs/lessons), services, client-note fields, forms, hours. Don't hard-code one trade's wording in the engine; use `P.who`, `P.whoOne`, `P.unit`, `P.unitOne`, `W1`, `WN`.
+- Every business gets the same framework: five tabs, Today, Schedule, Snapshot (raised in the middle), Clients (named for the trade: `cap(WN)`), Forms; the open tab glows. What changes per business lives in data: words (clients/customers/students, appointments/jobs/lessons), services, client-note fields, forms, hours. Don't hard-code one trade's wording in the engine; use `P.who`, `P.whoOne`, `P.unit`, `P.unitOne`, `W1`, `WN`.
 - Keep it simple for non-technical owners: big targets, plain words, no settings screens.
 - `index.html` holds Heart and Soul Massage's real yearly numbers and P&L. Keep the repo and the published page private; anything shown to outsiders uses a made-up massage business.
 - Never put private details outside the `PRIVATE:START` / `PRIVATE:END` block in `index.html`, including comments and placeholders. `build_demo.py` refuses to build if any are left.
@@ -43,6 +43,16 @@ Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`). T
 - Payments, costs and notes work in every edition: the private one keeps them in the database, setup accounts in `ACC.state` (`ledger`, `notes`), the built-in businesses for the visit. A receipt photo is read by Claude on the viewer's own account (`sample` with images, `takeReceipt`), which fills in the store, amount, day and kind of cost. Tests inject Kelli's book through `__SOLE_SQUARE.sole` and still read made-up Square bookings through `window.__SOLE_SQUARE_BOOK`.
 - Square knows money and card customers (many card customers have no name; anyone who books gets one). Older notes and intake answers are still in MassageBook.
 - One person can pay with several cards. `people/merges` (`{groups:[{ids, name}]}`, rules read and write `interact`) combines card profiles into one client; `mergeCards()` applies it and Kelli combines or separates cards from a card customer's sheet ("Same person?"). Jason Jewell's three cards are combined.
+
+## Clients tab
+
+- `viewClientsTab()`: counts (everyone, booked ahead, due back), search, filters (`CL_FILTERS`, `clFlags()`: coming up, due back, new, health notes, needs a form) and an A to Z list. `clientPage(k)` is one person's page: who they are with Book, Text, Call and Payment, next visit, "Before you start" notes, spending, every visit newest first (`clientVisits()`: appointments plus visit notes from outside the schedule's reach) with its SOAP notes or a prompt to write them, and their forms. `cl-open` opens it from anywhere (the client sheet has "All visits and notes").
+
+## Website extras
+
+- Sign-in: email code, then Face ID (Supabase passkeys, experimental, `experimental:{passkey:true}`; relying party `sole.brookstelles.com`). The challenge is fetched before the tap (`pkFetch`, `pkCeremony`) because iPhones refuse a Face ID prompt that waits on the network. After a code sign-in, or once on a phone already signed in, `offerFace()` offers it; the sign-in screen then puts it first (`sole-face` in the phone's storage).
+- The opening (sunrise, "Welcome back" and the business name) plays every time for about 3½ seconds (`INTRO_MS`; tests set `__SOLE_INTRO_MS = 0`) while the book loads under it (`introVeil`, `introDone`).
+- Each page (tab, Snapshot page, client) is a browser history step (`navNote`), so swiping back works in Safari; back with a sheet open closes the sheet. Opened from the home screen (`STANDALONE`), Sole adds swipe from the left edge to go back and pull down to reload.
 
 ## Digital forms
 

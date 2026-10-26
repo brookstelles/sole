@@ -150,7 +150,25 @@ main{display:flex;flex-direction:column;gap:22px}
 .sky-or{display:flex;align-items:center;gap:10px;font-size:14px!important;color:rgba(255,255,255,.65)}
 .sky-or::before,.sky-or::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.2)}
 .sky-card .btn svg{width:22px;height:22px}
-.sky-wait{display:inline-flex;align-items:center;gap:10px}
+.sky-wait{display:inline-flex;align-items:center;gap:10px;justify-self:center}
+.sky-hello{font-family:var(--display);font-size:13px!important;letter-spacing:.3em;text-transform:uppercase;color:#FAD889;animation:fade .8s both}
+.sky-card .sky-biz{font-family:var(--display);font-size:30px;font-weight:300;line-height:1.15;color:#fff;animation:sky-letter .9s .15s cubic-bezier(.2,.7,.2,1) both}
+/* the opening hands over to the book: the sun's glow floods the screen, then the scene fades away */
+.signin.veil{z-index:60}
+.signin.leaving{animation:sky-out 1.1s cubic-bezier(.4,0,.2,1) forwards;pointer-events:none}
+.signin.leaving .glow{animation:sky-burst 1.1s ease-in forwards}
+.signin.leaving .sun{animation:sky-up 1.1s ease-in forwards}
+.signin.leaving .sky-in{animation:sky-lift .7s ease-in forwards}
+@keyframes sky-out{0%,40%{opacity:1}100%{opacity:0}}
+@keyframes sky-burst{to{transform:scale(7);opacity:1}}
+@keyframes sky-up{to{transform:translateY(-40px) scale(1.25)}}
+@keyframes sky-lift{to{transform:translateY(-30px);opacity:0}}
+/* pull down to refresh and swipe back, on the home screen app */
+.pull,.edge{position:fixed;z-index:25;display:grid;place-items:center;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);color:var(--gold);opacity:0;pointer-events:none;transition:opacity .15s}
+.pull{top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;width:42px;height:42px;margin-left:-21px;transform:translateY(-50px)}
+.edge{top:50%;left:6px;width:38px;height:38px;margin-top:-19px;color:var(--accent)}
+.pull svg,.edge svg{width:24px;height:24px}
+.pull.go svg{animation:sky-turn .9s linear infinite}
 .sky-wait::before{content:"";width:10px;height:10px;border-radius:50%;background:#F6C46C;animation:sky-pulse 1.1s ease-in-out infinite alternate}
 @keyframes sky-rise{from{transform:translateY(105%)}}
 @keyframes sky-glow{from{opacity:0;transform:scale(.6)}}
@@ -468,6 +486,63 @@ a.btn{text-decoration:none}
 .rc b{font-weight:600}
 .rc .btn{min-height:44px;font-size:15px}
 .li.client{grid-template-columns:44px 1fr auto}
+/* Clients tab */
+.cl-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cl-stats button{border:0;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:12px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;color:var(--ink)}
+.cl-stats b{font-family:var(--display);font-size:30px;font-weight:400;line-height:1;font-variant-numeric:tabular-nums}
+.cl-stats small{font-size:13px;color:var(--muted)}
+.cl-stats button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--accent),var(--shadow)}
+.cl-chips{flex-wrap:nowrap;overflow-x:auto;margin:0 -16px;padding:2px 16px 4px;scrollbar-width:none}
+.cl-chips::-webkit-scrollbar{display:none}
+.cl-chips .chip{flex:none}
+.cl-chips .chip span{opacity:.6;margin-left:2px}
+.cl-group{display:flex;flex-direction:column;gap:6px}
+.cl-letter{font-family:var(--display);font-size:20px;color:var(--gold);padding-left:6px}
+.av.t1{background:var(--warm-soft);color:var(--warm)}
+.av.t2{background:var(--sunk);color:var(--ink)}
+.cl-marks{display:flex;align-items:center;gap:6px}
+.mk{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;font-style:normal}
+.mk.bad{background:var(--bad-soft);color:var(--bad)}
+.mk.warn{background:var(--warm-soft);color:var(--warm)}
+.cl-empty{text-align:center;padding:24px 0}
+.cl-back{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:var(--accent);font-weight:600;font-size:16px;padding:4px 0}
+.cl-back svg{width:20px;height:20px}
+.cl-hero{position:relative;overflow:hidden;border-radius:24px;padding:22px 18px 18px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;
+  background:linear-gradient(160deg,var(--hero-a),var(--hero-b));color:var(--hero-ink);box-shadow:var(--shadow)}
+.cl-hero .lily{width:220px;right:-70px;top:-60px;opacity:.35}
+.cl-hero .av{width:76px;height:76px;font-size:26px;background:var(--surface);color:var(--accent);box-shadow:0 0 0 4px var(--hero-btn)}
+.cl-hero h2{font-size:30px;font-weight:300;margin-top:6px}
+.cl-hero p{font-size:15px;opacity:.85}
+.cl-tags{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:2px}
+.cl-acts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%;margin-top:12px}
+.cl-act{border:0;border-radius:16px;background:var(--hero-btn);color:inherit;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;font-size:13px;font-weight:600;text-decoration:none}
+.cl-act svg{width:22px;height:22px}
+.cl-act.primary{background:var(--accent);color:var(--accent-ink)}
+.cl-next{display:flex;align-items:center;gap:12px;width:100%;border:0;text-align:left;color:var(--ink)}
+.cl-next .when{flex:1;min-width:0}
+.cl-next b{display:block;font-size:17px}
+.cl-next span{font-size:15px;color:var(--muted)}
+.tl{list-style:none;margin:0;padding:0 0 0 18px;position:relative;display:flex;flex-direction:column;gap:12px}
+.tl::before{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--line)}
+.tl-i{position:relative}
+.tl-i::before{content:"";position:absolute;left:-18px;top:18px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--accent)}
+.tl-i.soon::before{background:var(--accent)}
+.tl-i.miss::before{border-color:var(--warm)}
+.tl-card{width:100%;border:0;text-align:left;color:var(--ink);background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:13px 14px;display:flex;flex-direction:column;gap:6px}
+.tl-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tl-date{font-size:14px;color:var(--muted)}
+.tl-date b{color:var(--ink);font-weight:600}
+.tl-svc{font-weight:600;font-size:16px}
+.tl-soap{border-left:3px solid var(--gold);padding-left:10px;display:flex;flex-direction:column;gap:3px;font-size:14.5px;color:var(--ink)}
+.tl-soap p{line-height:1.4}
+.tl-todo{font-size:14px;font-weight:600;color:var(--accent)}
+.cl-files{display:flex;flex-direction:column;gap:8px}
+.cl-file{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;width:100%;border:0;text-align:left;color:var(--ink);background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:12px 14px}
+.cl-file .fi{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.cl-file .fi svg{width:22px;height:22px}
+.cl-file.todo .fi{background:var(--warm-soft);color:var(--warm)}
+.cl-file b{display:block}
+.cl-file span{font-size:14px;color:var(--muted)}
 
 /* sheet */
 .scrim{position:fixed;inset:0;background:var(--scrim);z-index:20;animation:fade .18s ease-out}
@@ -508,10 +583,21 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
 /* tab bar */
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--surface);border-top:1px solid var(--line);
   padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));padding-block:6px calc(6px + env(safe-area-inset-bottom,0px))}
-.tabbar nav{max-width:480px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
-.tab{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;min-height:58px;color:var(--muted);font-size:13px;font-weight:600;border-radius:14px}
+.tabbar nav{max-width:480px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr)}
+.tab{border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;min-height:58px;color:var(--muted);font-size:12.5px;font-weight:600;border-radius:14px;transition:color .25s}
 .tab svg{width:26px;height:26px}
+.tab .ti{position:relative;display:grid;place-items:center;width:44px;height:30px;border-radius:999px;transition:background .25s,box-shadow .25s}
+/* the open tab glows a little */
 .tab[aria-current="page"]{color:var(--accent)}
+.tab[aria-current="page"] .ti{background:var(--accent-soft);box-shadow:0 0 14px 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+.tab[aria-current="page"] svg{filter:drop-shadow(0 0 5px color-mix(in srgb,var(--accent) 55%,transparent))}
+/* Snapshot sits raised in the middle */
+.tab.center .ti{width:56px;height:56px;margin-top:-26px;background:var(--accent);color:var(--accent-ink);border:4px solid var(--surface);
+  box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 35%,transparent)}
+.tab.center svg{width:26px;height:26px}
+.tab.center[aria-current="page"] .ti{background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft),0 0 22px 6px color-mix(in srgb,var(--accent) 45%,transparent);animation:tab-glow 3.2s ease-in-out infinite alternate}
+.tab.center[aria-current="page"] svg{filter:none}
+@keyframes tab-glow{to{box-shadow:0 0 0 4px var(--accent-soft),0 0 30px 10px color-mix(in srgb,var(--accent) 30%,transparent)}}
 .tab .badge{position:relative}
 .tab .badge::after{content:"";position:absolute;top:-1px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--warm);border:2px solid var(--surface)}
 
@@ -1534,15 +1620,23 @@ const SUNMARK = `<svg viewBox="-32 -32 64 64" aria-hidden="true"><g fill="none" 
 /* ---------- state ---------- */
 const S = {tab:'today', week:0, day:0, range:'week', bar:0, answer:null, search:'', yr:2026, wiC:0, wiP:0, money:'home', who:ME, ...(KEEP || {})};
 KEEP = null; CUR_S = S; CUR_KEY = KEY; if (LIVEBOOK) LIVE_DRAWN = liveSig();
-const TABS = [['today','Today'],['schedule','Schedule'],['money','Snapshot'],['forms','Forms']];
-const TITLES = {today:`Good ${NOW < 720 ? 'morning' : NOW < 1020 ? 'afternoon' : 'evening'}, ${P.owner}`, schedule:'Schedule', money:'Snapshot', forms:'Forms'};
+const TABS = [['today','Today'],['schedule','Schedule'],['money','Snapshot'],['clients',cap(WN)],['forms','Forms']];
+const TITLES = {today:`Good ${NOW < 720 ? 'morning' : NOW < 1020 ? 'afternoon' : 'evening'}, ${P.owner}`, schedule:'Schedule', money:'Snapshot', clients:`Your ${WN}`, forms:'Forms'};
 
 function render(){
   $('#hdr').innerHTML = `${MOTIF}<div><div class="hdr-top"><button class="biz" data-act="trade" aria-label="Switch business"><span class="biz-mark">${BIZMARK}</span><span class="biz-name">${esc(P.biz)}</span>${I.down.replace('<svg', '<svg class="chev"')}</button><span class="hdr-date">${dayShort(0).slice(0,3)}, ${MON[T0.getMonth()].slice(0,3)} ${T0.getDate()}</span></div><h1>${TITLES[S.tab]}</h1></div>`;
-  $('#main').innerHTML = ({today:viewToday, schedule:viewSchedule, money:viewMoney, forms:viewForms})[S.tab]();
+  $('#main').innerHTML = ({today:viewToday, schedule:viewSchedule, money:viewMoney, clients:viewClientsTab, forms:viewForms})[S.tab]();
   const owes = unpaid().length > 0;
   saveState();
-  $('#tabs').innerHTML = TABS.map(([k,l]) => `<button class="tab" data-act="tab" data-v="${k}" aria-current="${S.tab===k?'page':'false'}"><span class="${k==='money'&&owes?'badge':''}">${I[k]}</span>${l}</button>`).join('');
+  $('#tabs').innerHTML = TABS.map(([k,l]) => `<button class="tab${k==='money'?' center':''}" data-act="tab" data-v="${k}" aria-current="${S.tab===k?'page':'false'}"><span class="ti${k==='money'&&owes?' badge':''}">${I[k]}</span>${l}</button>`).join('');
+  navNote();
+}
+// On the website each page (tab, Snapshot page, client) is a step in the browser's history, so swiping back works
+function navNote(){
+  if (!CLOUD_ON) return;
+  const nav = {tab:S.tab, money:S.money, cl:S.cl || null}, key = JSON.stringify(nav);
+  if (key !== NAV_KEY) { if (NAV_KEY && !NAV_POP) history.pushState({nav}, ''); else history.replaceState({nav}, ''); NAV_KEY = key; }
+  NAV_POP = false;
 }
 
 /* ---------- Today ---------- */
@@ -1991,7 +2085,7 @@ function saveNotes(){
   if (c.mine && v('en-name')) x.name = v('en-name');
   Object.assign(c, x); if (!c.mine) { c.edited = true; if (NOTES) NOTES[EN.k] = {...(NOTES[EN.k] || {}), ...x}; }
   const back = EN.back, k = EN.k; EN = null; render();
-  if (back) openAppt(+back); else openClient(k);
+  if (back) openAppt(+back); else if (S.tab === 'clients' && S.cl === k) closeSheet(); else openClient(k);
   toast('Notes saved.');
 }
 function squareCard(){
@@ -2179,6 +2273,87 @@ function clientRows(){
   return ks.map(k => { const n = nextAppt(k); const sp = spend(k); return `<button class="li client" data-act="client" data-c="${k}"><span class="av">${initials(k)}</span><span class="who"><b>${CL[k].name}</b><span>${n ? 'Next: ' + whenText(n) : 'Last in: ' + lastText(k).toLowerCase()}</span></span><span class="num" style="text-align:right"><b>${money(sp.y.$)}</b><br><span class="small muted">this year</span></span></button>`; }).join('');
 }
 
+/* ---------- Clients tab: everyone, then one person's page (visits with their notes, forms) ---------- */
+const CL_FILTERS = [['all','All'], ['soon','Coming up'], ['due','Due back'], ['new','New'], ['flags','Health notes'], ['form','Needs a form']];
+function clFlags(k){
+  const c = CL[k], n = nextAppt(k);
+  return {soon:!!n, due:!n && !!c.every && c.last != null && c.last > c.every + 7, new:!!c.isNew || !c.visits, flags:!!(c.health || c.avoid), form:!c.intake};
+}
+const clKeys = () => Object.keys(CL).filter(k => !CL[k].anon && k !== 'sq:none');
+const avTint = k => ['', ' t1', ' t2'][CL[k].name.charCodeAt(0) % 3];
+function viewClientsTab(){
+  if (S.cl && CL[S.cl]) return clientPage(S.cl);
+  const ks = clKeys(), fl = Object.fromEntries(ks.map(k => [k, clFlags(k)])), count = f => f === 'all' ? ks.length : ks.filter(k => fl[k][f]).length, f = S.clf || 'all';
+  return `
+  <section class="cl-stats">
+    <button data-act="cl-f" data-v="all" aria-pressed="${f === 'all'}"><b>${ks.length}</b><small>${WN}</small></button>
+    <button data-act="cl-f" data-v="soon" aria-pressed="${f === 'soon'}"><b>${count('soon')}</b><small>booked ahead</small></button>
+    <button data-act="cl-f" data-v="due" aria-pressed="${f === 'due'}"><b>${count('due')}</b><small>due back</small></button>
+  </section>
+  <input class="search" id="clt-search" type="search" placeholder="Find a ${W1}" value="${esc(S.clq || '')}" autocomplete="off" aria-label="Find a ${W1}">
+  <div class="chips cl-chips">${CL_FILTERS.filter(([x]) => x === 'all' || count(x) || x === f).map(([x, l]) => `<button class="chip" data-act="cl-f" data-v="${x}" aria-pressed="${f === x}">${l}<span>${count(x)}</span></button>`).join('')}</div>
+  <div id="clt-list" style="display:flex;flex-direction:column;gap:16px">${clientTabRows()}</div>
+  <button class="btn line" data-act="addc">${I.plus}Add a ${W1}</button>`;
+}
+function clientTabRows(){
+  const q = (S.clq || '').trim().toLowerCase(), f = S.clf || 'all';
+  const ks = clKeys().filter(k => (!q || CL[k].name.toLowerCase().includes(q)) && (f === 'all' || clFlags(k)[f])).sort((a, b) => CL[a].name.localeCompare(CL[b].name));
+  if (!ks.length) return `<p class="muted cl-empty">${q ? `No ${W1} named “${esc(S.clq)}”.` : `No ${WN} here right now.`}</p>`;
+  const groups = {}; ks.forEach(k => { const L = /[a-z]/i.test(CL[k].name[0]) ? CL[k].name[0].toUpperCase() : '#'; (groups[L] = groups[L] || []).push(k); });
+  return Object.entries(groups).map(([L, g]) => `<div class="cl-group"><span class="cl-letter">${L}</span><div class="list">${g.map(k => { const n = nextAppt(k), x = clFlags(k);
+    return `<button class="li client" data-act="cl-open" data-c="${esc(k)}"><span class="av${avTint(k)}">${esc(initials(k))}</span><span class="who"><b>${esc(CL[k].name)}</b><span>${n ? 'Next: ' + whenText(n) : CL[k].last == null ? 'Not in yet' : 'Last in ' + lastText(k).toLowerCase()}</span></span>
+      <span class="cl-marks">${x.flags ? '<i class="mk bad" title="Health notes">!</i>' : ''}${x.form ? `<i class="mk warn" title="${esc(cap(P.intakeName))} not filled in">${I.forms.replace('<svg', '<svg width="13" height="13"')}</i>` : ''}${I.chev}</span></button>`; }).join('')}</div></div>`).join('');
+}
+// every visit with this person, newest first: appointments, plus notes from visits outside the schedule's reach
+function clientVisits(k){
+  const seen = new Set(), items = AP.filter(a => a.c === k).map(a => { const key = visitKey(a); seen.add(key); return {a, v:VISITS[key] || {}, date:isoDay(dateOf(a.off)), t:a.start}; });
+  Object.entries(VISITS).forEach(([key, v]) => { if (v.c === k && v.date && !seen.has(key)) items.push({v, date:v.date, t:0}); });
+  return items.sort((x, y) => y.date.localeCompare(x.date) || y.t - x.t);
+}
+function visitItem({a, v, date}){
+  const F = visitForm(), d = new Date(date + 'T12:00:00'), future = a && (a.off > 0 || (a.off === 0 && a.start >= NOW));
+  const svc = a ? SV[a.s].name : v.s && SV[v.s] ? SV[v.s].name : F.title;
+  const tag = future ? '<span class="tag next">Coming up</span>' : v.noshow ? '<span class="tag warn">No-show</span>' : a && a.paid ? `<span class="tag ok">Paid${a.tip ? ' + tip' : ''}</span>` : a ? '<span class="tag warn">Not paid</span>' : '';
+  const body = `<span class="tl-top"><span class="tl-date"><b>${MON[d.getMonth()].slice(0,3)} ${d.getDate()}</b>${d.getFullYear() !== T0.getFullYear() ? ', ' + d.getFullYear() : ''} · ${DOW[d.getDay()].slice(0,3)}${a ? ' · ' + clock(a.start) : ''}</span>${tag}</span>
+    <span class="tl-svc">${esc(svc)}${a ? ` <span class="muted" style="font-weight:400">· ${SV[a.s].min} min</span>` : ''}</span>
+    ${v.at ? `<span class="tl-soap">${visitSummary(v)}</span>` : a && !future && !v.noshow ? `<span class="tl-todo">${I.plus.replace('<svg', '<svg width="14" height="14" style="vertical-align:-2px"')} Write ${F.title.replace('SOAP', 'SOAP').toLowerCase().replace('soap', 'SOAP')}</span>` : ''}`;
+  return `<li class="tl-i${future ? ' soon' : v.noshow || (a && !a.paid && !future) ? ' miss' : ''}">${a ? `<button class="tl-card" data-act="appt" data-id="${a.id}">${body}</button>` : `<div class="tl-card">${body}</div>`}</li>`;
+}
+function clientPage(k){
+  const c = CL[k], n = nextAppt(k), sp = spend(k), x = clFlags(k), tel = String(c.phone || '').replace(/[^0-9+]/g, '');
+  const vs = clientVisits(k), coming = vs.filter(i => i.a && (i.a.off > 0 || (i.a.off === 0 && i.a.start >= NOW))), past = vs.filter(i => !coming.includes(i));
+  const rs = RESP.filter(r => r.client === k), intake = FORMS.find(f => f.intake);
+  const PHONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>';
+  return `
+  <button class="cl-back" data-act="cl-back">${I.left}All ${WN}</button>
+  <section class="cl-hero">${MOTIF}
+    <span class="av">${esc(initials(k))}</span>
+    <h2>${esc(c.name)}</h2>
+    <p>${c.since ? `${cap(W1)} since ${c.since}` : `New ${W1}`}${sp.a.v ? ` · ${sp.a.v} ${sp.a.v === 1 ? P.unitOne : P.unit}` : ''}${c.every ? ` · every ${Math.round(c.every / 7)} week${c.every >= 14 ? 's' : ''}` : ''}</p>
+    ${x.flags || x.form || x.new || x.due ? `<div class="cl-tags">${x.flags ? '<span class="tag" style="background:var(--bad-soft);color:var(--bad)">Health notes</span>' : ''}${x.form ? `<span class="tag warn">${esc(cap(P.intakeName))} needed</span>` : ''}${x.new ? `<span class="tag new">New</span>` : ''}${x.due ? '<span class="tag warn">Due back</span>' : ''}</div>` : ''}
+    <div class="cl-acts">
+      <button class="cl-act primary" data-act="book" data-c="${esc(k)}">${I.schedule}Book</button>
+      <button class="cl-act" data-act="reach" data-c="${esc(k)}" data-kind="hello">${I.send}Text</button>
+      ${tel.length >= 10 ? `<a class="cl-act" href="tel:${tel}" target="_top">${PHONE}Call</a>` : `<button class="cl-act" data-act="editnotes" data-c="${esc(k)}">${PHONE}Add phone</button>`}
+      <button class="cl-act" data-act="addpay" data-c="${esc(k)}">${I.wallet}Payment</button>
+    </div>
+  </section>
+  ${n ? `<button class="card cl-next" data-act="appt" data-id="${n.id}"><span class="when"><span class="label">Next visit</span><b>${whenText(n)}</b><span>${svLabel(n.s)}</span></span>${I.chev}</button>` : ''}
+  <section class="field"><span class="label lbl-row">Before you start<button class="chip sm" data-act="editnotes" data-c="${esc(k)}">Edit</button></span>${notesHTML(k)}</section>
+  <section class="field"><span class="label">Spent with you</span><div class="spend">
+    <div><span>This month</span><b>${money(sp.m.$)}</b><span>${sp.m.v} visit${sp.m.v === 1 ? '' : 's'}</span></div>
+    <div><span>This year</span><b>${money(sp.y.$)}</b><span>${sp.y.v} visit${sp.y.v === 1 ? '' : 's'}</span></div>
+    <div><span>All time</span><b>${money(sp.a.$)}</b><span>${sp.a.v} visit${sp.a.v === 1 ? '' : 's'}</span></div></div></section>
+  <section class="sec"><div class="sec-h"><h2>Visits</h2><span class="aside">${visitForm().title} on each</span></div>
+    ${vs.length ? `<ol class="tl">${[...coming.reverse(), ...past].map(visitItem).join('')}</ol>` : `<p class="muted">No visits in Sole yet. Each one you book shows here with its notes.</p>`}
+  </section>
+  <section class="sec"><div class="sec-h"><h2>Forms</h2><span class="aside">${rs.length} on file</span></div>
+    <div class="cl-files">${rs.map(r => `<button class="cl-file" data-act="resp" data-v="${esc(r.id)}"><span class="fi">${I.forms}</span><span><b>${esc(r.form)}</b><span>Filled in ${MON[+r.date.slice(5,7) - 1].slice(0,3)} ${+r.date.slice(8,10)}, ${r.date.slice(0,4)}${r.sig ? ' · signed' : ''}</span></span>${I.chev}</button>`).join('')}
+      ${intake && !rs.some(r => r.form === intake.name) ? `<button class="cl-file todo" data-act="fillfor" data-c="${esc(k)}"><span class="fi">${I.plus}</span><span><b>Fill in the ${esc(intake.name.toLowerCase())}</b><span>${c.intake ? 'On paper so far. Fill it in on the phone to keep it here.' : 'Not filled in yet'}</span></span>${I.chev}</button>` : ''}
+      ${!rs.length && !intake ? `<p class="muted">No forms yet.</p>` : ''}</div>
+  </section>`;
+}
+
 /* ---------- Ask ---------- */
 function ask(q){
   const s = q.toLowerCase();
@@ -2275,7 +2450,8 @@ function openClient(k){
       return `<div class="field"><span class="label">Forms</span>${rs.map(r => `<button class="li" data-act="resp" data-v="${r.id}" style="background:var(--surface);border-radius:14px;box-shadow:var(--shadow)"><span class="t">${I.check.replace('<svg', '<svg width="20" height="20" style="color:var(--accent)"')}</span><span class="who"><b>${esc(r.form)}</b><span>Filled in ${MON[+r.date.slice(5,7)-1].slice(0,3)} ${+r.date.slice(8,10)}</span></span>${I.chev}</button>`).join('')}
         ${intakeI >= 0 && !rs.some(r => r.form === FORMS[intakeI].name) ? `<button class="btn line" data-act="fillfor" data-c="${k}">Fill in ${esc(FORMS[intakeI].name.toLowerCase())} now</button>` : ''}</div>`; })()}
     <div class="btn-row"><button class="btn primary" data-act="book" data-c="${k}">Book ${first(k)}</button><button class="btn" data-act="reach" data-c="${k}" data-kind="hello">Write a text</button></div>
-    <button class="btn line" style="width:100%;margin-top:10px" data-act="addpay" data-c="${k}">Add a payment from ${esc(first(k))}</button>`);
+    <button class="btn line" style="width:100%;margin-top:10px" data-act="addpay" data-c="${k}">Add a payment from ${esc(first(k))}</button>
+    <button class="btn line" style="width:100%;margin-top:10px" data-act="cl-open" data-c="${k}">${I.clients.replace('<svg', '<svg width="20" height="20"')}All visits and notes</button>`);
 }
 function msgSheet(title, text, phone){
   const tel = String(phone || '').replace(/[^0-9+]/g, '');
@@ -2547,7 +2723,10 @@ on('click', e => {
     if (a && a.sq) { sheet(`${top('Booked in Square', `${first(a.c)} booked this in Square, so it changes there.`)}
       <p>Open Square to move or cancel it. The change shows up here a minute or two later. New bookings made in Sole stay in Sole.</p>`); return; } }
   switch (el.dataset.act) {
-    case 'tab': closeSheet(); S.tab = v; if (v === 'schedule') { S.day = 0; S.week = 0; } if (v === 'money') S.money = 'home'; render(); window.scrollTo(0,0); break;
+    case 'tab': closeSheet(); S.tab = v; if (v === 'schedule') { S.day = 0; S.week = 0; } if (v === 'money') S.money = 'home'; if (v === 'clients') S.cl = null; render(); window.scrollTo(0,0); break;
+    case 'cl-open': closeSheet(); S.tab = 'clients'; S.cl = el.dataset.c; render(); window.scrollTo(0,0); break;
+    case 'cl-back': S.cl = null; render(); window.scrollTo(0,0); break;
+    case 'cl-f': S.cl = null; S.clf = v; render(); break;
     case 'money': closeSheet(); S.tab = 'money'; if (v === 'year') S.money = 'year'; else { S.money = 'day'; S.range = v; } render(); window.scrollTo(0,0); break;
     case 'snap': S.money = 'home'; render(); window.scrollTo(0,0); break;
     case 'clients': closeSheet(); S.tab = 'money'; S.money = 'clients'; S.search = ''; render(); window.scrollTo(0,0); break;
@@ -2732,6 +2911,7 @@ on('input', e => {
   if (OB && e.target.id.startsWith('ob-name-')) OB.names[e.target.id.slice(8)] = e.target.value;
   if (OB && e.target.id === 'ob-what') OB.what = e.target.value;
   if (e.target.id === 'cl-search') { S.search = e.target.value; $('#cl-list').innerHTML = clientRows(); }
+  if (e.target.id === 'clt-search') { S.clq = e.target.value; $('#clt-list').innerHTML = clientTabRows(); }
   if (e.target.id === 'snap-search') { S.search = e.target.value; $('#snap-res').innerHTML = S.search.trim() ? `<div class="list">${clientRows()}</div>` : ''; }
   if (e.target.id === 'new-name' && B) { B.newName = e.target.value; const g = $('#book-go'); g.disabled = !bookReady(); g.textContent = bookLabel(); }
 });
@@ -2740,6 +2920,24 @@ on('submit', e => {
   if (e.target.id === 'ask-form') { e.preventDefault(); const q = $('#ask-in').value.trim(); if (q) ask(q); }
 });
 on('keydown', e => { if (e.key === 'Escape' && $('#layer').innerHTML) closeSheet(); });
+
+window.addEventListener('popstate', e => {
+  if (!CLOUD_ON) return;
+  if ($('#layer .sheet')) { closeSheet(); history.pushState({nav:JSON.parse(NAV_KEY || '{}')}, ''); return; }   // back closes the open sheet, the page stays
+  const nav = e.state && e.state.nav; if (!nav) return;
+  S.tab = nav.tab || 'today'; S.money = nav.money || 'home'; S.cl = nav.cl || null; NAV_POP = true; render(); window.scrollTo(0, 0);
+}, {signal:CTL.signal});
+if (CLOUD_ON && STANDALONE) {
+  let sw = null; const opt = {signal:CTL.signal, passive:true};
+  document.addEventListener('touchstart', e => { if (e.touches.length !== 1) { sw = null; return; } const t = e.touches[0];
+    sw = {x:t.clientX, y:t.clientY, edge:t.clientX < 28, top:window.scrollY <= 0 && !$('#layer .sheet') && !(e.target.closest && e.target.closest('.sheet'))}; }, opt);
+  document.addEventListener('touchmove', e => { if (!sw) return; const t = e.touches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y;
+    if (sw.top && dy > 0 && Math.abs(dx) < dy) pullShow(dy); else if (sw.edge && dx > 0) edgeShow(dx); }, opt);
+  document.addEventListener('touchend', e => { if (!sw) return; const t = e.changedTouches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y;
+    if (sw.edge && dx > 70 && Math.abs(dy) < 70) history.back();
+    if (sw.top && dy > 95 && Math.abs(dx) < 70) pullGo(); else pullShow(0);
+    edgeShow(0); sw = null; }, opt);
+}
 
 RESP.forEach(r => applyResponse(r, true));
 render();
@@ -2757,6 +2955,22 @@ if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.g
 const CLOUD_CFG = PROFILES.massage.cloud || {};   // set in the private edition only
 const CLOUD_ON = !!window.__SOLE_CLOUD_CLIENT || (!!CLOUD_CFG.url && !!CLOUD_CFG.host && CLOUD_CFG.host.test(location.hostname));
 let SB = null, BIZ = null, SQ_CACHE = null;
+let NAV_KEY = '', NAV_POP = false;   // the page the browser's history is on (see navNote)
+const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;   // opened from the home screen
+const MINI_SUN = '<svg viewBox="-32 -32 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><circle r="10" fill="currentColor"/>' + Array.from({length:8}, (_, i) => `<path transform="rotate(${i*45})" d="M0 -17V-26"/>`).join('') + '</g></svg>';
+function gestureEl(id, html){ let el = document.getElementById(id); if (!el) { el = document.createElement('div'); el.id = id; el.className = id; el.innerHTML = html; document.body.appendChild(el); } return el; }
+function pullShow(dy){ const el = gestureEl('pull', MINI_SUN), d = Math.min(dy, 150); el.style.opacity = d ? Math.min(1, d / 95) : 0; el.style.transform = `translateY(${d ? d * .45 - 10 : -50}px) rotate(${d * 2.4}deg)`; }
+function pullGo(){ const el = gestureEl('pull', MINI_SUN); el.classList.add('go'); el.style.opacity = 1; el.style.transform = 'translateY(40px)'; setTimeout(() => location.reload(), 380); }
+function edgeShow(dx){ const el = gestureEl('edge', '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>'); el.style.opacity = dx ? Math.min(1, dx / 70) : 0; el.style.transform = `translateX(${Math.min(dx, 90) * .4}px)`; }
+// the opening plays every time Sole opens: the book loads behind it, then the scene hands over
+const INTRO_MS = window.__SOLE_INTRO_MS != null ? window.__SOLE_INTRO_MS : matchMedia('(prefers-reduced-motion: reduce)').matches ? 1200 : 3400;
+let INTRO_AT = 0;
+function introVeil(){ const sc = document.querySelector('#main > .signin'); if (sc) { sc.classList.add('veil'); document.body.appendChild(sc); } }
+async function introDone(){
+  const sc = document.querySelector('body > .signin.veil'); if (!sc) return;
+  const wait = INTRO_MS - (Date.now() - INTRO_AT); if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  sc.classList.add('leaving'); setTimeout(() => sc.remove(), INTRO_MS ? 1150 : 0);
+}
 // the sunrise is drawn once; later screens (code, opening the book) only change the card, so the intro doesn't replay
 function cloudScreen(html){
   document.documentElement.dataset.look = 'sole'; $id('hdr').innerHTML = ''; $id('tabs').innerHTML = '';
@@ -2925,10 +3139,12 @@ async function cloudGo(){
   BIZ = biz[0].id;
   // the website carries a made-up business; the real one (its numbers, services, forms) is read here, members only
   if (biz[0].data) PROFILES[biz[0].profile || 'massage'] = {...biz[0].data, cloud:CLOUD_CFG};
+  cloudScreen(`<p class="sky-hello">${lsGet('sole-been') ? 'Welcome back' : 'Welcome'}</p><p class="sky-biz">${cloudEsc((biz[0].data && biz[0].data.biz) || biz[0].name)}</p><p class="muted sky-wait small">Opening your book…</p>`);
   try { await loadSquareTables(); } catch (_) { SQ_CACHE = {pays:new Map(), names:{}}; }
   const db = cloudDb(), assets = cloudAssets();
   window.claude = {use:name => Promise.resolve(name === 'db' ? db : name === 'assets' ? assets : null)};
-  await loadSquare(biz[0].profile || 'massage');
+  introVeil();   // the book is drawn under the opening, which then hands over
+  try { await loadSquare(biz[0].profile || 'massage'); } finally { introDone(); lsSet('sole-been', '1'); }
   liveFromCache(); if (SQ) { SOLE_VER++; redrawLive(); }
   // a card tapped in Square shows up the moment Square tells the server
   SB.channel('pays-' + BIZ).on('postgres_changes', {event:'*', schema:'public', table:'square_payments', filter:`business_id=eq.${BIZ}`}, ev => {
@@ -2941,6 +3157,7 @@ async function cloudGo(){
   }).catch(() => {});
 }
 async function cloudStart(){
+  INTRO_AT = Date.now();
   cloudScreen('<p class="muted sky-wait">Opening Sole…</p>');
   if (window.__SOLE_CLOUD_CLIENT) SB = window.__SOLE_CLOUD_CLIENT;   // tests: a stand-in for Supabase
   else { await new Promise((ok, fail) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/dist/umd/supabase.min.js'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc); });
