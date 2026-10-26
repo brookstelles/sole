@@ -49,12 +49,28 @@ async function tour(p, label, keys = ['massage','hair','barber','tattoo','landsc
     if (await p.locator('[data-act=gap]').count()) { await p.click('[data-act=gap] >> nth=0'); await p.click('[data-act=b-c] >> nth=0');
       if (await p.locator('[data-act=b-t]').count()) { await p.click('[data-act=b-t] >> nth=0'); await p.click('#book-go'); if (await p.locator('.sheet .close').count()) await p.click('.sheet .close'); } else await p.click('.sheet .close'); }
     await p.click('.tab[data-v=money]'); await p.click('.topc >> nth=0'); await p.click('.sheet .close');
+    // Snapshot: the months chart opens a month with what's done, what's left and the same month last year
+    check(await p.locator('.months .mbar button').count() === 12, `${label} ${k}: Snapshot shows the twelve months`);
+    await p.click('.mbar button.now');
+    { const m = await p.textContent('main');
+      check(/So far/.test(m) && /Still to come/.test(m) && /By \w{3} \d+/.test(m) && await p.locator('.month-cmp table').count() === 1, `${label} ${k}: this month, what's left, and last year by this date`); }
+    check(!(await wide(p)), `${label} ${k}: the month page fits the phone`);
+    if (await p.locator('[data-act=mo-cmp]').count() > 1) { const y2 = await p.getAttribute('[data-act=mo-cmp] >> nth=1', 'data-v'); await p.click('[data-act=mo-cmp] >> nth=1');
+      check(new RegExp(`\\w{3} ${y2}`).test(await p.textContent('.month-cmp thead')), `${label} ${k}: compare with another year`); }
+    await p.click('[data-act=mo-nav][data-v="-1"]'); check(/All of/.test(await p.textContent('main')), `${label} ${k}: the month before, whole`);
+    await p.click('.tab[data-v=money]');
+    // Dig in shows two, the rest a tap away
+    if (await p.locator('[data-act=dig-all]').count()) { check(await p.locator('.bento .tile').count() === 2, `${label} ${k}: Dig in shows two`); await p.click('[data-act=dig-all]'); check(await p.locator('.bento .tile').count() > 2, `${label} ${k}: Dig in opens the rest`); }
     await p.click('[data-act=snapgo][data-sec=y-costs] >> nth=0');
     // Clients tab: the list, a filter, one person's page with their visits and forms, and back
     await p.click('.tab[data-v=clients]');
     check(await p.locator('#clt-list .li.client').count() > 0, `${label} ${k}: the Clients tab lists people`);
     await p.click('[data-act=cl-f][data-v=soon] >> nth=0'); await p.click('[data-act=cl-f][data-v=all] >> nth=0');
     await p.fill('#clt-search', 'zzzz'); check(/No .* named/.test(await p.textContent('#clt-list')), `${label} ${k}: client search`); await p.fill('#clt-search', '');
+    // A to Z: jump to a letter in a long list
+    { const nAz = await p.locator('.az button').count(); if (nAz) { const mid = Math.floor(nAz / 2), L = await p.getAttribute(`.az button >> nth=${mid}`, 'data-v'); await p.click(`.az button >> nth=${mid}`); await p.waitForTimeout(600);
+      const top = await p.evaluate(L => document.getElementById('clg-' + (L === '#' ? 'num' : L)).getBoundingClientRect().top, L);
+      check(top > 0 && top < 300, `${label} ${k}: the A to Z strip jumps to ${L}`); } }
     await p.click('#clt-list .li.client >> nth=0');
     check(await p.locator('.cl-hero').count() === 1 && await p.locator('.tl, .sec .muted').count() > 0, `${label} ${k}: a client's page`);
     check(!(await wide(p)), `${label} ${k}: client page wider than the phone`);
@@ -70,6 +86,8 @@ async function tour(p, label, keys = ['massage','hair','barber','tattoo','landsc
       if (n > 1) { check(new RegExp(`· 2 of ${n}`).test(await p.textContent('.sheet .sh-top')), `${label} ${k}: save goes on to the next visit`); check(!(await wide(p)), `${label} ${k}: the notes run fits the phone`); }
       if (await p.locator('.sheet .close').count()) await p.click('.sheet .close');
     }
+    // health notes show as a small mark on the day's list, not words
+    check(!/see notes/.test(await p.textContent('main')), `${label} ${k}: no "see notes" words on Today`);
     console.log('ok', label, k, '-', await p.textContent('.biz-name'));
   }
 }

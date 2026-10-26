@@ -99,7 +99,19 @@ main{display:flex;flex-direction:column;gap:22px}
 .li.td[aria-expanded="true"] > svg:last-child{transform:rotate(90deg)}
 .td-more{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;border:0;border-top:1px solid var(--line);background:transparent;color:var(--accent);font-weight:600;font-size:15px;padding:12px;min-height:48px}
 .td-more svg{width:16px;height:16px}
-.see-notes{color:var(--bad);white-space:nowrap}
+.tile-more{grid-column:1 / -1;border:0;border-radius:16px;background:var(--surface);box-shadow:var(--shadow);font-size:14px;line-height:1.35;text-align:center}
+.mbar{display:grid;grid-template-columns:repeat(12,1fr);gap:4px}
+.mbar button{border:0;background:transparent;padding:0;display:flex;flex-direction:column;align-items:stretch;gap:4px;min-width:0;color:var(--muted)}
+.mbar-t{position:relative;height:76px}
+.mbar-t u,.mbar-t i{position:absolute;bottom:0;border-radius:4px 4px 0 0}
+.mbar-t u{left:0;right:0;background:var(--sunk);text-decoration:none}
+.mbar-t i{left:22%;right:22%;background:var(--accent);opacity:.55}
+.mbar .now .mbar-t i{opacity:1}
+.mbar .ahead .mbar-t i{opacity:.25}
+.mbar-l{font-size:11.5px;text-align:center;font-weight:600}
+.mbar .now .mbar-l{color:var(--ink)}
+.month-cmp .chips{margin-bottom:4px}
+.hn{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--bad-soft);color:var(--bad);font-size:11px;font-weight:800;font-style:normal;vertical-align:1px;margin-left:2px}
 .td-body{padding:4px 14px 14px;display:flex;flex-direction:column;gap:8px}
 .td-body .list.flat{box-shadow:none;background:transparent}
 .need{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;background:var(--warm-soft);border:1px solid color-mix(in srgb,var(--gold) 45%,transparent);border-radius:18px;padding:14px 14px 14px 16px}
@@ -599,6 +611,12 @@ a.btn{text-decoration:none}
 .cl-chips .chip{flex:none}
 .cl-chips .chip span{opacity:.6;margin-left:2px}
 .cl-group{display:flex;flex-direction:column;gap:6px}
+/* A to Z: a strip down the right edge on a phone (tap or slide a finger along it), a row of letters on a computer */
+.az{position:fixed;right:max(2px,env(safe-area-inset-right,0px));top:calc(50% + 20px);transform:translateY(-50%);z-index:6;display:flex;flex-direction:column;touch-action:none;
+  background:color-mix(in srgb,var(--surface) 85%,transparent);border-radius:12px;padding:4px 0;box-shadow:var(--shadow)}
+.az button{border:0;background:transparent;color:var(--accent);font-size:11px;font-weight:700;width:22px;height:max(14px,min(19px,calc((100vh - 280px) / 27)));padding:0;line-height:1}
+.az ~ #clt-list{padding-right:20px}
+.cl-group{scroll-margin-top:calc(var(--hdr-h,120px) + 8px)}
 .cl-letter{font-family:var(--display);font-size:20px;color:var(--gold);padding-left:6px}
 .av.t1{background:var(--warm-soft);color:var(--warm)}
 .av.t2{background:var(--sunk);color:var(--ink)}
@@ -858,6 +876,10 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
   .split-l{position:sticky;top:var(--hdr-h,116px);max-height:calc(100vh - var(--hdr-h,116px) - 16px);overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:2px 8px 18px 2px;scrollbar-width:thin}
   .split-r{display:flex;flex-direction:column;gap:22px;min-width:0}
   .split .cl-back{display:none}
+  .az{position:static;transform:none;flex-direction:row;flex-wrap:wrap;gap:2px;padding:2px 0;background:transparent;box-shadow:none}
+  .az button{width:26px;height:26px;border-radius:8px;font-size:12px}
+  .az button:hover{background:var(--accent-soft)}
+  .az ~ #clt-list{padding-right:0}
   .split .cl-chips{margin:0;padding:2px 0 4px;flex-wrap:wrap;overflow:visible}
   .li.client[aria-current="true"]{background:var(--accent-soft)}
   .li.client[aria-current="true"] .who b{color:var(--accent)}
@@ -2015,7 +2037,7 @@ function render(){
   const keep = WIDE && $('.split-l') ? $('.split-l').scrollTop : 0;
   $('#main').innerHTML = ({today:viewToday, schedule:viewSchedule, money:viewMoney, clients:viewClientsTab, forms:viewForms})[S.tab]();
   if (keep && $('.split-l')) $('.split-l').scrollTop = keep;
-  if (WIDE) document.documentElement.style.setProperty('--hdr-h', $('#hdr').offsetHeight + 'px');
+  document.documentElement.style.setProperty('--hdr-h', $('#hdr').offsetHeight + 'px');
   document.body.dataset.page = S.tab === 'money' ? 'money-' + S.money : S.tab === 'schedule' ? 'schedule-' + sView() : S.tab;
   const owes = unpaid().length > 0;
   saveState();
@@ -2083,7 +2105,18 @@ function viewToday(){
     ${S.answer ? `<div class="answer"><p class="q">${esc(S.answer.q)}</p><div class="a">${S.answer.a}</div></div>` : ''}
   </section></div></div>`;
 }
+let AZ_AT = null;   // the letter a finger is on while sliding along the A to Z strip
 const TD_SHOW = 4;   // To do shows the four that matter most; the rest open with "Show more"
+// this year month by month (last year faint behind it); each month opens on its own page
+function monthsCard(){
+  const y = T0.getFullYear(), nowM = T0.getMonth(), past = HIST[y - 1] || [];
+  const whole = (yy, m) => P.real && HIST[yy] && HIST[yy][m] != null ? HIST[yy][m] : monthStats(yy, m).n;
+  const vals = Array.from({length:12}, (_, m) => m < nowM ? whole(y, m) : m === nowM ? monthStats(y, m, T0.getDate()).n : monthAhead(y, m).n);
+  const before = Array.from({length:12}, (_, m) => P.real ? past[m] : whole(y - 1, m)), mx = Math.max(1, ...vals, ...before.filter(v => v != null));
+  return `<section class="card sec months"><div class="sec-h"><h2>Your months</h2><span class="aside">${y} · ${y - 1} behind it</span></div>
+    <div class="mbar">${vals.map((v, m) => `<button data-act="month" data-v="${y}-${pad2(m + 1)}" class="${m === nowM ? 'now' : m > nowM ? 'ahead' : ''}" aria-label="${MON[m]}: ${v} ${m > nowM ? 'booked' : P.unit}${before[m] != null ? `, ${before[m]} in ${y - 1}` : ''}"><span class="mbar-t"><u style="height:${(before[m] || 0) / mx * 100}%"></u><i style="height:${v / mx * 100}%"></i></span><span class="mbar-l">${MON[m][0]}</span></button>`).join('')}</div>
+    <p class="small muted">Tap a month: what’s done, what’s left, and the same month last year.</p></section>`;
+}
 const pressureWord = p => ['Not known','Light','Light','Medium','Firm','Firm'][p];   // her intake form: Light, Medium, Firm
 const pressureLvl = p => [0,1,1,2,3,3][p];
 /* the getting-started list a new business sees until it's done */
@@ -2134,7 +2167,7 @@ function dayRows(off){
       else if (a.pending) tag = '<span class="tag new">Request</span>';
       else if (!c.intake) tag = '<span class="tag warn">Form missing</span>';
       else if (c.isNew) tag = '<span class="tag new">New</span>';
-      out += `<button class="li${done?' done':''}" data-act="appt" data-id="${a.id}"><span class="t">${clockS(a.start)}<small>${SV[a.s].min} min</small></span><span class="who"><b>${c.name}</b><span>${SV[a.s].name}${MULTI && S.tab !== 'schedule' ? ` · <span class="who-tag">${a.w}</span>` : ''}${rowsOf(c).some(r => r.bad)?' · <span class="see-notes">see notes</span>':''}</span></span>${tag || I.chev}</button>`;
+      out += `<button class="li${done?' done':''}" data-act="appt" data-id="${a.id}"><span class="t">${clockS(a.start)}<small>${SV[a.s].min} min</small></span><span class="who"><b>${c.name}</b><span>${SV[a.s].name}${MULTI && S.tab !== 'schedule' ? ` · <span class="who-tag">${a.w}</span>` : ''}${rowsOf(c).some(r => r.bad)?' <i class="hn" title="Health notes: read before the visit" aria-label="Health notes">!</i>':''}</span></span>${tag || I.chev}</button>`;
     } else if (it.b) {
       out += `<button class="li block" data-act="block" data-id="${it.b.id}"><span class="t">${allDay(it.b) ? 'All day' : clockS(it.b.start)}<small>${allDay(it.b) ? '' : dur(it.b.min)}</small></span><span class="who"><b>${esc(it.b.label)}</b><span>${it.b.grp ? 'Time off · part of a series' : 'Time off'}</span></span>${I.chev}</button>`;
     } else {
@@ -2275,14 +2308,92 @@ function monthView(off, hist){
     return `<button class="mo-c${inMo ? '' : ' out'}${o === 0 ? ' now' : ''}${isOff(o) && !n ? ' closed' : ''}${fam.length ? ' fam' : ''}${holi ? ' holi' : ''}" data-act="sday" data-v="${o}" aria-label="${dayLong(o)}${n ? `, ${n} booked` : ''}${fam.length ? `, ${fam[0].what} (${fam[0].why})` : ''}${holi ? ', ' + holi : ''}"><span class="mo-d">${dateOf(o).getDate()}</span>${WIDE ? moNames(o, ap, old, holi, fam) : n ? `<span class="mo-n${o < 0 ? ' past' : ''}">${n}</span>` : `<span class="mo-e${bl ? ' blk' : ''}"></span>`}</button>`; }).join('');
   return `<section class="sec"><div class="mo">${['M','T','W','T','F','S','S'].map(x => `<span class="mo-h">${x}</span>`).join('')}${html}</div>
     ${anyFam || anyHoli ? `<div class="mo-key">${anyFam ? `<span><i></i>${esc(FAMILY[0].what)}${FAMILY[0].who ? ` · ${esc(FAMILY[0].who)}` : ''}</span>` : ''}${anyHoli ? '<span><i class="h"></i>Holiday</span>' : ''}</div>` : ''}
-    <p class="small muted" style="text-align:center;margin-top:10px">${tn} ${tn === 1 ? P.unitOne : P.unit} · ${money(tv)}${tn ? ` · about ${money(tv - feeOf(tv, tn))} after fees` : ''}</p></section>`;
+    <p class="small muted" style="text-align:center;margin-top:10px">${tn} ${tn === 1 ? P.unitOne : P.unit} · ${money(tv)}${tn ? ` · about ${money(tv - feeOf(tv, tn))} after fees` : ''}</p>
+    <button class="btn line" style="width:100%;margin-top:10px" data-act="month" data-v="${d.getFullYear()}-${pad2(d.getMonth() + 1)}">${I.trend}How ${MON[d.getMonth()]} ${first < 0 && last < 0 ? 'went' : 'is going'}, and last year</button></section>`;
 }
 
 /* ---------- Money ---------- */
 function viewMoney(){
   if (S.money === 'home') return viewSnap();
   const back = `<button class="back" data-act="snap">${I.left}Snapshot</button>`;
-  return back + (S.money === 'year' ? viewYear() : S.money === 'clients' ? viewClients() : S.money === 'check' ? viewCheck() : dayMoney());
+  return back + (S.money === 'year' ? viewYear() : S.money === 'clients' ? viewClients() : S.money === 'check' ? viewCheck() : S.money === 'month' ? viewMonth() : dayMoney());
+}
+/* ---------- one month ----------
+   What's done so far, what's still to come, and the same month in another year (last year unless she picks one),
+   by this date and for the whole month. Money comes from every card payment the website keeps (SQ.all) plus payments
+   logged in Sole; visits from the book and the old booking app; whole past months from the business's own counts (HIST). */
+const pad2 = n => String(n).padStart(2, '0');
+const offOfDate = d => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - T0) / 864e5);
+let PAY_DAYS = null, HIST_DAYS = null;
+function payDays(){
+  if (PAY_DAYS) return PAY_DAYS; PAY_DAYS = {};
+  const c = x => ((x || {}).amount || 0) / 100;
+  ((SQ && SQ.all) || []).filter(p => p.status === 'COMPLETED').forEach(p => { const dk = isoDay(new Date(p.created_at)), back = c(p.refunded_money), d = PAY_DAYS[dk] || (PAY_DAYS[dk] = {net:0, tips:0});
+    d.net += Math.max(0, c(p.amount_money) - back); d.tips += c(p.tip_money); });
+  return PAY_DAYS;
+}
+function moneyOn(dt){
+  const off = offOfDate(dt), dk = isoDay(dt); if (off > 0) return {net:0, tips:0};
+  if (SQ && SQ.all && SQ.all.length) { const d = payDays()[dk] || {net:0, tips:0}, L = LEDGER.filter(x => x.kind === 'pay' && x.date === dk);
+    return {net:d.net + L.reduce((t, x) => t + x.amount, 0), tips:d.tips + L.reduce((t, x) => t + (x.tip || 0), 0)}; }
+  const t = inOn(off); return {net:t.net, tips:t.tips};
+}
+function visitsOn(dt){
+  const off = offOfDate(dt); if (off > 0) return 0;
+  if (!LIVEBOOK && off < 0) return take(off).n;
+  const ap = apptsOn(off).filter(a => !noShow(a) && !a.pending && (off < 0 || endOf(a) <= NOW));
+  HIST_DAYS = HIST_DAYS || histByDay();
+  return ap.length + (HIST_DAYS[isoDay(dt)] || []).filter(v => !ap.some(a => a.c === v.c)).length;
+}
+function monthStats(y, m, upto){
+  const last = new Date(y, m + 1, 0).getDate(), end = Math.min(upto || last, last), done = offOfDate(new Date(y, m, last)) < 0, mk = `${y}-${pad2(m + 1)}`;
+  let n = 0, net = 0, tips = 0, est = false;
+  for (let d = 1; d <= end; d++) { const dt = new Date(y, m, d); if (offOfDate(dt) > 0) break; n += visitsOn(dt); const x = moneyOn(dt); net += x.net; tips += x.tips; }
+  const sq = SQX && SQX.months && SQX.months[mk], hist = HIST[y] && HIST[y][m], every = SQ && SQ.all && SQ.all.length, nowMonth = offOfDate(new Date(y, m, 1)) <= 0 && !done;
+  // without every payment kept: whole months, and this month so far, from Square's own totals; days of an older month aren't known
+  if (!every && sq && (end === last && done || nowMonth)) { net = sq.net; tips = sq.tips; }
+  else if (!every && P.real && end < last) { net = null; tips = null; }
+  if (P.real && end === last && done && hist != null) n = hist;   // a whole past month: the business's own count
+  else if (P.real && end < last && !n && hist) { n = Math.round(hist * end / last); est = true; }   // no day-by-day records that far back
+  return {n, net, tips, est};
+}
+function monthAhead(y, m){
+  const last = new Date(y, m + 1, 0).getDate(), offs = [];
+  for (let d = 1; d <= last; d++) { const o = offOfDate(new Date(y, m, d)); if (o >= 0 && o <= 400) offs.push(o); }
+  const L = AP.filter(a => offs.includes(a.off) && (a.off > 0 || a.start >= NOW) && !noShow(a) && SV[a.s]);
+  return {n:L.length, $:L.reduce((t, a) => t + SV[a.s].price, 0), open:offs.reduce((t, o) => t + openMin(o, S.who), 0), days:offs.filter(o => !isOff(o)).length};
+}
+function viewMonth(){
+  const [y, m1] = (S.mo || isoDay(T0).slice(0, 7)).split('-').map(Number), m = m1 - 1, nowY = T0.getFullYear(), nowM = T0.getMonth(), day = T0.getDate();
+  const cur = y === nowY && m === nowM, future = y > nowY || (y === nowY && m > nowM), mon = MON[m], short = mon.slice(0, 3);
+  const me = future ? {n:0, net:0, tips:0} : monthStats(y, m, cur ? day : null), ah = cur || future ? monthAhead(y, m) : null;
+  const years = [...new Set([...YEARS, ...(SQX && SQX.years ? Object.keys(SQX.years).map(Number) : [])])].filter(v => v < y && v >= 2000).sort((a, b) => b - a);
+  const cy = years.includes(S.cmp) ? S.cmp : years[0], them = cy ? monthStats(cy, m, cur ? day : null) : null, themAll = cy && cur ? monthStats(cy, m, null) : null;
+  const mm = v => v == null ? '—' : money(v), each = t => t.n && t.net != null ? money(t.net / t.n) : '—', unit = n => n === 1 ? P.unitOne : P.unit;
+  const diff = (a, b, f) => { const d = a - b; return d === 0 ? `the same number of ${P.unit}` : `${f(Math.abs(d))} ${d > 0 ? 'more' : 'fewer'}`; };
+  const ahead = Math.round(((y - nowY) * 12 + m - nowM));
+  return `
+  <div class="week snav"><button class="iconbtn" data-act="mo-nav" data-v="-1" aria-label="Month before">${I.left}</button><b>${mon} ${y}</b>${cur ? '' : `<button class="chip sm" data-act="month" data-v="${nowY}-${pad2(nowM + 1)}">This month</button>`}<button class="iconbtn" data-act="mo-nav" data-v="1" aria-label="Month after" ${ahead >= 12 ? 'disabled' : ''}>${I.right}</button></div>
+  <section class="hero">
+    <p class="eyebrow">${cur ? `So far · ${short} 1 to ${day}` : future ? 'Nothing done yet' : `All of ${mon}`}</p>
+    <p class="amt">${mm(me.net)}</p>
+    <p class="sub num"><span><b>+ ${mm(me.tips)}</b> in tips</span><span><b>${me.n}</b> ${unit(me.n)}</span>${me.n ? `<span><b>${each(me)}</b> each</span>` : ''}</p>
+  </section>
+  ${ah ? `<section class="card facts2"><p class="eyebrow" style="margin:0">Still to come</p>
+    <p class="lede"><b>${ah.n} ${unit(ah.n)} booked</b>${ah.n ? `, about ${money(ah.$)}` : ''}.</p>
+    <p class="muted">${ah.open ? `${dur(ah.open)} still open over ${ah.days} working day${ah.days === 1 ? '' : 's'}.` : 'No open time left.'}${cur ? ` On pace for about <b>${me.n + ah.n} ${P.unit}</b> this month.` : ''}</p></section>` : ''}
+  ${cy ? `<section class="card month-cmp"><div class="sec-h"><h2>${cur ? `By ${short} ${day}` : `${mon} in other years`}</h2></div>
+    ${years.length > 1 ? `<div class="chips">${years.slice(0, 5).map(v => `<button class="chip sm" data-act="mo-cmp" data-v="${v}" aria-pressed="${v === cy}">${v}</button>`).join('')}</div>` : ''}
+    <table class="kept"><thead><tr><th></th><th>${short} ${y}</th><th>${short} ${cy}</th></tr></thead><tbody>
+      <tr><td>${cap(P.unit)}</td><td>${me.n}</td><td>${them.est ? 'about ' : ''}${them.n}</td></tr>
+      <tr><td>Sales</td><td>${mm(me.net)}</td><td>${mm(them.net)}</td></tr>
+      <tr><td>Tips</td><td>${mm(me.tips)}</td><td>${mm(them.tips)}</td></tr>
+      <tr><td>Each</td><td>${each(me)}</td><td>${each(them)}</td></tr>
+    </tbody></table>
+    ${future ? '' : `<p class="small muted">${cur ? 'By this date, that’s' : 'That’s'} ${diff(me.n, them.n, v => `${v} ${unit(v)}`)} ${me.net == null || them.net == null ? '' : ` and ${me.net === them.net ? 'the same in sales' : `${money(Math.abs(me.net - them.net))} ${me.net > them.net ? 'more' : 'less'} in sales`}`} than ${mon} ${cy}.</p>`}
+    ${themAll ? `<p class="small muted">All of ${mon} ${cy}: <b>${themAll.n} ${unit(themAll.n)}</b>${themAll.net != null ? `, ${money(themAll.net)} plus ${money(themAll.tips)} in tips` : ''}.</p>` : ''}
+    ${them.est ? `<p class="small muted">There’s no day-by-day record for ${cy}, so its count by this date is worked out from the whole month.</p>` : ''}
+  </section>` : ''}`;
 }
 function dayMoney(){
   const t = sumOf(S.range), per = t.n ? t.net / t.n : 0;
@@ -2342,8 +2453,6 @@ function viewSnap(){
   const kept = BOOKS[Y2].kept, keptUp = (kept - BOOKS[Y1].kept) / BOOKS[Y1].kept * 100;
   const seas = Array.from({length:12}, (_,m) => seasonAvg(m)), smx = Math.max(...seas), nowM = T0.getMonth();
   const tiles = [
-    {go:'data-act="money" data-v="today"', h:`<span class="k">${I.money}Today</span><span class="big">${money(td.net)}</span><span class="s">so far · ${left} still to come</span>`},
-    {go:'data-act="snapgo" data-sec="y-proj"', h:`<span class="k">${I.trend}On pace</span><span class="big">~${PROJ}</span><span class="s">${P.unit} by December</span>`},
     {go:'data-act="snapgo" data-sec="y-kept"', h:`<span class="k">${I.wallet}You kept</span><span class="big">${money(kept)}</span><span class="s">in ${Y2}, ${BOOKS_NOTE ? 'at least ' : ''}${Math.abs(keptUp).toFixed(0)}% ${keptUp >= 0 ? 'more' : 'less'} than ${Y1}</span>`},
     {go:'data-act="snapgo" data-sec="y-whatif"', h:`<span class="k">${I.bulb}What if</span><span class="big">+${money(50*RATE)}</span><span class="s">a year from one more ${W1} a week</span>`},
     {go:'data-act="clients"', h:`<span class="k">${I.clients}Reach out</span><span class="big">${reachList().length}</span><span class="s">people likely to book if you say hi</span>`},
@@ -2352,9 +2461,6 @@ function viewSnap(){
   if (MULTI) tiles.push({go:'data-act="snapgo" data-sec="y-proj"', h:`<span class="k">${I.clients}Team · ${CUR}</span><span class="team">${P.team.map((t,i) => `<span class="cost" style="grid-template-columns:52px 1fr 44px"><span>${t}</span><span class="tr"><i style="width:${P.teamSplit[i]*100}%"></i></span><b>${Math.round(P.teamSplit[i]*100)}%</b></span>`).join('')}</span><span class="s">share of this year’s ${P.unit}</span>`});
   if (owe.length) tiles.unshift({cls:'attn', go:'data-act="money" data-v="today"', h:`<span class="k">${I.money}Not paid</span><span class="big">${money(owe.reduce((s,a)=>s+SV[a.s].price,0))}</span><span class="s">${owe.map(a => first(a.c)).join(', ')}</span>`});
   if (tiles.length % 2) tiles[tiles.length-1].wide = true;
-  tiles.push({wide:true, go:'data-act="snapgo" data-sec="y-season"', h:`<span class="k">${I.leaf}Your seasons</span><span class="s">${nextSlow != null ? `<b>${MON[nextSlow]} is usually slow.</b> ` : ''}Gold months are your slowest.</span>
-      <span class="mb" aria-hidden="true">${seas.map((v,m) => `<i class="${SLOW.includes(m)?'slow':''} ${m===nowM?'now':''}" style="height:${Math.round(v/smx*100)}%"></i>`).join('')}</span>
-      <span class="ml" aria-hidden="true">${MON.map((n,m) => `<span class="${m===nowM?'now':''}">${n[0]}</span>`).join('')}</span>`});
   tiles.push({wide:true, go:'data-act="snapgo" data-sec="y-costs"', h:`<span class="k">${I.wallet}Where it goes · ${P.costsYear}</span><span class="s">${COSTS[0].n} is <b>${Math.round(COSTS[0].v/COST_TOTAL*100)}%</b> of your costs.</span>${costRows()}`});
   return `
   <p class="lede"><b>${SO_FAR} ${P.unit}</b> this year. On pace for about ${PROJ}${RECORD ? ', your best year yet' : ''}.</p>
@@ -2367,16 +2473,18 @@ function viewSnap(){
       <span class="cta">Open your year ${I.right}</span>
     </button>
     <div class="pills">
-      <button data-act="snapgo" data-sec="y-season"><b>${moN}</b><small>in ${MON[mo]} · ${dl(moN, moP)}</small></button>
+      <button data-act="month" data-v="${CUR}-${pad2(mo + 1)}"><b>${moN}</b><small>in ${MON[mo]} · ${dl(moN, moP)}</small></button>
       <button data-act="snapgo" data-sec="y-season"><b>${q3}</b><small>last 3 months · ${dl(q3, q3p)}</small></button>
       <button data-act="snapgo" data-sec="y-proj"><b>${(SO_FAR/(DONE*52/12)).toFixed(1)}</b><small>a week, on average</small></button>
     </div>
   </section>
+  ${monthsCard()}
   ${SQX ? squareCard() : ''}
   ${WIDE ? '</div><div class="col">' : ''}${moneyCard()}
   ${clientsCard()}${WIDE ? '</div></div>' : ''}
   <p class="eyebrow" style="margin:0">Dig in</p>
-  <section class="bento">${tiles.map(t => `<button class="tile ${t.wide?'wide':''} ${t.cls||''}" ${t.go}>${t.h}</button>`).join('')}</section>
+  <section class="bento">${(S.digAll || tiles.length <= 3 ? tiles : tiles.slice(0, 2)).map(t => `<button class="tile ${t.wide?'wide':''} ${t.cls||''}" ${t.go}>${t.h}</button>`).join('')}
+    ${tiles.length > 3 ? `<button class="td-more tile-more" data-act="dig-all">${S.digAll ? 'Show less' : `Show ${tiles.length - 2} more: ${tiles.slice(2).map(t => (t.h.match(/<span class="k">(?:<svg[\s\S]*?<\/svg>)?([^<]*)/) || [])[1]).filter(Boolean).map(x => x.split(' · ')[0].toLowerCase()).join(', ')}`}${S.digAll ? I.down.replace('<svg', '<svg style="transform:rotate(180deg)"') : I.down}</button>` : ''}</section>
   <p class="small muted">${P.source}</p>`;
 }
 // payments Square didn't take (cash, Zelle and the rest) and costs, logged in Sole
@@ -3021,7 +3129,9 @@ function viewClientsTab(){
     <button data-act="cl-f" data-v="due" aria-pressed="${f === 'due'}"><b>${count('due')}</b><small>due back</small></button>
   </section>
   ${(() => { const r = recordsOf(); return r.notes ? `<button class="heads rec" data-act="cl-rec">${r.notes} ${visitForm().title.replace(/s$/, '')}${r.notes === 1 ? '' : 's'} on file for ${r.people.length} ${r.people.length === 1 ? W1 : WN} · Records</button>` : ''; })()}`;
-  const list = `<input class="search" id="clt-search" type="search" placeholder="Find a ${W1}" value="${esc(S.clq || '')}" autocomplete="off" aria-label="Find a ${W1}">
+  const letters = [...new Set(ks.map(k => /[a-z]/i.test(CL[k].name[0]) ? CL[k].name[0].toUpperCase() : '#'))].sort();
+  const az = ks.length > 12 ? `<nav class="az" aria-label="Jump to a letter">${letters.map(L => `<button data-act="az" data-v="${L}">${L}</button>`).join('')}</nav>` : '';
+  const list = `${az}<input class="search" id="clt-search" type="search" placeholder="Find a ${W1}" value="${esc(S.clq || '')}" autocomplete="off" aria-label="Find a ${W1}">
   <div class="chips cl-chips">${CL_FILTERS.filter(([x]) => x === 'all' || count(x) || x === f).map(([x, l]) => `<button class="chip" data-act="cl-f" data-v="${x}" aria-pressed="${f === x}">${l}<span>${count(x)}</span></button>`).join('')}</div>
   <div id="clt-list" style="display:flex;flex-direction:column;gap:16px">${clientTabRows()}</div>
   <button class="btn line" data-act="addc">${I.plus}Add a ${W1}</button>`;
@@ -3036,7 +3146,7 @@ function clientTabRows(){
   const ks = clKeys().filter(k => hit(k) && (f === 'all' || clFlags(k)[f])).sort((a, b) => CL[a].name.localeCompare(CL[b].name));
   if (!ks.length) return `<p class="muted cl-empty">${q ? `No ${W1} named “${esc(S.clq)}”.` : `No ${WN} here right now.`}</p>`;
   const groups = {}; ks.forEach(k => { const L = /[a-z]/i.test(CL[k].name[0]) ? CL[k].name[0].toUpperCase() : '#'; (groups[L] = groups[L] || []).push(k); });
-  return Object.entries(groups).map(([L, g]) => `<div class="cl-group"><span class="cl-letter">${L}</span><div class="list">${g.map(k => { const n = nextAppt(k), x = clFlags(k);
+  return Object.entries(groups).map(([L, g]) => `<div class="cl-group" id="clg-${L === '#' ? 'num' : L}"><span class="cl-letter">${L}</span><div class="list">${g.map(k => { const n = nextAppt(k), x = clFlags(k);
     return `<button class="li client" data-act="cl-open" data-c="${esc(k)}"${S.cl === k ? ' aria-current="true"' : ''}><span class="av${avTint(k)}">${esc(initials(k))}</span><span class="who"><b>${esc(CL[k].name)}</b><span>${n ? 'Next: ' + whenText(n) : CL[k].last != null ? 'Last in ' + lastText(k).toLowerCase() : CL[k].from && CL[k].since ? `${cap(W1)} since ${CL[k].since}` : 'Not in yet'}</span></span>
       <span class="cl-marks">${x.flags ? '<i class="mk bad" title="Health notes">!</i>' : ''}${x.form ? `<i class="mk warn" title="${esc(cap(P.intakeName))} not filled in">${I.forms.replace('<svg', '<svg width="13" height="13"')}</i>` : ''}${I.chev}</span></button>`; }).join('')}</div></div>`).join('');
 }
@@ -3645,6 +3755,9 @@ on('click', e => {
     case 'copylink': { const u = FORMS[+el.dataset.i].url || 'Sole gives every form its own link once it’s set up.'; try { navigator.clipboard.writeText(u).then(() => toast('Link copied.'), () => toast(u)); } catch (_) { toast(u); } break; }
     case 'addform': sheet(`${top('Add a form', 'Gift certificates, policies, anything you hand out or keep on file.')}
       <div class="card facts2"><p>In the real app you’d pick a PDF, a Google Doc, or take a photo of a paper form, and it shows up here ready to print or send.</p></div>`); break;
+    case 'month': closeSheet(); S.tab = 'money'; S.money = 'month'; S.mo = v; S.cmp = null; render(); window.scrollTo(0, 0); break;
+    case 'mo-nav': { const [yy, mm] = (S.mo || isoDay(T0).slice(0, 7)).split('-').map(Number), d = new Date(yy, mm - 1 + +v, 1); S.mo = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; S.cmp = null; render(); break; }
+    case 'mo-cmp': S.cmp = +v; render(); break;
     case 'snapgo': { S.tab = 'money'; S.money = 'year'; render(); const t = document.getElementById(el.dataset.sec);
       if (t && el.dataset.sec !== 'y-proj') t.scrollIntoView({block:'start'}); else window.scrollTo(0,0);
       if (t) window.scrollBy(0, -90); break; }
@@ -3689,6 +3802,8 @@ on('click', e => {
       if (i >= 0) L.splice(i, 1); else { if (one) L.length = 0; L.push(v); }
       document.querySelectorAll(`[data-act=vn-c][data-g="${g}"]`).forEach(b => b.setAttribute('aria-pressed', L.includes(b.dataset.v))); break; }
     case 'vn-save': saveVisit(); break;
+    case 'az': { const g = document.getElementById('clg-' + (v === '#' ? 'num' : v)); if (g) g.scrollIntoView({block:'start', behavior:'smooth'}); break; }
+    case 'dig-all': S.digAll = !S.digAll; render(); break;
     case 'td-all': S.tdAll = !S.tdAll; render(); break;
     case 'vn-run': { const [id, ...ids] = notesDue().map(a => a.id); if (id != null) openVisit(id, {ids, done:0, saved:0}); break; }
     case 'vn-skip': vnNext(false); break;
@@ -3898,6 +4013,9 @@ on('submit', e => {
   if (e.target.id === 'ask-form') { e.preventDefault(); const q = $('#ask-in').value.trim(); if (q) ask(q); }
 });
 on('keydown', e => { if (e.key === 'Escape' && $('#layer').innerHTML) closeSheet(); });
+on('touchmove', e => { if (!e.target.closest || !e.target.closest('.az')) return; const t = e.touches[0], b = document.elementFromPoint(t.clientX, t.clientY);
+  if (b && b.dataset && b.dataset.act === 'az' && b.dataset.v !== AZ_AT) { AZ_AT = b.dataset.v; const g = document.getElementById('clg-' + (AZ_AT === '#' ? 'num' : AZ_AT)); if (g) g.scrollIntoView({block:'start'}); } });
+on('touchend', () => { AZ_AT = null; });
 on('keydown', e => { if (!WIDE || S.tab !== 'schedule' || $('#layer').innerHTML || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); schedNav(e.key === 'ArrowLeft' ? -1 : 1); } else if (e.key === 't') schedNav(0); });
 on('mousemove', e => { const g = e.target.closest && e.target.closest('.wg-gap'); if (!g) return;
