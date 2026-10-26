@@ -235,6 +235,31 @@ main{display:flex;flex-direction:column;gap:22px}
 /* schedule */
 .week{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .week b{font-weight:600}
+.snav{gap:8px}
+.snav b{flex:1;text-align:center;font-size:17px}
+.wk{display:flex;flex-direction:column;gap:12px}
+.wk-day{background:var(--surface);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+.wk-day.now{box-shadow:0 0 0 2px var(--accent),var(--shadow)}
+.wk-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;width:100%;border:0;background:var(--sunk);padding:11px 14px;color:var(--ink);font-size:15px;text-align:left}
+.wk-h span{color:var(--muted);font-size:14px;white-space:nowrap}
+.wk-row{display:grid;grid-template-columns:62px 1fr auto;gap:10px;align-items:center;width:100%;border:0;background:transparent;text-align:left;padding:10px 14px;color:var(--ink);font-size:15px}
+.wk-row + .wk-row{border-top:1px solid var(--line)}
+.wk-row .t{font-weight:600;font-variant-numeric:tabular-nums;font-size:14px}
+.wk-row .n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.wk-row .s{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.wk-row.blk .n{color:var(--muted);font-style:italic}
+.wk-row.past{opacity:.7}
+.mo{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.mo-h{font-size:12px;font-weight:700;color:var(--muted);text-align:center;padding:2px 0}
+.mo-c{aspect-ratio:1;border:0;border-radius:12px;background:var(--surface);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink);padding:0;min-width:0}
+.mo-c.out{opacity:.35}
+.mo-c.closed{background:transparent;box-shadow:none;color:var(--muted)}
+.mo-c.now{box-shadow:inset 0 0 0 2px var(--accent),0 0 12px color-mix(in srgb,var(--accent) 30%,transparent)}
+.mo-d{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.mo-n{font-size:11px;font-weight:700;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center}
+.mo-n.past{background:var(--accent-soft);color:var(--accent)}
+.mo-e{height:18px;width:6px;display:grid;place-items:center}
+.mo-e.blk::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--muted)}
 .iconbtn{width:44px;height:44px;border-radius:12px;border:1.5px solid var(--line);background:transparent;display:grid;place-items:center}
 .iconbtn:disabled{opacity:.35;cursor:default}
 .iconbtn svg{width:20px;height:20px}
@@ -1141,10 +1166,10 @@ let SQ = null;     // Square payments and card customers, written into this page
 let KEEP = null;   // the tab to return to when the page rebuilds itself
 // the real business's own book (appointments, time off, clients, payments and costs), one database document per item;
 // REAL_SAVED mirrors what the database holds so only changed items are written
-const SOLE_COLS = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks'];
-const SOLE_MAPS = ['clients', 'visits', 'weeks'];   // kept by id; the others are lists of items with a uid
+const SOLE_COLS = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks', 'days'];
+const SOLE_MAPS = ['clients', 'visits', 'weeks', 'days'];   // kept by id; the others are lists of items with a uid
 let REAL_SAVED = null, SOLE_VER = 0, SOLE_Q = Promise.resolve();
-const LEDGER_MEM = {}, NOTES_MEM = {}, VISITS_MEM = {}, WEEKS_MEM = {};   // the built-in businesses keep what's added for the visit
+const LEDGER_MEM = {}, NOTES_MEM = {}, VISITS_MEM = {}, WEEKS_MEM = {}, DAYS_MEM = {};   // the built-in businesses keep what's added for the visit
 const uidOf = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const sortKeys = x => Array.isArray(x) ? x.map(sortKeys) : x && typeof x === 'object' ? Object.fromEntries(Object.keys(x).sort().filter(k => x[k] !== undefined).map(k => [k, sortKeys(x[k])])) : x;
 const canon = x => JSON.stringify(sortKeys(x));
@@ -1205,7 +1230,7 @@ async function loadSquare(key){
     const [a, b, fr, mg, ...book] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false})),
       ...SOLE_COLS.map(c => db.collection(c).get().catch(() => ({docs:[]})))]);
     const responses = fr.docs.filter(d => d.exists).map(d => JSON.parse(JSON.stringify(d.data())));
-    const sole = {appts:[], blocks:[], clients:{}, ledger:[], visits:{}, weeks:{}};
+    const sole = {appts:[], blocks:[], clients:{}, ledger:[], visits:{}, weeks:{}, days:{}};
     REAL_SAVED = Object.fromEntries(SOLE_COLS.map(c => [c, {}]));
     SOLE_COLS.forEach((c, i) => book[i].docs.filter(d => d.exists).forEach(d => { const x = JSON.parse(JSON.stringify(d.data()));
       REAL_SAVED[c][d.id] = canon(x); if (SOLE_MAPS.includes(c)) sole[c][d.id] = x; else sole[c].push({...x, uid:d.id}); }));
@@ -1318,7 +1343,13 @@ const OPEN = P.hours.open, CLOSE = P.hours.close, TURN = P.hours.turn;   // open
 const DOW = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MON = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const dateOf = off => { const d = new Date(T0); d.setDate(d.getDate() + off); return d; };
-const isOff = off => off !== 0 && P.hours.closed.includes(dateOf(off).getDay());
+// hours set for one day (opening a day she's usually closed, staying later), by date; otherwise the usual hours
+const DAYS = SOLE ? (SOLE.days = SOLE.days || {}) : ACCOUNTS[KEY] ? ((ACCOUNTS[KEY].state = ACCOUNTS[KEY].state || {}).days = ACCOUNTS[KEY].state.days || {}) : (DAYS_MEM[KEY] = DAYS_MEM[KEY] || {});
+const dayHours = off => DAYS[isoDay(dateOf(off))];
+const openOf = off => (dayHours(off) || P.hours).open || P.hours.open, closeOf = off => (dayHours(off) || P.hours).close || P.hours.close;
+const isOff = off => { const h = dayHours(off); return h ? !!h.closed : off !== 0 && P.hours.closed.includes(dateOf(off).getDay()); };
+const allDay = b => b.min >= closeOf(b.off) - openOf(b.off);
+const hrs = m => clock(m).replace(':00', '');
 const dayName = off => off === 0 ? 'today' : off === 1 ? 'tomorrow' : off === -1 ? 'yesterday' : DOW[dateOf(off).getDay()];
 const dayLong = off => { const d = dateOf(off); return `${DOW[d.getDay()]}, ${MON[d.getMonth()]} ${d.getDate()}`; };
 const dayShort = off => { const d = dateOf(off); return `${DOW[d.getDay()].slice(0,3)} ${MON[d.getMonth()].slice(0,3)} ${d.getDate()}`; };
@@ -1422,10 +1453,10 @@ function saveState(){
   if (SOLE) {
     const clients = Object.fromEntries([...Object.entries(CL).filter(([, c]) => c.mine).map(own),
       ...Object.entries(CL).filter(([, c]) => !c.mine && c.edited).map(([k, c]) => [k, {name:c.name, ...Object.fromEntries(NOTE_FIELDS.filter(f => c[f] !== undefined && c[f] !== '').map(f => [f, c[f]]))}])]);
-    persistReal(JSON.parse(JSON.stringify({appts, blocks, clients, ledger, visits:VISITS, weeks:WEEKS})));
+    persistReal(JSON.parse(JSON.stringify({appts, blocks, clients, ledger, visits:VISITS, weeks:WEEKS, days:DAYS})));
     return;
   }
-  ACC.state = {clients:Object.fromEntries(Object.entries(CL).filter(([, c]) => c.mine).map(own)), appts, blocks, responses:RESP, ledger, notes:NOTES, visits:VISITS, weeks:WEEKS};
+  ACC.state = {clients:Object.fromEntries(Object.entries(CL).filter(([, c]) => c.mine).map(own)), appts, blocks, responses:RESP, ledger, notes:NOTES, visits:VISITS, weeks:WEEKS, days:DAYS};
   saveAccounts();
 }
 
@@ -1436,29 +1467,29 @@ const busy = (off, skip, w = ME) => [
   ...AP.filter(a => a.off === off && a.id !== skip && a.w === w).map(a => [a.start, endOf(a) + TURN]),
   ...BL.filter(b => b.off === off && b.id !== skip && b.w === w).map(b => [b.start, b.start + b.min]),
 ].sort((x,y) => x[0] - y[0]);
-function validStarts(off, len, turn, skip, w = ME){
-  if (isOff(off)) return [];
-  const bz = busy(off, skip, w), out = [];
-  for (let t = OPEN; t + len <= CLOSE; t += 15) {
+function validStarts(off, len, turn, skip, w = ME, wide = false){   // wide: earlier or later than the day's hours, 7 am to 9 pm
+  if (isOff(off) && !wide) return [];
+  const bz = busy(off, skip, w), out = [], o = wide ? 420 : openOf(off), c = wide ? 1260 : closeOf(off);
+  for (let t = o; t + len <= c; t += 15) {
     if (off === 0 && t <= NOW) continue;
-    const e = Math.min(t + len + turn, CLOSE);
+    const e = Math.min(t + len + turn, c);
     if (!bz.some(([a,b]) => t < b && e > a)) out.push(t);
   }
   return out;
 }
 function freeGaps(off, w = ME){
   if (isOff(off)) return [];
-  const out = []; let cur = OPEN;
+  const out = []; let cur = openOf(off); const end = closeOf(off);
   if (off === 0) cur = Math.max(cur, Math.ceil(NOW/15)*15);
-  for (const [a,b] of busy(off, undefined, w)) { if (a > cur) out.push([cur, a]); cur = Math.max(cur, b); }
-  if (CLOSE > cur) out.push([cur, CLOSE]);
+  for (const [a,b] of busy(off, undefined, w)) { if (a > cur) out.push([cur, Math.min(a, end)]); cur = Math.max(cur, b); }
+  if (end > cur) out.push([cur, end]);
   return out.filter(([a,b]) => b - a >= 45);
 }
 const openMin = (off, w) => freeGaps(off, w).reduce((s,[a,b]) => s + b - a, 0);
 function soonSlots(n){
   const out = [];
   for (let off = 1; off <= 10 && out.length < n; off++) {
-    const v = validStarts(off, 60, TURN, undefined, ME).filter(t => t >= Math.max(600, OPEN));
+    const v = validStarts(off, 60, TURN, undefined, ME).filter(t => t >= Math.max(600, openOf(off)));
     if (v.length) out.push(`${cap(dayName(off))} at ${clock(v[0])}`);
   }
   return out;
@@ -1475,22 +1506,26 @@ function spend(k){
   const sp = spendBase(k), mk = isoDay(T0).slice(0,7), yk = String(T0.getFullYear());
   const mine = LEDGER.filter(x => x.kind === 'pay' && x.c === k && (SQX || !x.matched)), tot = L => L.reduce((t, x) => t + x.amount, 0);
   const lm = mine.filter(x => x.date.startsWith(mk)), ly = mine.filter(x => x.date.startsWith(yk));
-  const o = CL[k].sq === undefined && CL[k].old, ov = f => o ? o[f] : {v:0, $:0}, av = sp.a.v + mine.length + ov('a').v;
-  return {...sp, price:sp.price || (av ? (sp.a.$ + tot(mine) + ov('a').$) / av : 0), m:{v:sp.m.v + lm.length + ov('m').v, $:sp.m.$ + tot(lm) + ov('m').$}, y:{v:sp.y.v + ly.length + ov('y').v, $:sp.y.$ + tot(ly) + ov('y').$}, a:{v:av, $:sp.a.$ + tot(mine) + ov('a').$}, tipsY:sp.tipsY + ly.reduce((t, x) => t + (x.tip || 0), 0)};
+  // visits from the old booking app: added for people Square doesn't know; for Square card customers both sources
+  // count the same visits, so whichever knows more wins (Square once it's connected, the old app until then)
+  const o = CL[k].old, sqk = CL[k].sq !== undefined, ov = f => o ? o[f] : {v:0, $:0};
+  const mix = (v, $, f) => !o ? {v, $} : sqk ? (ov(f).$ > $ ? {...ov(f)} : {v, $}) : {v:v + ov(f).v, $:$ + ov(f).$};
+  const m = mix(sp.m.v + lm.length, sp.m.$ + tot(lm), 'm'), y = mix(sp.y.v + ly.length, sp.y.$ + tot(ly), 'y'), a = mix(sp.a.v + mine.length, sp.a.$ + tot(mine), 'a');
+  return {...sp, price:sp.price || (a.v ? a.$ / a.v : 0), m, y, a, tipsY:sp.tipsY + ly.reduce((t, x) => t + (x.tip || 0), 0), tipsA:(sp.tipsA || 0) + mine.reduce((t, x) => t + (x.tip || 0), 0)};
 }
 function spendBase(k){
   if (CL[k].sq !== undefined && SQX) { const x = SQX.customers.find(y => y.id === CL[k].sq || (y.ids || []).includes(CL[k].sq)) || {all:{n:0, net:0}, year:{n:0, net:0, tips:0}, month:{n:0, net:0}};
-    return {price:x.all.n ? x.all.net / x.all.n : 0, m:{v:x.month.n, $:x.month.net}, y:{v:x.year.n, $:x.year.net}, a:{v:x.all.n, $:x.all.net}, tipsY:x.year.tips || 0}; }
+    return {price:x.all.n ? x.all.net / x.all.n : 0, m:{v:x.month.n, $:x.month.net}, y:{v:x.year.n, $:x.year.net}, a:{v:x.all.n, $:x.all.net}, tipsY:x.year.tips || 0, tipsA:x.all.tips || 0}; }
   if (LIVEBOOK) {   // someone added in Sole: card payments matched to their visits (cash and the rest come from the ledger)
     const v = AP.filter(a => a.c === k && a.paid && a.method === 'Card' && a.off <= 0), mo = T0.getDate() - 1, yd = DOY, at = (L, d) => L.filter(a => -a.off <= d);
     const pk = L => ({v:L.length, $:L.reduce((t, a) => t + SV[a.s].price, 0)});
-    return {price:SV[CL[k].usual || Object.keys(SV)[0]].price, m:pk(at(v, mo)), y:pk(at(v, yd)), a:pk(v), tipsY:at(v, yd).reduce((t, a) => t + (a.tip || 0), 0)}; }
+    return {price:SV[CL[k].usual || Object.keys(SV)[0]].price, m:pk(at(v, mo)), y:pk(at(v, yd)), a:pk(v), tipsY:at(v, yd).reduce((t, a) => t + (a.tip || 0), 0), tipsA:v.reduce((t, a) => t + (a.tip || 0), 0)}; }
   const c = CL[k], price = SV[c.usual || Object.keys(SV)[0]].price;
   const paidNow = AP.filter(a => a.c === k && a.off === 0 && a.paid).reduce((s,a) => s + SV[a.s].price, 0), nNow = AP.filter(a => a.c === k && a.off === 0 && a.paid).length;
   const within = days => (c.last == null || !c.every || c.last > days) ? 0 : Math.floor((days - c.last) / c.every) + 1;
   const mk = v => ({v:v + nNow, $:v * price + paidNow});
   const yv = within(DOY), y = mk(yv);     // c.visits counts the years before this one
-  return {price, m:mk(within(MDAY)), y, a:mk(c.visits + yv), tipsY:Math.round(y.$ * 0.18)};
+  return {price, m:mk(within(MDAY)), y, a:mk(c.visits + yv), tipsY:Math.round(y.$ * 0.18), tipsA:Math.round(mk(c.visits + yv).$ * 0.18)};
 }
 const regular = k => { const c = CL[k]; return c.every && c.every <= 28 && c.last != null && c.last <= c.every * 1.5; };
 
@@ -1641,7 +1676,7 @@ function render(){
 // On the website each page (tab, Snapshot page, client) is a step in the browser's history, so swiping back works
 function navNote(){
   if (!CLOUD_ON) return;
-  const nav = {tab:S.tab, money:S.money, cl:S.cl || null}, key = JSON.stringify(nav);
+  const nav = {tab:S.tab, money:S.money, cl:S.cl || null, view:S.tab === 'schedule' ? S.view || 'day' : null}, key = JSON.stringify(nav);
   if (key !== NAV_KEY) { if (NAV_KEY && !NAV_POP) history.pushState({nav}, ''); else history.replaceState({nav}, ''); NAV_KEY = key; }
   NAV_POP = false;
 }
@@ -1746,7 +1781,7 @@ function dayRows(off){
       else if (c.isNew) tag = '<span class="tag new">New</span>';
       out += `<button class="li${done?' done':''}" data-act="appt" data-id="${a.id}"><span class="t">${clockS(a.start)}<small>${SV[a.s].min} min</small></span><span class="who"><b>${c.name}</b><span>${SV[a.s].name}${MULTI && S.tab !== 'schedule' ? ` · <span class="who-tag">${a.w}</span>` : ''}${rowsOf(c).some(r => r.bad)?' · <span style="color:var(--bad)">see notes</span>':''}</span></span>${tag || I.chev}</button>`;
     } else if (it.b) {
-      out += `<button class="li block" data-act="block" data-id="${it.b.id}"><span class="t">${it.b.min >= CLOSE - OPEN ? 'All day' : clockS(it.b.start)}<small>${it.b.min >= CLOSE - OPEN ? '' : dur(it.b.min)}</small></span><span class="who"><b>${esc(it.b.label)}</b><span>${it.b.grp ? 'Time off · part of a series' : 'Time off'}</span></span>${I.chev}</button>`;
+      out += `<button class="li block" data-act="block" data-id="${it.b.id}"><span class="t">${allDay(it.b) ? 'All day' : clockS(it.b.start)}<small>${allDay(it.b) ? '' : dur(it.b.min)}</small></span><span class="who"><b>${esc(it.b.label)}</b><span>${it.b.grp ? 'Time off · part of a series' : 'Time off'}</span></span>${I.chev}</button>`;
     } else {
       const [a,b] = it.g;
       out += `<button class="li gap" data-act="gap" data-off="${off}" data-t="${a}"><span class="t">${clockS(a)}</span><span class="who"><b>Open until ${clock(b)}</b><span>${dur(b-a)} free</span></span><span class="open">Book</span></button>`;
@@ -1757,26 +1792,82 @@ function dayRows(off){
 }
 
 /* ---------- Schedule ---------- */
+const monOf = off => off - ((dateOf(off).getDay() + 6) % 7);   // the Monday of that week
+const usualDays = () => { const o = [1,2,3,4,5,6,0].filter(d => !P.hours.closed.includes(d)); return o.length === 7 ? 'every day' : o.every((d, i) => !i || d === o[i - 1] + 1 || (o[i - 1] === 6 && d === 0)) ? `${DOW[o[0]]} to ${DOW[o[o.length - 1]]}` : o.map(d => DOW[d]).join(', '); };
+const hoursPick = off => { const opts = sel => Array.from({length:33}, (_, i) => 360 + i * 30).map(m => `<option value="${m}" ${m === sel ? 'selected' : ''}>${clock(m)}</option>`).join('');
+  return `<div class="two-in"><label class="field"><span class="label">Open</span><select class="text-in" id="dh-open">${opts(openOf(off))}</select></label><label class="field"><span class="label">Until</span><select class="text-in" id="dh-close">${opts(closeOf(off))}</select></label></div>`; };
+function dayHoursSheet(off){
+  const h = dayHours(off), closed = isOff(off);
+  sheet(`${top(`Hours ${off === 0 ? 'today' : 'on ' + dayLong(off)}`, closed ? 'Closed this day' : `${hrs(openOf(off))} to ${hrs(closeOf(off))}${h ? ', just this day' : ', your usual hours'}`)}
+    ${hoursPick(off)}
+    <button class="btn primary" data-act="dh-save" data-v="${off}">${closed ? 'Open this day' : 'Save these hours'}</button>
+    ${!closed || h ? `<div class="btn-row">${closed ? '' : `<button class="btn" data-act="dh-closed" data-v="${off}">Closed this day</button>`}${h ? `<button class="btn" data-act="dh-usual" data-v="${off}">Back to usual hours</button>` : ''}</div>` : ''}
+    <p class="small muted">Your usual hours are ${hrs(P.hours.open)} to ${hrs(P.hours.close)}, ${usualDays()}. For a break or time away, use Time off.</p>`);
+}
+function schedNav(v){
+  const view = S.view || 'day';
+  if (v === 0) S.day = 0;
+  else if (view === 'day') S.day += v;
+  else if (view === 'week') S.day = monOf(S.day) + 7 * v;
+  else { const d = dateOf(S.day), t = new Date(d.getFullYear(), d.getMonth() + v, 1); S.day = Math.round((t - T0) / 864e5); }
+  S.day = Math.max(-400, Math.min(400, S.day)); render();
+}
+// visits brought over from the old booking app, by day, for days the schedule doesn't hold
+function histByDay(){ const h = {}; Object.values(VISITS).forEach(v => { if (v.from && v.date && CL[v.c]) (h[v.date] = h[v.date] || []).push(v); }); return h; }
+const oldOn = (hist, o, ap) => o < 0 ? (hist[isoDay(dateOf(o))] || []).filter(v => !ap.some(a => a.c === v.c)).sort((x, y) => (x.start || 0) - (y.start || 0)) : [];
+const histRow = v => `<button class="li" data-act="cl-open" data-c="${esc(v.c)}"><span class="t">${v.start != null ? clockS(v.start) : ''}<small>${SV[v.s] ? SV[v.s].min + ' min' : ''}</small></span><span class="who"><b>${esc(CL[v.c].name)}</b><span>${esc(v.svc || (SV[v.s] || {}).name || '')}${v.price ? ' · ' + money(v.price) : ''}</span></span>${I.chev}</button>`;
 function viewSchedule(){
-  const start = S.week * 7, days = Array.from({length:7}, (_,i) => start + i);
-  const off = S.day, ap = apptsFor(off), open = openMin(off, S.who);
-  const strip = days.map(o => {
-    const d = dateOf(o), n = apptsFor(o).length, offd = isOff(o);
-    return `<button class="day${offd?' off':''}" data-act="day" data-v="${o}" aria-pressed="${o===off}" aria-label="${dayLong(o)}"><span class="dw">${o===0?'Today':DOW[d.getDay()].slice(0,3)}</span><span class="dn">${d.getDate()}</span><span class="dots">${offd?'':'<i></i>'.repeat(Math.min(n,4))}</span></button>`;
-  }).join('');
-  const a0 = dateOf(start), a6 = dateOf(start + 6);
-  const range = `${MON[a0.getMonth()].slice(0,3)} ${a0.getDate()} – ${a0.getMonth()===a6.getMonth()?'':MON[a6.getMonth()].slice(0,3)+' '}${a6.getDate()}`;
+  const view = S.view || 'day', off = S.day, mon = monOf(off), d0 = dateOf(off), hist = histByDay();
+  const wkTitle = o => { const a = dateOf(o), b = dateOf(o + 6); return `${MON[a.getMonth()].slice(0,3)} ${a.getDate()} – ${a.getMonth() === b.getMonth() ? '' : MON[b.getMonth()].slice(0,3) + ' '}${b.getDate()}`; };
+  const title = view === 'day' ? (off === 0 ? 'Today' : off === 1 ? 'Tomorrow' : off === -1 ? 'Yesterday' : dayShort(off))
+    : view === 'week' ? (mon === monOf(0) ? 'This week' : wkTitle(mon)) : `${MON[d0.getMonth()]}${d0.getFullYear() !== T0.getFullYear() ? ' ' + d0.getFullYear() : ''}`;
+  const isNow = view === 'day' ? off === 0 : view === 'week' ? mon === monOf(0) : d0.getMonth() === T0.getMonth() && d0.getFullYear() === T0.getFullYear();
+  const body = view === 'week' ? weekView(mon, hist) : view === 'month' ? monthView(off, hist) : dayView(off, mon, hist);
   return `
   ${MULTI ? `<div class="seg" role="group" aria-label="Whose schedule" style="grid-template-columns:repeat(${P.team.length},1fr)">${P.team.map(t => `<button data-act="who" data-v="${t}" aria-pressed="${S.who===t}">${t}</button>`).join('')}</div>` : ''}
-  <section class="sec">
-    <div class="week"><button class="iconbtn" data-act="week" data-v="-1" ${S.week<=-4?'disabled':''} aria-label="Previous week">${I.left}</button><b>${S.week===0?'This week':range}</b><button class="iconbtn" data-act="week" data-v="1" ${S.week>=4?'disabled':''} aria-label="Next week">${I.right}</button></div>
-    <div class="strip">${strip}</div>
-  </section>
-  <section class="sec">
-    <div class="sec-h"><h2>${off===0?'Today':dayLong(off)}</h2><span class="aside">${isOff(off) && !ap.length?'Day off':`${ap.length} ${ap.length===1?W1:WN} · ${open?dur(open)+' open':'full'}`}</span></div>
-    ${isOff(off) && !ap.length ? `<div class="empty">Weekends are your days off.</div>` : `<div class="list">${dayRows(off)}</div>`}
-  </section>
+  <div class="seg" role="group" aria-label="Show">${[['day','Day'],['week','Week'],['month','Month']].map(([k, l]) => `<button data-act="sview" data-v="${k}" aria-pressed="${view === k}">${l}</button>`).join('')}</div>
+  <div class="week snav"><button class="iconbtn" data-act="snav" data-v="-1" ${off <= -400 ? 'disabled' : ''} aria-label="Back">${I.left}</button><b>${title}</b>${isNow ? '' : `<button class="chip sm" data-act="snav" data-v="0">Today</button>`}<button class="iconbtn" data-act="snav" data-v="1" ${off >= 400 ? 'disabled' : ''} aria-label="Forward">${I.right}</button></div>
+  ${body}
   <section class="btn-row"><button class="btn primary" data-act="book">${I.plus}Book a ${W1}</button><button class="btn" data-act="blockt">Time off</button></section>`;
+}
+function dayView(off, mon, hist){
+  const ap = apptsFor(off), closed = isOff(off), open = openMin(off, S.who), old = oldOn(hist, off, ap), n = ap.length + old.length;
+  const strip = Array.from({length:7}, (_, i) => mon + i).map(o => {
+    const d = dateOf(o), k = apptsFor(o).length + oldOn(hist, o, apptsFor(o)).length, offd = isOff(o);
+    return `<button class="day${offd?' off':''}" data-act="day" data-v="${o}" aria-pressed="${o===off}" aria-label="${dayLong(o)}"><span class="dw">${o===0?'Today':DOW[d.getDay()].slice(0,3)}</span><span class="dn">${d.getDate()}</span><span class="dots">${'<i></i>'.repeat(Math.min(k,4))}</span></button>`;
+  }).join('');
+  return `<section class="sec"><div class="strip">${strip}</div></section>
+  <section class="sec">
+    <div class="sec-h"><h2>${off===0?'Today':dayLong(off)}</h2><button class="chip sm" data-act="dayhours" data-v="${off}">${closed ? 'Closed' : `${hrs(openOf(off))}–${hrs(closeOf(off))}`}</button></div>
+    ${n || !closed ? `<p class="small muted">${n} ${n === 1 ? W1 : WN}${off >= 0 && !closed ? ` · ${open ? dur(open) + ' open' : 'full'}` : ''}</p>` : ''}
+    ${closed && !n ? `<div class="empty">You’re closed ${off === 0 ? 'today' : 'this day'}. <button class="linkbtn" data-act="dayhours" data-v="${off}">Open it</button></div>`
+      : `${ap.length || off >= 0 ? `<div class="list">${dayRows(off)}</div>` : ''}${old.length ? `<div class="list"${ap.length || off >= 0 ? ' style="margin-top:10px"' : ''}>${old.map(histRow).join('')}</div>` : ''}`}
+  </section>`;
+}
+function weekView(mon, hist){
+  const days = Array.from({length:7}, (_, i) => mon + i);
+  let tn = 0, tv = 0;
+  const html = days.map(o => {
+    const ap = apptsFor(o), bl = BL.filter(b => b.off === o && (!MULTI || b.w === S.who)), old = oldOn(hist, o, ap), d = dateOf(o);
+    const items = [...ap.map(a => ({t:a.start, a})), ...bl.map(b => ({t:b.start, b})), ...old.map(v => ({t:v.start || 0, v}))].sort((x, y) => x.t - y.t);
+    const n = ap.length + old.length, val = booked([o]).$ + old.reduce((t, v) => t + (v.price || 0), 0), closed = isOff(o); tn += n; tv += val;
+    return `<div class="wk-day${o === 0 ? ' now' : ''}"><button class="wk-h" data-act="sday" data-v="${o}"><b>${o === 0 ? 'Today' : DOW[d.getDay()].slice(0,3)}, ${MON[d.getMonth()].slice(0,3)} ${d.getDate()}</b><span>${closed && !n ? 'Closed' : n ? `${n} · ${money(val)}` : `Open ${hrs(openOf(o))}–${hrs(closeOf(o))}`}</span></button>
+      ${items.map(it => it.a ? `<button class="wk-row" data-act="appt" data-id="${it.a.id}"><span class="t">${clockS(it.a.start)}</span><span class="n">${esc(CL[it.a.c].name)}</span><span class="s">${esc(SV[it.a.s].name)}</span></button>`
+        : it.b ? `<button class="wk-row blk" data-act="block" data-id="${it.b.id}"><span class="t">${allDay(it.b) ? 'All day' : clockS(it.b.start)}</span><span class="n">${esc(it.b.label)}</span><span class="s">Time off</span></button>`
+        : `<button class="wk-row past" data-act="cl-open" data-c="${esc(it.v.c)}"><span class="t">${it.v.start != null ? clockS(it.v.start) : ''}</span><span class="n">${esc(CL[it.v.c].name)}</span><span class="s">${esc(it.v.svc || (SV[it.v.s] || {}).name || '')}</span></button>`).join('')}</div>`; }).join('');
+  return `<section class="wk">${html}</section>
+  <p class="small muted" style="text-align:center">${tn} ${tn === 1 ? P.unitOne : P.unit} · ${money(tv)}${tn ? ` · about ${money(tv - feeOf(tv, tn))} after fees` : ''}</p>`;
+}
+function monthView(off, hist){
+  const d = dateOf(off), first = off - (d.getDate() - 1), last = first + new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() - 1, cells = [];
+  for (let o = monOf(first); o <= last || cells.length % 7; o++) cells.push(o);
+  let tn = 0, tv = 0;
+  const html = cells.map(o => {
+    const ap = apptsFor(o), old = oldOn(hist, o, ap), n = ap.length + old.length, inMo = o >= first && o <= last, bl = BL.some(b => b.off === o && (!MULTI || b.w === S.who));
+    if (inMo) { tn += n; tv += booked([o]).$ + old.reduce((t, v) => t + (v.price || 0), 0); }
+    return `<button class="mo-c${inMo ? '' : ' out'}${o === 0 ? ' now' : ''}${isOff(o) && !n ? ' closed' : ''}" data-act="sday" data-v="${o}" aria-label="${dayLong(o)}${n ? `, ${n} booked` : ''}"><span class="mo-d">${dateOf(o).getDate()}</span>${n ? `<span class="mo-n${o < 0 ? ' past' : ''}">${n}</span>` : `<span class="mo-e${bl ? ' blk' : ''}"></span>`}</button>`; }).join('');
+  return `<section class="sec"><div class="mo">${['M','T','W','T','F','S','S'].map(x => `<span class="mo-h">${x}</span>`).join('')}${html}</div>
+    <p class="small muted" style="text-align:center;margin-top:10px">${tn} ${tn === 1 ? P.unitOne : P.unit} · ${money(tv)}${tn ? ` · about ${money(tv - feeOf(tv, tn))} after fees` : ''}</p></section>`;
 }
 
 /* ---------- Money ---------- */
@@ -2369,7 +2460,8 @@ function clientPage(k){
   <section class="field"><span class="label">Spent with you</span><div class="spend">
     <div><span>This month</span><b>${money(sp.m.$)}</b><span>${sp.m.v} visit${sp.m.v === 1 ? '' : 's'}</span></div>
     <div><span>This year</span><b>${money(sp.y.$)}</b><span>${sp.y.v} visit${sp.y.v === 1 ? '' : 's'}</span></div>
-    <div><span>All time</span><b>${money(sp.a.$)}</b><span>${sp.a.v} visit${sp.a.v === 1 ? '' : 's'}</span></div></div></section>
+    <div><span>All time</span><b>${money(sp.a.$)}</b><span>${sp.a.v} visit${sp.a.v === 1 ? '' : 's'}</span></div></div>
+    <p class="small muted">${sp.tipsY || sp.tipsA ? `Tips on top: <b>${money(sp.tipsY)}</b> this year, ${money(sp.tipsA)} all time.` : 'Tips aren’t counted here. They show once card payments with tips come in.'} The amounts above are sales only.</p></section>
   <section class="sec"><div class="sec-h"><h2>Visits</h2><span class="aside">${visitForm().title} on each</span></div>
     ${vs.length ? `<ol class="tl">${[...coming.reverse(), ...(S.clAll === k ? past : past.slice(0, 12))].map(visitItem).join('')}</ol>
       ${past.length > 12 && S.clAll !== k ? `<button class="btn line" data-act="cl-all" data-c="${esc(k)}">Show all ${past.length} visits</button>` : ''}` : `<p class="muted">No visits in Sole yet. Each one you book shows here with its notes.</p>`}
@@ -2518,8 +2610,8 @@ const TIME_OFF = [['Lunch', 30], ['Break', 15], ['Errand', 60], ['Appointment', 
 const wholeDays = () => B.kind === 'block' && (B.label === 'Day off' || B.label === 'Vacation');
 const offOfIso = v => Math.round((new Date(v + 'T00:00:00') - T0) / 864e5);
 const workDays = (a, b) => { const out = []; for (let o = a; o <= b; o++) if (!isOff(o)) out.push(o); return out; };
-const bLen = () => B.kind === 'client' ? SV[B.s].min : wholeDays() ? CLOSE - OPEN : B.len;
-const bStarts = () => validStarts(B.off, bLen(), B.kind === 'client' ? TURN : 0, B.id, B.w);
+const bLen = () => B.kind === 'client' ? SV[B.s].min : wholeDays() ? closeOf(B.off) - openOf(B.off) : B.len;
+const bStarts = () => validStarts(B.off, bLen(), B.kind === 'client' ? TURN : 0, B.id, B.w, B.wide);
 function fixStart(){ if (!bStarts().includes(B.start)) B.start = null; }
 function bookReady(){ if (wholeDays()) return workDays(B.off, B.to).length > 0; return B.start != null && (B.kind !== 'client' || (B.c && (B.c !== 'new' || B.newName.trim()))); }
 function bookLabel(){
@@ -2531,7 +2623,7 @@ function bookLabel(){
   return B.mode === 'move' ? `Move to ${when}` : `Book ${who} · ${when}`;
 }
 function bookHTML(){
-  const days = []; for (let o = 0; days.length < (B.kind === 'block' ? 30 : 18); o++) if (!isOff(o)) days.push(o);
+  const days = Array.from({length:B.kind === 'block' ? 42 : 28}, (_, o) => o);   // every day: closed ones can be opened
   const st = bStarts();
   const head = B.kind === 'block' ? top('Time off', `Breaks, your own appointments and days away. ${cap(WN)} can’t be booked over it.`)
     : B.mode === 'move' ? top(`Move ${first(B.c)}`, `${svLabel(B.s)}, now ${whenText(AP.find(a=>a.id===B.id))}`)
@@ -2556,8 +2648,11 @@ function bookHTML(){
       <div class="sticky-go"><button class="btn primary" id="book-go" data-act="b-go" ${bookReady()?'':'disabled'}>${esc(bookLabel())}</button></div>`;
   }
   return `${head}${who}${withWho}${what}
-    <div class="field"><span class="label">Day</span><div class="scroller">${days.map(o => `<button class="chip" data-act="b-d" data-v="${o}" aria-pressed="${B.off===o}">${o===0?'Today':o===1?'Tomorrow':dayShort(o).slice(0,3)+' '+dateOf(o).getDate()}</button>`).join('')}</div></div>
-    <div class="field"><span class="label">Time</span>${st.length ? `<div class="chips">${st.map(t => `<button class="chip num" data-act="b-t" data-v="${t}" aria-pressed="${B.start===t}">${clock(t)}</button>`).join('')}</div>` : `<p class="muted">No room for ${dur(bLen())} that day. Try another day.</p>`}</div>
+    <div class="field"><span class="label">Day</span><div class="scroller">${days.map(o => `<button class="chip${isOff(o) ? ' dim' : ''}" data-act="b-d" data-v="${o}" aria-pressed="${B.off===o}">${o===0?'Today':o===1?'Tomorrow':dayShort(o).slice(0,3)+' '+dateOf(o).getDate()}${isOff(o) ? ' · closed' : ''}</button>`).join('')}</div></div>
+    ${isOff(B.off) && !B.wide ? `<div class="card facts2"><p><b>You’re usually closed ${DOW[dateOf(B.off).getDay()]}s.</b> Open this day?</p>${hoursPick(B.off)}
+      <button class="btn primary" data-act="dh-save" data-in="book" data-v="${B.off}">Open ${dayShort(B.off).slice(0,3)} ${dateOf(B.off).getDate()}</button></div>` : ''}
+    <div class="field" ${isOff(B.off) && !B.wide ? 'hidden' : ''}><span class="label">Time</span>${st.length ? `<div class="chips">${st.map(t => `<button class="chip num" data-act="b-t" data-v="${t}" aria-pressed="${B.start===t}">${clock(t)}</button>`).join('')}</div>` : `<p class="muted">No room for ${dur(bLen())} that day. Try another day.</p>`}</div>
+    <div class="field"><button class="chip" data-act="b-wide" aria-pressed="${!!B.wide}" style="align-self:flex-start">Earlier or later</button>${B.wide ? `<span class="small muted">Times from 7 am to 9 pm, outside your usual ${hrs(openOf(B.off))} to ${hrs(closeOf(B.off))}.</span>` : ''}</div>
     ${B.kind === 'block' ? `<div class="field"><button class="chip" data-act="b-rep" aria-pressed="${B.rep}" style="align-self:flex-start">Every week</button>${B.rep ? `<span class="small muted">Every ${DOW[dateOf(B.off).getDay()]} for the next 3 months. Weeks that are already busy then are skipped.</span>` : ''}</div>` : ''}
     <div class="sticky-go"><button class="btn primary" id="book-go" data-act="b-go" ${bookReady()?'':'disabled'}>${esc(bookLabel())}</button></div>`;
 }
@@ -2567,7 +2662,7 @@ function bookGo(){
   let msg;
   if (B.kind === 'block') {
     const label = B.name.trim() || B.label, grp = uidOf('g');
-    if (wholeDays()) { const ds = workDays(B.off, B.to); ds.forEach(o => BL.push({id:seq++, off:o, start:OPEN, min:CLOSE - OPEN, label, w:B.w, mine:true, uid:uidOf('b'), grp:ds.length > 1 ? grp : undefined}));
+    if (wholeDays()) { const ds = workDays(B.off, B.to); ds.forEach(o => BL.push({id:seq++, off:o, start:openOf(o), min:closeOf(o) - openOf(o), label, w:B.w, mine:true, uid:uidOf('b'), grp:ds.length > 1 ? grp : undefined}));
       msg = `${label}: ${ds.length} day${ds.length === 1 ? '' : 's'} off${ds.length > 1 ? `, ${dayShort(ds[0]).slice(4)} to ${dayShort(ds[ds.length - 1]).slice(4)}` : ` ${dayName(ds[0])}`}.`; }
     else { let n = 0, skip = 0;
       (B.rep ? Array.from({length:13}, (_, i) => B.off + 7 * i) : [B.off]).forEach(o => { if (!isOff(o) && validStarts(o, B.len, 0, undefined, B.w).includes(B.start)) { BL.push({id:seq++, off:o, start:B.start, min:B.len, label, w:B.w, mine:true, uid:uidOf('b'), grp:B.rep ? grp : undefined}); n++; } else skip++; });
@@ -2843,7 +2938,7 @@ on('click', e => {
     case 'cancel-no': $('#confirm').hidden = true; break;
     case 'cancel-yes': { const i = AP.findIndex(x => x.id === id), a = AP[i]; AP.splice(i,1); closeSheet(); render(); toast(`Canceled ${first(a.c)}’s ${clock(a.start)}. That time is open again.`); break; }
     case 'block': { const b = BL.find(x => x.id === id), g = b.grp ? BL.filter(x => x.grp === b.grp).sort((x, y) => x.off - y.off) : [];
-      sheet(`${top(esc(b.label), b.min >= CLOSE - OPEN ? `${cap(dayLong(b.off))} · all day` : `${cap(dayName(b.off))} · ${clock(b.start)} to ${clock(b.start + b.min)}`)}
+      sheet(`${top(esc(b.label), allDay(b) ? `${cap(dayLong(b.off))} · all day` : `${cap(dayName(b.off))} · ${clock(b.start)} to ${clock(b.start + b.min)}`)}
         ${g.length > 1 ? `<p class="muted">One of ${g.length}, ${dayShort(g[0].off).slice(4)} to ${dayShort(g[g.length - 1].off).slice(4)}.</p>` : ''}
         <div class="btn-row"><button class="btn danger" data-act="unblock" data-id="${b.id}">${g.length > 1 ? 'Remove just this one' : 'Remove it'}</button>
         ${g.length > 1 ? `<button class="btn" data-act="unblock-grp" data-v="${b.grp}">Remove all ${g.length}</button>` : ''}</div>`); break; }
@@ -2950,6 +3045,17 @@ on('click', e => {
     case 'b-s': B.s = v; fixStart(); rerenderBook(); break;
     case 'b-l': B.label = v; if (wholeDays()) B.to = Math.max(B.to, B.off); else { B.len = (TIME_OFF.find(t => t[0] === v) || [, B.len])[1] || B.len; fixStart(); } rerenderBook(); break;
     case 'b-rep': B.rep = !B.rep; rerenderBook(); break;
+    case 'b-wide': B.wide = !B.wide; fixStart(); rerenderBook(); break;
+    case 'dayhours': dayHoursSheet(+v); break;
+    case 'dh-save': { const o = +v, a = +($('#dh-open') || {}).value, b = +($('#dh-close') || {}).value; if (!(b > a)) { toast('Pick a closing time after the opening time.'); break; }
+      DAYS[isoDay(dateOf(o))] = {open:a, close:b};
+      if (el.dataset.in === 'book' && B) { fixStart(); render(); rerenderBook(); } else { closeSheet(); render(); }
+      toast(`${cap(dayName(o))}: open ${hrs(a)} to ${hrs(b)}.`); break; }
+    case 'dh-closed': { const o = +v; DAYS[isoDay(dateOf(o))] = {closed:true}; closeSheet(); render(); toast(`${cap(dayName(o))}: closed.`); break; }
+    case 'dh-usual': { const o = +v; delete DAYS[isoDay(dateOf(o))]; closeSheet(); render(); toast(`${cap(dayName(o))}: back to your usual hours.`); break; }
+    case 'sview': S.view = v; render(); window.scrollTo(0, 0); break;
+    case 'snav': schedNav(+v); break;
+    case 'sday': S.day = +v; S.view = 'day'; render(); window.scrollTo(0, 0); break;
     case 'b-len': B.len = +v; fixStart(); rerenderBook(); break;
     case 'b-d': B.off = +v; fixStart(); rerenderBook(); break;
     case 'b-t': B.start = +v; rerenderBook(); break;
@@ -2984,11 +3090,15 @@ on('submit', e => {
 });
 on('keydown', e => { if (e.key === 'Escape' && $('#layer').innerHTML) closeSheet(); });
 
+{ let sx = null; const opt = {signal:CTL.signal, passive:true};
+  document.addEventListener('touchstart', e => { sx = S.tab === 'schedule' && !$('#layer .sheet') && e.touches.length === 1 && e.touches[0].clientX > 32 ? {x:e.touches[0].clientX, y:e.touches[0].clientY} : null; }, opt);
+  document.addEventListener('touchend', e => { if (!sx) return; const t = e.changedTouches[0], dx = t.clientX - sx.x, dy = t.clientY - sx.y; sx = null;
+    if (Math.abs(dx) > 70 && Math.abs(dy) < 50) schedNav(dx < 0 ? 1 : -1); }, opt); }
 window.addEventListener('popstate', e => {
   if (!CLOUD_ON) return;
   if ($('#layer .sheet')) { closeSheet(); history.pushState({nav:JSON.parse(NAV_KEY || '{}')}, ''); return; }   // back closes the open sheet, the page stays
   const nav = e.state && e.state.nav; if (!nav) return;
-  S.tab = nav.tab || 'today'; S.money = nav.money || 'home'; S.cl = nav.cl || null; NAV_POP = true; render(); window.scrollTo(0, 0);
+  S.tab = nav.tab || 'today'; S.money = nav.money || 'home'; S.cl = nav.cl || null; if (nav.view) S.view = nav.view; NAV_POP = true; render(); window.scrollTo(0, 0);
 }, {signal:CTL.signal});
 if (CLOUD_ON && STANDALONE) {
   let sw = null; const opt = {signal:CTL.signal, passive:true};
@@ -3160,7 +3270,7 @@ async function loadSquareTables(){
 }
 // the claude.ai calls the app makes, answered from Supabase
 function cloudDb(){
-  const itemCols = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks', 'forms', 'people'];
+  const itemCols = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks', 'forms', 'people', 'days'];
   const listeners = {};
   const snap = (id, data) => ({id, exists:data != null, data:() => data});
   const docRef = (col, id) => ({

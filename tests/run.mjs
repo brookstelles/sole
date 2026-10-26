@@ -172,7 +172,7 @@ console.log('ok private Square views');
   await q.close();
   // notes: write SOAP notes on yesterday's visit, then see them before the next one
   const r = await open('index.html', `window.__SOLE_SQUARE = ${JSON.stringify({...JSON.parse(sq), sole})};`);
-  await r.click('.tab[data-v=schedule]'); await r.click('[data-act=week][data-v="-1"]'); await r.click('[data-act=day] >> nth=6');
+  await r.click('.tab[data-v=schedule]'); await r.click('[data-act=snav][data-v="-1"]');   // yesterday
   check(!(await r.locator('[data-act=gap]').count()), 'schedule: past days show no openings to book');
   await r.click('[data-act=appt]:has-text("Wren")');
   await r.click('.sheet [data-act=vnotes]');
@@ -182,7 +182,8 @@ console.log('ok private Square views');
   check(/Neck, Deep tissue/.test(sh) || /Neck · Deep tissue/.test(sh), 'visit notes: chips show on the visit');
   check(/Test focus on left trap/.test(sh), 'visit notes: the plan shows on the visit');
   await r.click('.sheet .close');
-  await r.click('[data-act=week][data-v="1"]'); await r.click('[data-act=day] >> nth=3'); await r.click('[data-act=appt]:has-text("Wren")');
+  await r.click('[data-act=snav][data-v="0"]'); for (let i = 0; i < 3; i++) await r.click('[data-act=snav][data-v="1"]');   // three days from today
+  await r.click('[data-act=appt]:has-text("Wren")');
   check(/From last time/.test(await r.textContent('.sheet')) && /Test focus on left trap/.test(await r.textContent('.sheet')), 'visit notes: the plan shows before the next visit');
   check(await r.evaluate(() => Object.values(SQ.sole.visits).some(v => v.P === 'Test focus on left trap')), 'visit notes: saved to the book');
   check(!(await wide(r)), 'visit notes: wider than the phone');
@@ -211,6 +212,9 @@ console.log('ok private Square views');
   const seed = {items:[{business_id:'B1', col:'clients', id:'nC', data:{name:'Cloud Sample', phone:'', since:2026, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}},
       {business_id:'B1', col:'visits', id:'mb:old1', data:{c:'mb:imported-person', date:'2025-03-04', start:600, s:'sw60', price:100, from:'MassageBook'}},
       {business_id:'B1', col:'visits', id:'mb:old2', data:{c:'mb:imported-person', date:'2025-04-01', start:660, s:'sw60', svc:'Aromatherapy massage', price:140, from:'MassageBook'}},
+      {business_id:'B1', col:'clients', id:'sq:CARDPERSON', data:{name:'Card Person Imported', phone:'(555) 010-9988', from:'MassageBook'}},
+      {business_id:'B1', col:'visits', id:'mb:old3', data:{c:'sq:CARDPERSON', date:'2025-05-06', start:630, s:'sw90', price:140, from:'MassageBook'}},
+      {business_id:'B1', col:'visits', id:'mb:old4', data:{c:'sq:CARDPERSON', date:'2025-05-13', start:630, s:'sw90', price:140, from:'MassageBook'}},
       {business_id:'B1', col:'clients', id:'mb:imported-person', data:{name:'Imported Person', phone:'(555) 010-2233', email:'imported@example.com', born:'1980-01-02', since:2022, from:'MassageBook', mine:true, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:''}},
       {business_id:'B1', col:'appts', id:'aC', data:{c:'nC', s:'sw60', date:iso(now), start:1410, paid:false, tip:0, w:'Kelli'}}],
     payments:[{business_id:'B1', id:'P1', created_at:'2026-03-02T15:00:00Z', status:'COMPLETED', customer_id:'TESTCUST1', data:pay('P1', new Date('2026-03-02T15:00:00Z'), 11500, 2000, 'TESTCUST1')}],
@@ -250,6 +254,9 @@ console.log('ok private Square views');
   check(/imported@example\.com/.test(pg) && /January 2/.test(pg) && !/>New</.test(await q.innerHTML('.cl-hero')), 'website: imported client page has their contact details');
   check(/Aromatherapy massage/.test(pg) && /\$140/.test(pg) && /Mar 4, 2025/.test(pg) && /\$240/.test(await q.textContent('.spend')) && /2 massages/.test(await q.textContent('.cl-hero')), 'website: visits from the old booking app show with their prices and count');
   check(await q.evaluate(() => __FAKE.T.items.filter(r => r.col === 'clients' && r.id === 'mb:imported-person').every(r => r.data.last == null && !r.data.old && !r.data._saved)), 'website: worked-out history is not saved over the client');
+  // a Square card customer brought over from the old app keeps their history until Square knows them
+  await q.click('[data-act=cl-back]'); await q.fill('#clt-search', 'Card Person'); await q.click('#clt-list .li.client');
+  check(/\$280/.test(await q.textContent('.spend')) && /2 massages/.test(await q.textContent('.cl-hero')), 'website: a card customer from the old app shows their visits and spending');
   await q.click('.tab[data-v=today]');
   check(!(await wide(q)), 'website: wider than the phone');
   // signed out (a new day, a cleared session): Face ID comes first and opens the book without a code
@@ -299,6 +306,34 @@ await tour(p, 'demo');
   check(!(await wide(p)), 'time off: wider than the phone');
   await p.click('.tab[data-v=today]');
   console.log('ok time off');
+}
+
+// the schedule by day, week or month; hours for one day; booking on a closed day and outside the usual hours
+{
+  await p.click('.tab[data-v=schedule]');
+  await p.click('[data-act=sview][data-v=week]');
+  check(await p.locator('.wk-day').count() === 7 && /This week/.test(await p.textContent('.snav')), 'schedule: the week, Monday to Sunday');
+  await p.click('[data-act=snav][data-v="1"]'); check(await p.locator('[data-act=snav][data-v="0"]').count() === 1, 'schedule: next week, with a way back to today');
+  await p.click('[data-act=sview][data-v=month]');
+  check(await p.locator('.mo-c').count() >= 28, 'schedule: the month as a calendar');
+  await p.click('[data-act=snav][data-v="0"]'); await p.click('.mo-c.now');
+  check(await p.locator('[data-act=sview][data-v=day][aria-pressed=true]').count() === 1 && /Today/.test(await p.textContent('.snav')), 'schedule: a day in the month opens that day');
+  // a closed day: open it with its own hours
+  await p.click('.day.off >> nth=0'); await p.click('.sec-h [data-act=dayhours]');
+  await p.selectOption('#dh-open', '600'); await p.selectOption('#dh-close', '840'); await p.click('.sheet [data-act=dh-save]'); await p.waitForTimeout(100);
+  check(/open 10 am to 2 pm/.test(await p.textContent('.toast')) && /10 am–2 pm/.test(await p.textContent('.sec-h')), 'hours: a closed day opened for 10 to 2');
+  await p.click('.sec-h [data-act=dayhours]'); await p.click('.sheet [data-act=dh-usual]');
+  // booking: a closed day can be opened from the booking sheet, and earlier or later times
+  await p.click('[data-act=book]'); await p.click('[data-act=b-c] >> nth=0');
+  const closedDay = p.locator('[data-act=b-d]', {hasText:'closed'}).first(); await closedDay.click();
+  check(/usually closed/.test(await p.textContent('.sheet')), 'booking: a closed day offers to open');
+  await p.click('.sheet [data-act=dh-save]'); await p.waitForTimeout(100);
+  check(await p.locator('[data-act=b-t]').count() > 0, 'booking: once opened, the day has times');
+  await p.click('[data-act=b-wide]');
+  check(/7:00 am/.test(await p.textContent('.sheet')) && /8:00 pm/.test(await p.textContent('.sheet')), 'booking: earlier or later times');
+  check(!(await wide(p)), 'schedule: wider than the phone');
+  await p.click('.sheet .close'); await p.click('.tab[data-v=today]');
+  console.log('ok schedule views and hours');
 }
 
 // setup for a business that isn't on the list, then day one

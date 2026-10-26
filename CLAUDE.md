@@ -52,6 +52,9 @@ Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`). T
 
 - Sign-in: email code, then Face ID (Supabase passkeys, experimental, `experimental:{passkey:true}`; relying party `sole.brookstelles.com`). The challenge is fetched before the tap (`pkFetch`, `pkCeremony`) because iPhones refuse a Face ID prompt that waits on the network. After a code sign-in, or once on a phone already signed in, `offerFace()` offers it; the sign-in screen then puts it first (`sole-face` in the phone's storage).
 - The opening (sunrise, "Welcome back" and the business name) plays every time for about 3½ seconds (`INTRO_MS`; tests set `__SOLE_INTRO_MS = 0`) while the book loads under it (`introVeil`, `introDone`).
+- Hours: `P.hours` are the usual hours (Heart and Soul: Monday to Friday, 9 to 5); `DAYS` (the book's `days` collection, keyed by date) holds one day's own hours or `closed`; `openOf`, `closeOf`, `isOff` read both. Booking shows closed days (opening one sets its hours) and "Earlier or later" (7 am to 9 pm). Time off: breaks, her own appointments, days off and vacations (`TIME_OFF`, `grp` ties a vacation or weekly series together).
+- Schedule: Day, Week and Month (`S.view`, `schedNav`, swipe left or right), Monday to Sunday, 400 days either way; past days also show visits from the old booking app (`histByDay`).
+- Visits from MassageBook (`visits` with `from`) give each client's last in, count, rhythm and spending (`c.old`, never saved over the client); for Square card customers, Square or the old app, whichever knows more. MassageBook recorded sales only; tips come from Square and are always shown apart from sales.
 - Each page (tab, Snapshot page, client) is a browser history step (`navNote`), so swiping back works in Safari; back with a sheet open closes the sheet. Opened from the home screen (`STANDALONE`), Sole adds swipe from the left edge to go back and pull down to reload.
 
 ## Digital forms
