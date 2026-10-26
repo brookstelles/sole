@@ -5,6 +5,7 @@
 <link rel="icon" href="apple-touch-icon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-title" content="Sole">
+<link rel="manifest" href="manifest.json">
 <title>Sole</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -222,6 +223,7 @@ main{display:flex;flex-direction:column;gap:22px}
 .card.vnote p:last-child{margin:0}
 .btn.danger-line{width:100%;margin-top:12px;color:var(--bad)}
 .vn-same{width:100%}
+.msg-body{font-size:16px;line-height:1.5;white-space:normal}
 .vn-same .muted{font-weight:500}
 .vn-quick{gap:6px}
 .rb-what{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -757,7 +759,7 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
 /* ---------- on a computer ----------
    The same app with room to breathe: the tabs become a sidebar under the business's name, Today splits in two,
    the week is a calendar, each client opens beside the list, and sheets slide in from the right. */
-@media (min-width:1024px){
+@media (min-width:700px) and (min-height:500px){
   body{font-size:16px}
   .app{max-width:none;margin:0 0 0 256px;padding:0 48px 64px}
   .hdr,main{max-width:1240px;margin-inline:auto}
@@ -910,13 +912,29 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
   .sticky-go{bottom:-30px;margin-bottom:-30px;padding-bottom:6px}
   .toast{left:calc(50% + 128px);bottom:32px}
 }
-/* a small laptop: the same, one column where two would crowd */
-@media (min-width:1024px) and (max-width:1199px){
+/* an iPad or a small laptop: the same, one column where two would crowd */
+@media (min-width:700px) and (max-width:1199px) and (min-height:500px){
   .app{padding-inline:32px}
   .dash,.cols2{grid-template-columns:minmax(0,1fr)}
   .bento{grid-template-columns:repeat(2,minmax(0,1fr))}
   .split{grid-template-columns:minmax(260px,320px) minmax(0,1fr);gap:22px}
   .sched-bar .seg{width:240px}
+}
+/* an upright iPad: the sidebar slims to a rail of icons so the pages get the room */
+@media (min-width:700px) and (max-width:1023px) and (min-height:500px){
+  .tabbar{width:92px;padding:18px 8px}
+  .app{margin-left:92px;padding-inline:24px}
+  .side-biz{padding:0 0 14px;margin-bottom:10px}
+  .side-biz .biz{justify-content:center}
+  .side-biz .biz-name,.side-biz .chev{display:none}
+  .tab{flex-direction:column;justify-content:center;gap:4px;min-height:70px;padding:6px 0;font-size:12px;text-align:center}
+  .side-next{display:none}
+  .hdr h1{font-size:34px}
+  .hdr-date{display:none}
+  .hdr .lily{right:-14px}
+  .sched-bar{flex-wrap:wrap}
+  .split{grid-template-columns:minmax(220px,280px) minmax(0,1fr);gap:18px}
+  .toast{left:calc(50% + 46px)}
 }
 @keyframes slide-in{from{transform:translateX(48px);opacity:0}to{transform:none;opacity:1}}
 @keyframes rise{from{transform:translate(-50%,24px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
@@ -1447,17 +1465,20 @@ let OB = null;   // setup in progress
 let FILL = null; // a form being filled in
 
 let CTL;
-// a computer screen gets the desktop layout: a sidebar, the week as a calendar, clients beside their page, sheets as a side panel
-const WIDE_MQ = window.matchMedia('(min-width: 1024px)'); let WIDE = WIDE_MQ.matches;
+// an iPad or a computer gets the big-screen layout: a sidebar, the week as a calendar, clients beside their page, sheets
+// as a side panel. A phone, upright or turned sideways, keeps the phone layout.
+const WIDE_MQ = window.matchMedia('(min-width: 700px) and (min-height: 500px)'); let WIDE = WIDE_MQ.matches;
 let SQ = null;    // Square payments and card customers, written into this page's database by the daily refresh
 let KEEP = null;   // the tab to return to when the page rebuilds itself
-let TOAST_T = null; const UNDO = {arm:null, snap:null};   // the message on screen and what Undo puts back: both outlive a rebuild
+let TOAST_T = null; const UNDO = {arm:null, snap:null};
+let OPEN_MSG = new URLSearchParams(location.search).get('msg');   // a tapped notification opens Sole on that message   // the message on screen and what Undo puts back: both outlive a rebuild
 // the real business's own book (appointments, time off, clients, payments and costs), one database document per item;
 // REAL_SAVED mirrors what the database holds so only changed items are written
 const SOLE_COLS = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks', 'days'];
 const SOLE_MAPS = ['clients', 'visits', 'weeks', 'days'];   // kept by id; the others are lists of items with a uid
 let REAL_SAVED = null, SOLE_VER = 0, SOLE_Q = Promise.resolve();
 const PREFS_MEM = {}, PAPERS_MEM = {}, PAPER_URLS = {};   // PAPER_URLS: a paper's picture added on this visit, shown before it's stored   // the built-in businesses keep their account choices for the visit
+const INBOX_MEM = {};   // the built-in businesses have no website, so no messages
 const LEDGER_MEM = {}, NOTES_MEM = {}, VISITS_MEM = {}, WEEKS_MEM = {}, DAYS_MEM = {};   // the built-in businesses keep what's added for the visit
 const uidOf = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const sortKeys = x => Array.isArray(x) ? x.map(sortKeys) : x && typeof x === 'object' ? Object.fromEntries(Object.keys(x).sort().filter(k => x[k] !== undefined).map(k => [k, sortKeys(x[k])])) : x;
@@ -1491,6 +1512,13 @@ function watchSole(db){
     });
     if (changed) { SOLE_VER++; redrawLive(); }
   }, () => {}); } catch (_) {} });
+  // a message from the website shows up the moment it's sent (her phone also buzzes, see supabase/functions/push)
+  try { db.collection('inbox').onSnapshot(snap => { const fresh = [];
+    snap.docChanges().forEach(ch => { if (!SQ) return; const L = SQ.inbox = SQ.inbox || [], id = ch.doc.id, i = L.findIndex(x => x.id === id);
+      if (ch.type === 'removed') { if (i >= 0) { L.splice(i, 1); fresh.push(null); } return; }
+      const r = JSON.parse(JSON.stringify(ch.doc.data())); if (i >= 0) { if (canon(L[i]) !== canon(r)) { L[i] = r; fresh.push(null); } } else { L.push(r); fresh.push(r); } });
+    if (fresh.length) { SOLE_VER++; redrawLive(); const r = fresh.filter(Boolean).pop(); if (r) setTimeout(() => TOAST(`New message from ${String(r.name || 'someone').split(' ')[0]} on your website.`), 300); }
+  }, () => {}); } catch (_) {}
   // a form a client filled in on their own phone (from a texted link) shows up the moment it's sent
   try { db.collection('forms').onSnapshot(snap => { const fresh = [];
     snap.docChanges().forEach(ch => { if (ch.type === 'removed' || !SQ) return; const r = JSON.parse(JSON.stringify(ch.doc.data()));
@@ -1522,14 +1550,14 @@ async function loadSquare(key){
     if (window.__SOLE_SQUARE) { SQ = window.__SOLE_SQUARE; watchSquare(key); boot(key); return; }   // test hook: tests/fixtures/square-sample.json
     if (!window.claude || !window.claude.use) return;
     const db = await window.claude.use('db'); if (!db) return;
-    const [a, b, fr, mg, pf, pp, ...book] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false})), db.doc('people/prefs').get().catch(() => ({exists:false})), db.doc('people/papers').get().catch(() => ({exists:false})),
+    const [a, b, fr, ib, mg, pf, pp, ...book] = await Promise.all([db.doc('square/summary').get(), db.doc('square/customers').get(), db.collection('forms').get().catch(() => ({docs:[]})), db.collection('inbox').get().catch(() => ({docs:[]})), db.doc('people/merges').get().catch(() => ({exists:false})), db.doc('people/prefs').get().catch(() => ({exists:false})), db.doc('people/papers').get().catch(() => ({exists:false})),
       ...SOLE_COLS.map(c => db.collection(c).get().catch(() => ({docs:[]})))]);
-    const responses = fr.docs.filter(d => d.exists).map(d => JSON.parse(JSON.stringify(d.data())));
+    const responses = fr.docs.filter(d => d.exists).map(d => JSON.parse(JSON.stringify(d.data()))), inbox = ib.docs.filter(d => d.exists).map(d => JSON.parse(JSON.stringify(d.data())));
     const sole = {appts:[], blocks:[], clients:{}, ledger:[], visits:{}, weeks:{}, days:{}};
     REAL_SAVED = Object.fromEntries(SOLE_COLS.map(c => [c, {}]));
     SOLE_COLS.forEach((c, i) => book[i].docs.filter(d => d.exists).forEach(d => { const x = JSON.parse(JSON.stringify(d.data()));
       REAL_SAVED[c][d.id] = canon(x); if (SOLE_MAPS.includes(c)) sole[c][d.id] = x; else sole[c].push({...x, uid:d.id}); }));
-    SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses, merges:mg.exists ? JSON.parse(JSON.stringify(mg.data())) : null, prefs:pf.exists ? JSON.parse(JSON.stringify(pf.data())) : {}, papers:pp.exists ? (JSON.parse(JSON.stringify(pp.data())).list || []) : [], sole};
+    SQ = {summary:a.exists ? JSON.parse(JSON.stringify(a.data())) : null, customers:b.exists ? (JSON.parse(JSON.stringify(b.data())).list || []) : [], responses, inbox, merges:mg.exists ? JSON.parse(JSON.stringify(mg.data())) : null, prefs:pf.exists ? JSON.parse(JSON.stringify(pf.data())) : {}, papers:pp.exists ? (JSON.parse(JSON.stringify(pp.data())).list || []) : [], sole};
     if (!document.querySelector('.sheet')) boot(key);
     watchSole(db);
     watchSquare(key);
@@ -2002,6 +2030,8 @@ KEEP = null; CUR_S = S; CUR_KEY = KEY; if (LIVEBOOK) LIVE_DRAWN = liveSig();
 const TABS = [['today','Today'],['schedule','Schedule'],['money','Snapshot'],['clients',cap(WN)],['forms','Forms']];
 // the business's own choices (people/prefs in the book: thank-you texts, everyone's name) and who's looking
 // papers kept on file (license, insurance, certificates): the book's people/papers, a setup account's state, or the visit
+// messages people sent from the business's website (the intake Edge Function writes them; she marks them answered)
+const INBOX = P.real && SQ ? (SQ.inbox = SQ.inbox || []) : (INBOX_MEM[KEY] = INBOX_MEM[KEY] || []);
 const PAPERS = P.real && SQ ? (SQ.papers = SQ.papers || []) : ACC ? ((ACC.state = ACC.state || {}).papers = ACC.state.papers || []) : (PAPERS_MEM[KEY] = PAPERS_MEM[KEY] || []);
 const PREFS = P.real && SQ ? (SQ.prefs = SQ.prefs || {}) : (PREFS_MEM[KEY] = PREFS_MEM[KEY] || {});
 const MY_NAME = (PREFS.names || {})[USER_EMAIL] || (USER_EMAIL ? '' : P.owner);
@@ -2048,6 +2078,7 @@ function viewToday(){
     <div class="btn-row"><button class="btn primary" data-act="req-ok">Accept</button><button class="btn" data-act="req-other">Offer another time</button></div></div>`);
   // To do: one line each; the ones with a list open in place (S.td)
   const todo = [], row = (t, sub, icon, attrs) => todo.push(`<button class="li td" ${attrs}><span class="td-i">${icon}</span><span class="who"><b>${t}</b><span>${sub}</span></span>${I.chev}</button>`);
+  INBOX.filter(m => !m.done).sort((x, y) => String(x.at).localeCompare(String(y.at))).forEach(m => row(`${esc(String(m.name || 'Someone').split(' ')[0])} wrote from your website`, `${esc(msgWhen(m.at))} · ${esc(String(m.message || '').slice(0, 60))}${String(m.message || '').length > 60 ? '…' : ''}`, I.send, `data-act="inb" data-v="${esc(m.id)}"`));
   unpaid().filter(a => a.off >= -7).forEach(a => row(`${esc(CL[a.c].name)} hasn’t paid`, `${cap(dayName(a.off))} · ${svLabel(a.s)} · ${money(SV[a.s].price)}`, I.wallet, `data-act="charge" data-id="${a.id}"`));
   { const dn = notesDue(), ft = visitForm().title.toLowerCase().replace('soap', 'SOAP'), today = dn.every(a => a.off === 0);
     if (dn.length) row(dn.length === 1 ? `Write ${esc(first(dn[0].c))}’s ${ft}` : `Write ${today ? 'today’s' : 'your'} ${ft}`,
@@ -2055,6 +2086,7 @@ function viewToday(){
   ap.filter(a => !CL[a.c].intake && a.start >= NOW).forEach(a => row(`${esc(first(a.c))}’s ${P.intakeName} is missing`, `First visit today at ${clock(a.start)}`, I.forms, `data-act="fillfor" data-c="${a.c}"`));
   PAPERS.filter(p => ppDays(p) != null && ppDays(p) <= 30).forEach(p => row(`${esc(p.name)} ${ppDays(p) < 0 ? 'has expired' : 'is due for renewal'}`, ppDays(p) < 0 ? `Expired ${ppDate(p.expires)}` : `Expires ${ppDate(p.expires)}`, I.badge, `data-act="pp-open" data-v="${p.uid}"`));
   [remindTodo(), thanksTodo(), mondayTodo()].filter(Boolean).forEach(x => todo.push(`<button class="li td" data-act="td-open" data-v="${x.key}" aria-expanded="${S.td === x.key}"><span class="td-i">${x.icon}</span><span class="who"><b>${x.t}</b><span>${x.s}</span></span>${I.chev}</button>${S.td === x.key ? `<div class="td-body">${x.body}</div>` : ''}`));
+  if (CLOUD_ON && P.real && STANDALONE && pushOk() && Notification.permission === 'default' && !lsGet('sole-push')) row('Turn on notifications', 'So a message from your website buzzes this phone, like a text', I.send, 'data-act="me"');
   { const w = weekInfo(-1); if (!w.rec.checked && w.todo) row('Check last week', `${w.todo} thing${w.todo === 1 ? '' : 's'} to look at, about two minutes`, I.check, `data-act="wkcheck" data-v="-1"`); }
   const c = next && CL[next.c];
   const mins = next ? next.start - NOW : 0;
@@ -2535,8 +2567,61 @@ function meHTML(){
     ${USER_EMAIL ? `<div class="field"><span class="label">Your name</span><input class="text-in" id="me-name" value="${esc(MY_NAME)}" placeholder="First and last" autocomplete="name"></div>` : ''}
     <div class="field"><span class="label">Light or dark</span>${seg('me-theme', th, [['', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']])}<span class="small muted">Automatic follows your phone’s setting. Just on this phone.</span></div>
     ${face ? `<div class="field"><span class="label">${FACE}</span>${lsGet('sole-face') ? `<p class="small muted">On. Sole opens with a glance.</p><button class="btn line" data-act="me-face-off">Turn off ${FACE} on this phone</button>` : `<button class="btn line" data-act="me-face-on">${FACE_ICON}Turn on ${FACE}</button>`}</div>` : ''}
+    ${pushHTML()}
     <div class="field"><span class="label">Thank-you texts the day after</span>${seg('me-thanks', PREFS.thanks === false ? 'off' : 'on', [['on', 'On'], ['off', 'Off']])}<span class="small muted">For everyone on ${esc(P.biz)}.</span></div>
     ${CLOUD_ON && USER_EMAIL ? `<button class="btn line danger-line" data-act="me-out" style="width:100%;margin-top:8px">Sign out</button>` : ''}`;
+}
+/* ---------- messages from the website ---------- */
+const msgWhen = at => { const d = new Date(at), off = offOfDate(d), t = clock(d.getHours() * 60 + d.getMinutes());
+  return off === 0 ? `Today ${t}` : off === -1 ? `Yesterday ${t}` : off > -7 ? `${DOW[d.getDay()]} ${t}` : `${MON[d.getMonth()].slice(0, 3)} ${d.getDate()}`; };
+function inboxSheet(id){
+  const m = INBOX.find(x => x.id === id); if (!m) return;
+  const f = String(m.name || 'there').split(' ')[0], tel = String(m.phone || '').replace(/[^0-9+]/g, ''), back = `Hi ${f}, it’s ${P.owner} from ${P.biz}. Thank you for your message! `;
+  sheet(`${top(esc(m.name || 'Someone'), `Wrote from your website · ${esc(msgWhen(m.at))}`)}
+    <div class="callout msg-body">${esc(m.message || '').replace(/\n/g, '<br>')}</div>
+    <dl class="notes" style="margin:0">${m.phone ? `<div class="note"><dt>Phone</dt><dd class="phone">${esc(m.phone)}</dd></div>` : ''}${m.email ? `<div class="note"><dt>Email</dt><dd style="word-break:break-all">${esc(m.email)}</dd></div>` : ''}</dl>
+    <div class="btn-row">${tel.length >= 10 ? `<a class="btn primary" href="sms:${tel}&body=${encodeURIComponent(back)}" target="_top">${I.send}Text back</a><a class="btn" href="tel:${tel}" target="_top">Call</a>` : ''}${m.email ? `<a class="btn ${tel.length >= 10 ? '' : 'primary'}" href="mailto:${esc(m.email)}?subject=${encodeURIComponent(P.biz)}&body=${encodeURIComponent(back)}" target="_top">Email back</a>` : ''}</div>
+    ${m.done ? `<p class="small muted">Answered ${esc(msgWhen(m.done))}.</p><button class="btn line" data-act="inb-undone" data-v="${esc(m.id)}">Not answered yet</button>`
+      : `<button class="btn line" data-act="inb-done" data-v="${esc(m.id)}">${I.check}Mark as answered</button><p class="small muted">It stays on Today’s To do until you do.</p>`}`);
+}
+async function saveMsg(m){ try { const db = await dbOf(); if (db) await db.collection('inbox').doc(m.id).set(JSON.parse(JSON.stringify(m))); } catch (_) { toast('Saved on this phone. It couldn’t reach your account just now.'); } }
+function inboxSection(){
+  if (!INBOX.length) return '';
+  const L = [...INBOX].sort((x, y) => String(y.at).localeCompare(String(x.at))).slice(0, 12);
+  return `<section class="sec" id="inbox"><div class="sec-h"><h2>Messages from your website</h2><span class="aside">${INBOX.filter(m => !m.done).length} to answer</span></div>
+    <div class="list">${L.map(m => `<button class="li td${m.done ? ' done' : ''}" data-act="inb" data-v="${esc(m.id)}"><span class="td-i">${m.done ? I.check : I.send}</span><span class="who"><b>${esc(m.name || 'Someone')}</b><span>${esc(msgWhen(m.at))} · ${esc(String(m.message || '').slice(0, 50))}</span></span>${I.chev}</button>`).join('')}</div></section>`;
+}
+// notifications on this phone (web push): an iPhone allows them only for Sole opened from the home screen
+const pushOk = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let PUSH_KEY = null;
+const b64u = v => { const b = atob((v + '='.repeat((4 - v.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+function pushFetchKey(){ if (!PUSH_KEY && CLOUD_ON && SB) SB.functions.invoke('push', {body:{action:'key'}}).then(r => { if (r && r.data && r.data.key) PUSH_KEY = r.data.key; }).catch(() => {}); }
+function pushHTML(){
+  if (!CLOUD_ON) return '';
+  if (IOS && !STANDALONE) return `<div class="field"><span class="label">Notifications</span><p class="small muted">To get a buzz on this ${/iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && !/iPhone/.test(navigator.userAgent) ? 'iPad' : 'iPhone'} when someone writes from your website: tap Share, then Add to Home Screen, and open Sole from there.</p></div>`;
+  if (!pushOk()) return '';
+  const on = lsGet('sole-push') && Notification.permission === 'granted';
+  return `<div class="field"><span class="label">Notifications</span>${on ? `<p class="small muted">On. A message from your website buzzes this phone, like a text.</p><button class="btn line" data-act="me-push-off">Turn off on this phone</button>`
+    : Notification.permission === 'denied' ? `<p class="small muted">Sole isn’t allowed to send them. Turn them on in your phone’s Settings, under Notifications, then Sole.</p>`
+    : `<button class="btn line" data-act="me-push-on">${I.send}Turn on notifications</button><span class="small muted">A message from your website shows up like a text.</span>`}</div>`;
+}
+function pushOn(){
+  const ask = Notification.requestPermission();   // first, while the tap still counts (an iPhone's rule)
+  (async () => {
+    const p = await ask;
+    if (p !== 'granted') { closeSheet(); toast(p === 'denied' ? 'Notifications are off for Sole. Turn them on in Settings, under Notifications.' : 'Notifications aren’t on.'); return; }
+    const reg = await navigator.serviceWorker.ready;
+    if (!PUSH_KEY) { const r = await SB.functions.invoke('push', {body:{action:'key'}}); PUSH_KEY = r && r.data && r.data.key; }
+    const sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(PUSH_KEY)});
+    const r = await SB.functions.invoke('push', {body:{action:'subscribe', business_id:BIZ, sub:sub.toJSON()}}); if (!r || r.error || !r.data || !r.data.ok) throw new Error('not saved');
+    lsSet('sole-push', '1'); closeSheet(); render(); toast('Notifications are on. A first one is on its way.');
+  })().catch(() => toast('That didn’t work just now. Try again in a minute.'));
+}
+async function pushOff(){
+  try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    if (sub) { await SB.functions.invoke('push', {body:{action:'unsubscribe', business_id:BIZ, endpoint:sub.endpoint}}).catch(() => {}); await sub.unsubscribe(); } } catch (_) {}
+  lsSet('sole-push', ''); closeSheet(); render(); toast('Notifications are off on this phone.');
 }
 async function savePrefs(){
   try { const db = P.real && window.claude && window.claude.use ? await window.claude.use('db') : null; if (db) await db.doc('people/prefs').set(JSON.parse(JSON.stringify(PREFS))); }
@@ -2871,6 +2956,7 @@ function viewForms(){
   const waiting = AP.filter(a => !CL[a.c].intake && (a.off > 0 || (a.off === 0 && a.start >= NOW))).sort((x,y) => x.off - y.off || x.start - y.start);
   return `
   <p class="lede">Everything ${WN} fill in and everything you keep on file, in one place.</p>
+  ${inboxSection()}
   ${waiting.length ? `<section class="sec"><div class="sec-h"><h2>Waiting on</h2></div>${waiting.map(a => `<div class="need"><div><p>${CL[a.c].name}</p><p class="small muted">${cap(P.intakeName)} · first visit ${dayName(a.off)} at ${clock(a.start)}</p></div><button class="btn" data-act="fillfor" data-c="${a.c}">Fill in now</button></div>`).join('')}</section>` : ''}
   <section class="sec forms-sec"><div class="sec-h"><h2>Your forms</h2><span class="aside">${FORMS.length}</span></div>
   ${FORMS.map((f,i) => `<article class="form">
@@ -3783,6 +3869,11 @@ on('click', e => {
     case 'vn-save': saveVisit(); break;
     case 'az': { const g = document.getElementById('clg-' + (v === '#' ? 'num' : v)); if (g) g.scrollIntoView({block:'start', behavior:'smooth'}); break; }
     case 'dig-all': S.digAll = !S.digAll; render(); break;
+    case 'inb': inboxSheet(v); break;
+    case 'inb-done': case 'inb-undone': { const m = INBOX.find(x => x.id === v); if (!m) break; if (el.dataset.act === 'inb-done') m.done = new Date().toISOString(); else delete m.done;
+      saveMsg(m); closeSheet(); render(); toast(m.done ? 'Marked as answered.' : 'Back on your To do.'); break; }
+    case 'me-push-on': pushOn(); break;
+    case 'me-push-off': pushOff(); break;
     case 'td-all': S.tdAll = !S.tdAll; render(); break;
     case 'vn-run': { const [id, ...ids] = notesDue().map(a => a.id); if (id != null) openVisit(id, {ids, done:0, saved:0}); break; }
     case 'vn-skip': vnNext(false); break;
@@ -3934,7 +4025,7 @@ on('click', e => {
       if (t === REMIND_DEFAULT) delete PREFS.remind; else PREFS.remind = t; savePrefs(); closeSheet(); render(); toast('Saved. Your confirmation texts will say this.'); break; }
     case 'rm-reset': delete PREFS.remind; savePrefs(); remindEdit(+($('#rm-prev') || {dataset:{}}).dataset.id); toast('Back to the original wording.'); break;
     case 'rm-ok': { const a = AP.find(x => x.id === id); if (a) { const k = visitKey(a); VISITS[k] = {...(VISITS[k] || {}), confirmed:new Date().toISOString()}; render(); toast(`${first(a.c)} is confirmed.`); } break; }
-    case 'me': if (CLOUD_ON && typeof pkOk === 'function' && pkOk() && !lsGet('sole-face')) pkFetch('reg'); sheet(meHTML()); break;
+    case 'me': if (CLOUD_ON && typeof pkOk === 'function' && pkOk() && !lsGet('sole-face')) pkFetch('reg'); if (pushOk()) pushFetchKey(); sheet(meHTML()); break;
     case 'me-theme': setTheme(v || null); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
     case 'me-thanks': PREFS.thanks = v !== 'off'; savePrefs(); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
     case 'me-face-off': try { localStorage.removeItem('sole-face'); } catch (_) {} $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; toast(`${FACE} is off on this phone. Next time, sign in with a code.`); break;
@@ -4028,6 +4119,7 @@ if (FORM_LINK) { formPage(FORM_LINK); return; }
 CLIENT_NAME = k => CL[k] ? CL[k].name.trim() : ''; TOAST = toast;
 RESP.forEach(r => applyResponse(r, true));
 render();
+if (OPEN_MSG && INBOX.some(m => m.id === OPEN_MSG)) { const id = OPEN_MSG; OPEN_MSG = null; try { history.replaceState(history.state, '', location.pathname); } catch (_) {} inboxSheet(id); }
 if (P.real && !SQ) loadSquare(KEY);
 if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.getItem('sole-seen'); } catch (_) {}
   if (!seen) sheet(`<div class="welcome"><div class="brand">${SUNMARK}<b>Sole</b></div>
@@ -4197,7 +4289,7 @@ async function loadSquareTables(){
 }
 // the claude.ai calls the app makes, answered from Supabase
 function cloudDb(){
-  const itemCols = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks', 'forms', 'people', 'days'];
+  const itemCols = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks', 'forms', 'people', 'days', 'inbox'];
   const listeners = {};
   const snap = (id, data) => ({id, exists:data != null, data:() => data});
   const docRef = (col, id) => ({

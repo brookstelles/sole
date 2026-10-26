@@ -280,7 +280,7 @@ console.log('ok private Square views');
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const now = new Date(), early = new Date(now); early.setHours(0, 5, 0, 0);
   const pay = (id, when, amt, tip, cust) => ({id, created_at:when.toISOString(), updated_at:when.toISOString(), status:'COMPLETED', customer_id:cust, amount_money:{amount:amt}, tip_money:{amount:tip}, total_money:{amount:amt + tip}, processing_fee:[{amount_money:{amount:300}}]});
-  const seed = {items:[{business_id:'B1', col:'clients', id:'nC', data:{name:'Cloud Sample', phone:'', since:2026, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}},
+  const seed = {items:[{business_id:'B1', col:'inbox', id:'mTEST', data:{id:'mTEST', name:'Jamie Sample', phone:'(555) 010-0199', email:'', message:'Hi! Do you have anything open Friday afternoon?', at:new Date().toISOString(), via:'website'}}, {business_id:'B1', col:'clients', id:'nC', data:{name:'Cloud Sample', phone:'', since:2026, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}},
       {business_id:'B1', col:'visits', id:'mb:old1', data:{c:'mb:imported-person', date:'2025-03-04', start:600, s:'sw60', price:100, from:'MassageBook', at:'2025-03-04T15:00:00Z', S:'Test sore shoulders', P:'Test rebook in a month'}},
       {business_id:'B1', col:'visits', id:'mb:old2', data:{c:'mb:imported-person', date:'2025-04-01', start:660, s:'sw60', svc:'Aromatherapy massage', price:140, from:'MassageBook'}},
       {business_id:'B1', col:'clients', id:'mb:holly', data:{name:'Holly', phone:'', since:2023, from:'MassageBook', mine:true, visits:0, last:null, intake:true, pressure:0, focus:'Not known yet', setup:'', note:''}},
@@ -407,9 +407,24 @@ console.log('ok private Square views');
     await q.setInputFiles('#pp-file', {name:'license.png', mimeType:'image/png', buffer:png}); await q.click('.sheet [data-act=pp-save]'); await q.waitForTimeout(400);
     check(await q.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'people' && x.id === 'papers'); return !!(r && r.data.list.length === 1 && /^B1\/papers\/.+\.png$/.test(r.data.list[0].file)); }), 'website: a paper is stored privately and listed in the book');
     await q.click('.tab[data-v=today]'); }
+  // a message from the website: on Today's To do, open it, text back, mark it answered
+  { await q.click('.tab[data-v=today]');
+    check(/Jamie wrote from your website/.test(await q.textContent('main')), 'messages: a website message is on Today');
+    await q.click('[data-act=inb][data-v=mTEST]');
+    const h = await q.getAttribute('.sheet a.btn.primary', 'href');
+    check(/Do you have anything open Friday/.test(await q.textContent('.sheet')) && /^sms:5550100199&body=Hi%20Jamie/.test(h || ''), 'messages: the sheet shows it with Text back written');
+    await q.click('.sheet [data-act=inb-done]'); await q.waitForTimeout(300);
+    check(!/Jamie wrote from your website/.test(await q.textContent('main')), 'messages: answered ones leave To do');
+    check(await q.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'inbox' && x.id === 'mTEST'); return !!(r && r.data.done); }), 'messages: answered is saved');
+    await q.click('.tab[data-v=forms]'); check(/Messages from your website/.test(await q.textContent('main')) && /0 to answer/.test(await q.textContent('#inbox')), 'messages: listed in Forms');
+    await q.click('.tab[data-v=today]'); }
   // the account: initials at the top; light or dark on this phone; a name; thank-you texts on or off for the business
   check((await q.textContent('.me')).trim() === 'T', 'account: initials of who is signed in');
-  await q.click('[data-act=me]'); await q.click('.sheet [data-act=me-theme][data-v=dark]');
+  check(await q.evaluate(() => { const b = document.querySelector('[data-act=me]'); b.click(); const t = document.querySelector('.sheet').textContent; document.querySelector('.sheet .close').click(); return /isn’t allowed to send them/.test(t); }), 'notifications: blocked on this phone says where to turn them on');
+  await q.evaluate(() => Object.defineProperty(Notification, 'permission', {get:() => 'default', configurable:true}));   // a phone that hasn't been asked yet
+  await q.click('[data-act=me]');
+  check(await q.locator('.sheet [data-act=me-push-on]').count() === 1, 'notifications: the account menu offers to turn them on');
+  await q.click('.sheet [data-act=me-theme][data-v=dark]');
   check(await q.evaluate(() => document.documentElement.dataset.theme === 'dark' && localStorage.getItem('sole-theme') === 'dark'), 'account: dark on this phone');
   await q.click('.sheet [data-act=me-theme][data-v=""]'); check(await q.evaluate(() => !document.documentElement.dataset.theme), 'account: back to the phone setting');
   await q.fill('#me-name', 'Test Owner'); await q.click('.sheet [data-act=me-thanks][data-v=off]'); await q.waitForTimeout(1000); await q.click('.sheet .close'); await q.waitForTimeout(300);
@@ -603,6 +618,20 @@ await p.click('.tab[data-v=money]'); await p.click('[data-act=snapgo][data-sec=y
   if (hasUndo) await p.click('.toast [data-act=undo]');
   check(n1 === n0 - 1 && hasUndo === 1 && await L().count() === n0 && /Undone/.test(await p.textContent('.toast')), 'undo: a canceled visit comes back'); }
 console.log('ok digital forms');
+
+// an iPad held upright gets the big-screen layout with a slim rail of tabs; a phone turned sideways keeps the phone's
+{ const html = '<!doctype html><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1">' + fs.readFileSync(root + 'dist/demo.html', 'utf8');
+  for (const [w, h, big] of [[820, 1180, true], [744, 1133, true], [844, 390, false]]) {
+    const c = await (await b.newContext({viewport:{width:w, height:h}})).newPage(); c.on('pageerror', e => errs.push(`${w}x${h}: ` + e.message));
+    await c.route('http://sole.test/', r => r.fulfill({contentType:'text/html; charset=utf-8', body:html})); await c.goto('http://sole.test/', {waitUntil:'networkidle'});
+    if (await c.locator('[data-act=welcome-look]').count()) await c.click('[data-act=welcome-look]');
+    const t = await c.locator('.tabbar').boundingBox();
+    check(big ? t.x === 0 && t.width < 120 && t.height >= h - 2 : t.y > h - 120, `${w}x${h}: ${big ? 'a rail of tabs down the side' : 'the phone layout with tabs at the bottom'}`);
+    for (const tab of ['today', 'schedule', 'money', 'clients', 'forms']) { await c.click(`.tab[data-v=${tab}]`); await c.waitForTimeout(80);
+      check(await c.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${w}x${h}: ${tab} fits`); }
+    if (big) { await c.click('.tab[data-v=schedule]'); check(await c.locator('.wg .wg-day').count() === 7, `${w}x${h}: the week as a calendar`); }
+    await c.close(); }
+  console.log('ok iPad'); }
 
 // tomorrow's confirmation text: she reads and changes the wording; the Text button then uses hers, and nothing sends by itself
 { const html = '<!doctype html><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1">' + fs.readFileSync(root + 'dist/demo.html', 'utf8');

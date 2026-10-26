@@ -1,0 +1,10 @@
+{
+  "name": "Sole",
+  "short_name": "Sole",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#E3ECED",
+  "theme_color": "#E3ECED",
+  "icons": [{"src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any"}]
+}

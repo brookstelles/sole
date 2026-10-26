@@ -1,7 +1,9 @@
 // A client filling in a form from a link texted to them (app.solepro.app/?f=<token>). They don't sign in: the
 // token is the key. "open" gives the page what it needs to show the form (the business's name and look, the form, the
 // client's name); "submit" saves the answers into the book as a filled-in form and closes the link. A new client from
-// the business's website ("open-new", "submit-new" with the site slug) gets the same form without a link.
+// the business's website ("open-new", "submit-new" with the site slug) gets the same form without a link, and anyone
+// can send the business a short message from its website ("message"): it goes into the book's inbox and the push
+// function buzzes the owner's phone.
 // Deploy with verify_jwt off. SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
 
@@ -36,15 +38,40 @@ async function fromWebsite(slug: unknown, action: string, answers: any, sig: unk
   return { ok: true };
 }
 
+// a message from the business's website: kept in the book's inbox, and the owner's phone buzzes
+const clip = (v: unknown, n: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+async function message(slug: unknown, m: any) {
+  if (typeof slug !== 'string' || !slug || !m || typeof m !== 'object') return { error: 'gone' };
+  if (m.website) return { ok: true };   // the hidden box only robots fill in: thank them and keep nothing
+  const { data: bs } = await db.from('businesses').select('id,data');
+  const b = (bs ?? []).find((x: any) => x.data && x.data.site && x.data.site.slug === slug); if (!b) return { error: 'gone' };
+  const name = clip(m.name, 100), phone = clip(m.phone, 30), email = clip(m.email, 200).toLowerCase(), text = String(m.message ?? '').trim().slice(0, 2000);
+  if (!name || text.length < 2 || (phone.replace(/\D/g, '').length < 10 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return { error: 'incomplete' };
+  const now = new Date();
+  const { count } = await db.from('items').select('id', { count: 'exact', head: true }).eq('business_id', b.id).eq('col', 'inbox').gte('updated_at', new Date(now.getTime() - 864e5).toISOString());
+  if ((count ?? 0) >= 30) return { error: 'busy' };   // more than a real day's worth: something's wrong
+  const id = 'm' + now.getTime().toString(36) + crypto.randomUUID().slice(0, 4);
+  const r = { id, name, phone, email, message: text, at: now.toISOString(), via: 'website' };
+  const { error } = await db.from('items').insert({ business_id: b.id, col: 'inbox', id, data: r }); if (error) throw error;
+  // the buzz: if it fails the message is still in the book, on Today's To do
+  try {
+    const first = name.split(' ')[0];
+    await fetch(env('SUPABASE_URL') + '/functions/v1/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env('SUPABASE_SERVICE_ROLE_KEY') },
+      body: JSON.stringify({ action: 'send', business_id: b.id, msg: { title: `${first} wrote from your website`, body: text.slice(0, 160), url: '/?msg=' + id, tag: id } }) });
+  } catch (e) { console.error('intake: push', String(e)); }
+  return { ok: true };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return reply({ error: 'POST only' }, 405);
   try {
     const body = await req.text();
     if (body.length > 600_000) return reply({ error: 'too big' });
-    const { token, action, answers, sig, biz: slug } = JSON.parse(body || '{}');
+    const { token, action, answers, sig, biz: slug, msg } = JSON.parse(body || '{}');
     // a new client from the business's website (?new=<site slug>): no link was made for them
     if (action === 'open-new' || action === 'submit-new') return reply(await fromWebsite(slug, action, answers, sig));
+    if (action === 'message') return reply(await message(slug, msg));
     if (typeof token !== 'string' || token.length < 32 || token.length > 100) return reply({ error: 'gone' });
     const { data: link } = await db.from('form_links').select('*').eq('token', token).maybeSingle();
     if (!link || new Date(link.expires_at) < new Date()) return reply({ error: 'gone' });
