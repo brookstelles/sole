@@ -23,7 +23,14 @@ window.__SOLE_CLOUD_CLIENT = (() => {
   return {
     auth:{getSession:async () => ({data:{session}}), getUser:async () => ({data:{user:session && session.user}}),
       signInWithOtp:async ({email}) => { window.__FAKE.email = email; return {error:null}; },
-      verifyOtp:async ({email, token}) => token === '123456' ? (session = {user:{email}}, {error:null}) : {error:{message:'bad code'}}},
+      verifyOtp:async ({email, token}) => token === '123456' ? (session = {user:{email}}, {error:null}) : {error:{message:'bad code'}},
+      // passkeys (Face ID): the registered one is remembered in this browser across reloads, as the real server would
+      passkey:{
+        startAuthentication:async () => ({data:{challenge_id:'ca', options:{challenge:'AAAA', rpId:location.hostname, userVerification:'required', timeout:60000}}, error:null}),
+        verifyAuthentication:async ({challengeId, credential}) => { const who = localStorage.getItem('__fake_pk');
+          return challengeId === 'ca' && credential && credential.id === 'fake-pk' && who ? (session = {user:{email:who}}, {data:{session}, error:null}) : {data:null, error:{code:'webauthn_credential_not_found'}}; },
+        startRegistration:async () => session ? {data:{challenge_id:'cr', options:{challenge:'AAAA', rp:{name:'Sole', id:location.hostname}, user:{id:'AAAA', name:session.user.email, displayName:session.user.email}, pubKeyCredParams:[{type:'public-key', alg:-7}]}}, error:null} : {data:null, error:{message:'not signed in'}},
+        verifyRegistration:async ({challengeId, credential}) => challengeId === 'cr' && credential && credential.id === 'fake-pk' ? (localStorage.setItem('__fake_pk', session.user.email), {data:{id:'p1'}, error:null}) : {data:null, error:{code:'webauthn_verification_failed'}}}},
     from:query,
     channel:() => { const ch = {on:(type, opts, cb) => { subs.push({table:opts.table, cb}); return ch; }, subscribe:() => ch}; return ch; },
     storage:{from:() => ({upload:async () => ({error:null}), createSignedUrl:async () => ({data:{signedUrl:'data:,'}})})},

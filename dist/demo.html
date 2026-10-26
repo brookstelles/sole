@@ -146,6 +146,10 @@ main{display:flex;flex-direction:column;gap:22px}
 .sky-card .btn.primary{background:#F1B75A;color:#2B1F08;min-height:54px;font-size:17px}
 .sky-card .btn.line{border-color:rgba(255,255,255,.35);color:#fff}
 .sky-card :focus-visible{outline-color:#FAD889}
+.sky-card .sky-big{font-family:var(--display);font-size:26px;line-height:1.2;color:#fff}
+.sky-or{display:flex;align-items:center;gap:10px;font-size:14px!important;color:rgba(255,255,255,.65)}
+.sky-or::before,.sky-or::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.2)}
+.sky-card .btn svg{width:22px;height:22px}
 .sky-wait{display:inline-flex;align-items:center;gap:10px}
 .sky-wait::before{content:"";width:10px;height:10px;border-radius:50%;background:#F6C46C;animation:sky-pulse 1.1s ease-in-out infinite alternate}
 @keyframes sky-rise{from{transform:translateY(105%)}}
@@ -2758,9 +2762,12 @@ function cloudScreen(html){
 const $id = id => document.getElementById(id);
 const cloudEsc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function signInHTML(step, email, msg){
-  return `${step === 'email' ? `<p>Sign in with your email. We’ll send you a code.</p>
+  const face = step === 'email' && PK.sign, mine = face && lsGet('sole-face');
+  const faceBtn = face ? `<button class="btn ${mine ? 'primary' : 'line'}" id="si-face" type="button">${FACE_ICON}Sign in with ${FACE}</button>` : '';
+  return `${step === 'email' ? `${mine ? `${faceBtn}<p class="sky-or">or get a code by email</p>` : '<p>Sign in with your email. We’ll send you a code.</p>'}
       <form id="si-form"><input class="text-in" id="si-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" value="${cloudEsc(email || '')}" required>
-      <button class="btn primary" style="width:100%">Send me a code</button></form>`
+      <button class="btn ${mine ? 'line' : 'primary'}" style="width:100%">Send me a code</button></form>
+      ${face && !mine ? `<p class="sky-or">or</p>${faceBtn}` : ''}`
     : `<p>We sent a code to <b>${cloudEsc(email)}</b>. Type it here.</p>
       <p class="small muted">Not there in a minute? Look in Spam or Junk.</p>
       <form id="si-form"><input class="text-in" id="si-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="10" required>
@@ -2768,16 +2775,76 @@ function signInHTML(step, email, msg){
       <button class="btn line" style="width:100%;margin-top:10px" id="si-back">Use a different email</button>`}
     <p class="small muted" id="si-msg">${cloudEsc(msg || '')}</p>`;
 }
+// Face ID (a passkey) after the first sign-in: the challenge is fetched before the tap, so the tap opens Face ID at
+// once (iPhones refuse a Face ID prompt that waits on the network). The email code stays as the way in on a new phone.
+const FACE = /iPhone|iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) ? 'Face ID'
+  : /Macintosh/.test(navigator.userAgent) ? 'Touch ID' : 'your face or fingerprint';
+const FACE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3M9 9v1.5M15 9v1.5M12 9v4.5h-1M9 16.5c1.8 1.4 4.2 1.4 6 0"/></svg>';
+const lsGet = k => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} };
+const PK = {sign:null, reg:null};   // challenges fetched ahead of the tap: {at, data}
+const pkOk = () => !!(window.PublicKeyCredential && navigator.credentials && SB && SB.auth.passkey);
+const pkFresh = kind => !!PK[kind] && Date.now() - PK[kind].at < 4 * 60e3;
+async function pkFetch(kind){
+  PK[kind] = null; if (!pkOk()) return null;
+  try { const r = await (kind === 'sign' ? SB.auth.passkey.startAuthentication() : SB.auth.passkey.startRegistration());
+    if (r && !r.error && r.data && r.data.options) PK[kind] = {at:Date.now(), data:r.data}; } catch (_) {}
+  return PK[kind];
+}
+const b64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0)).buffer;
+const ub64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+function pkOptions(kind, o){
+  const PKC = window.PublicKeyCredential, ids = L => L && L.map(c => ({...c, id:b64u(c.id)}));
+  if (kind === 'sign') return PKC.parseRequestOptionsFromJSON ? PKC.parseRequestOptionsFromJSON(o) : {...o, challenge:b64u(o.challenge), allowCredentials:ids(o.allowCredentials)};
+  return PKC.parseCreationOptionsFromJSON ? PKC.parseCreationOptionsFromJSON(o) : {...o, challenge:b64u(o.challenge), user:{...o.user, id:b64u(o.user.id)}, excludeCredentials:ids(o.excludeCredentials)};
+}
+function pkJSON(c){
+  if (typeof c.toJSON === 'function') return c.toJSON();
+  const r = c.response, out = {id:c.id, rawId:c.id, type:'public-key', clientExtensionResults:c.getClientExtensionResults(), authenticatorAttachment:c.authenticatorAttachment || undefined};
+  out.response = r.attestationObject ? {attestationObject:ub64(r.attestationObject), clientDataJSON:ub64(r.clientDataJSON)}
+    : {authenticatorData:ub64(r.authenticatorData), clientDataJSON:ub64(r.clientDataJSON), signature:ub64(r.signature), userHandle:r.userHandle ? ub64(r.userHandle) : undefined};
+  return out;
+}
+// call straight from the tap: nothing waits before the browser shows Face ID
+function pkCeremony(kind){
+  const check = r => { if (!r || r.error) throw (r && r.error) || new Error('not verified'); return r; };
+  if (!pkFresh(kind)) return (kind === 'sign' ? SB.auth.signInWithPasskey() : SB.auth.registerPasskey()).then(check);
+  const pre = PK[kind].data; PK[kind] = null;
+  const publicKey = pkOptions(kind, pre.options);
+  return (kind === 'sign' ? navigator.credentials.get({publicKey}) : navigator.credentials.create({publicKey}))
+    .then(c => SB.auth.passkey[kind === 'sign' ? 'verifyAuthentication' : 'verifyRegistration']({challengeId:pre.challenge_id, credential:pkJSON(c)})).then(check);
+}
+// once signed in on a phone without Face ID for Sole: offer it (Not now waits two weeks)
+async function offerFace(done){
+  const later = +lsGet('sole-face-later') || 0;
+  if (!pkOk() || lsGet('sole-face') || Date.now() - later < 14 * 864e5) return done();
+  if (!(await pkFetch('reg'))) return done();
+  cloudScreen(`<p class="sky-big">Skip the code next time</p><p class="muted">Turn on ${FACE} and Sole opens with a glance.</p>
+    <button class="btn primary" id="fx-on">${FACE_ICON}Turn on ${FACE}</button><button class="btn line" id="fx-no">Not now</button>
+    <p class="small muted" id="si-msg"></p>`);
+  $id('fx-no').onclick = () => { lsSet('sole-face-later', String(Date.now())); done(); };
+  $id('fx-on').onclick = e => { const btn = e.currentTarget; btn.disabled = true;
+    const on = () => { lsSet('sole-face', '1'); cloudScreen(`<p class="sky-big">${FACE} is on</p><p class="muted">Next time, tap “Sign in with ${FACE}”.</p>`); setTimeout(done, 1500); };
+    pkCeremony('reg').then(on).catch(err => {
+      if (err && (err.code === 'webauthn_credential_exists' || err.name === 'InvalidStateError')) return on();   // this phone already has one
+      btn.disabled = false; pkFetch('reg'); $id('si-msg').textContent = `${FACE} didn’t turn on. Try again, or tap Not now.`; });
+  };
+}
 function askSignIn(step = 'email', email = '', msg = ''){
   cloudScreen(signInHTML(step, email, msg));
   const form = $id('si-form'), say = t => { $id('si-msg').textContent = t; };
   const back = $id('si-back'); if (back) back.onclick = () => askSignIn('email', email);
+  const face = $id('si-face');
+  if (face) face.onclick = () => { face.disabled = true; say('');
+    pkCeremony('sign').then(() => { lsSet('sole-face', '1'); cloudGo(); })
+      .catch(() => { face.disabled = false; pkFetch('sign'); say(`${FACE} didn’t sign you in. If it isn’t on for Sole yet, use your email once.`); });
+  };
   form.onsubmit = async e => {
     e.preventDefault(); const btn = form.querySelector('button'); btn.disabled = true;
     try {
       if (step === 'email') { const em = $id('si-email').value.trim().toLowerCase();
         const { error } = await SB.auth.signInWithOtp({email:em, options:{shouldCreateUser:true}}); if (error) throw error; askSignIn('code', em); }
-      else { const { error } = await SB.auth.verifyOtp({email, token:$id('si-code').value.trim(), type:'email'}); if (error) throw error; cloudGo(); }
+      else { const { error } = await SB.auth.verifyOtp({email, token:$id('si-code').value.trim(), type:'email'}); if (error) throw error; offerFace(cloudGo); }
     } catch (err) { btn.disabled = false; say(step === 'email' ? 'That didn’t send. Check the email and try again.' : 'That code didn’t work. Check it, or send a new one.'); }
   };
 }
@@ -2862,9 +2929,11 @@ async function cloudStart(){
   cloudScreen('<p class="muted sky-wait">Opening Sole…</p>');
   if (window.__SOLE_CLOUD_CLIENT) SB = window.__SOLE_CLOUD_CLIENT;   // tests: a stand-in for Supabase
   else { await new Promise((ok, fail) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/dist/umd/supabase.min.js'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc); });
-    SB = window.supabase.createClient(CLOUD_CFG.url, CLOUD_CFG.key, {auth:{persistSession:true, autoRefreshToken:true}}); }
+    SB = window.supabase.createClient(CLOUD_CFG.url, CLOUD_CFG.key, {auth:{persistSession:true, autoRefreshToken:true, experimental:{passkey:true}}}); }
   const { data } = await SB.auth.getSession();
-  if (data && data.session) cloudGo(); else askSignIn();
+  if (data && data.session) return offerFace(cloudGo);
+  await pkFetch('sign'); askSignIn();
+  setInterval(() => { if ($id('si-face') && !pkFresh('sign')) pkFetch('sign'); }, 60e3);   // a challenge lasts five minutes
 }
 
 let START = 'massage';

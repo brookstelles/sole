@@ -210,12 +210,16 @@ console.log('ok private Square views');
   check(!/Cloud Test Massage/.test(site) && /Tidewater Massage/.test(site), 'website: the page carries only the made-up business');
   const q = await (await b.newContext({viewport:{width:390, height:844}})).newPage();
   q.on('pageerror', e => errs.push('site/index.html: ' + e.message));
-  await q.addInitScript(`window.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
-  await q.route('http://sole.test/', r => r.fulfill({contentType:'text/html', body:site}));
-  await q.goto('http://sole.test/', {waitUntil:'networkidle'});
+  // the phone's Face ID, standing in for the real prompt
+  await q.addInitScript(`navigator.credentials.get = navigator.credentials.create = async () => ({id:'fake-pk', toJSON(){ return {id:'fake-pk'}; }});\nwindow.__FAKE_DB = ${JSON.stringify(seed)};\n${fake}`);
+  await q.route('https://sole.test/', r => r.fulfill({contentType:'text/html', body:site}));   // https: Face ID needs a secure page
+  await q.goto('https://sole.test/', {waitUntil:'networkidle'});
   check(/Send me a code/.test(await q.textContent('main')), 'website: asks to sign in');
   await q.fill('#si-email', 'test@example.com'); await q.click('#si-form button');
-  await q.fill('#si-code', '123456'); await q.click('#si-form button'); await q.waitForSelector('.biz-name');
+  await q.fill('#si-code', '123456'); await q.click('#si-form button');
+  await q.waitForSelector('#fx-on'); check(/Skip the code next time/.test(await q.textContent('main')), 'website: offers Face ID after the email code');
+  await q.click('#fx-on'); await q.waitForSelector('.biz-name');
+  check(await q.evaluate(() => localStorage.getItem('sole-face') === '1'), 'website: Face ID is remembered on this phone');
   check(/Cloud Sample/.test(await q.textContent('main')), 'website: the book loads from the database');
   check(/Cloud Test Massage/.test(await q.textContent('.biz-name')) && /Robin/.test(await q.textContent('#hdr')), 'website: the business comes from the database');
   check(await q.evaluate(() => __FAKE.invoked.length === 1), 'website: asks the server to catch up with Square');
@@ -227,6 +231,12 @@ console.log('ok private Square views');
   await q.click('.tab[data-v=today]'); await q.waitForTimeout(100);
   check(/Today so far\s*\$155/.test(await q.textContent('.glance')), 'website: a card payment shows the moment it comes in');
   check(!(await wide(q)), 'website: wider than the phone');
+  // signed out (a new day, a cleared session): Face ID comes first and opens the book without a code
+  await q.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('sb-')) localStorage.removeItem(k); });
+  await q.reload({waitUntil:'networkidle'}); await q.waitForSelector('#si-face');
+  check(await q.evaluate(() => document.querySelector('#sky-card .btn').id === 'si-face'), 'website: Face ID is the first choice once it is on');
+  await q.click('#si-face'); await q.waitForSelector('.biz-name');
+  check(/Cloud Test Massage/.test(await q.textContent('.biz-name')), 'website: Face ID signs in');
   await q.close();
   console.log('ok website');
 }
