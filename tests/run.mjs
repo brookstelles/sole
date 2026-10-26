@@ -167,6 +167,19 @@ console.log('ok private Square views');
   await q.close();
   console.log('ok Square bookings');
 }
+// Kelli's forms open in Sole, never in Google Drive: the intake form's every question, the trafficking procedure's
+// words with numbers to tap, a blank copy to print
+{ const q = await open('index.html', `window.__SOLE_SQUARE = ${sq};`); await q.click('.tab[data-v=forms]');
+  check(await q.locator('a[href*="drive.google"], a[href*="docs.google"]').count() === 0 && !/Google Drive/.test(await q.textContent('main')), 'forms: nothing opens Google Drive');
+  await q.click('main .form:has-text("Client intake form") [data-act=formview]');
+  { const t = await q.textContent('.sheet'); check(/How much pressure do you like\?/.test(t) && /Light · Medium · Firm/.test(t) && /sign with a finger/i.test(t), 'forms: the whole intake form, in Sole'); }
+  await q.evaluate(() => { window.print = () => { window.__printed = true; }; }); await q.click('.sheet [data-act=formprint]'); await q.waitForTimeout(150);
+  check(await q.evaluate(() => window.__printed && /Are you pregnant\?/.test(document.getElementById('print').textContent) && document.querySelectorAll('#print .pr-blank').length > 5), 'forms: a blank copy prints');
+  await q.click('.sheet .close'); await q.waitForTimeout(250);
+  await q.click('main .form:has-text("Human trafficking") [data-act=formview]');
+  check(/immediately contact the National Human Trafficking Resource Center/.test(await q.textContent('.sheet')) && await q.locator('.sheet a[href="tel:8883737888"]').count() === 1, 'forms: the procedure reads in Sole, numbers tap to call');
+  check(!(await wide(q)), 'forms: fit the phone');
+  await q.close(); console.log('ok forms in Sole'); }
 // Kelli's own book: appointments, clients, payments and costs kept in Sole (made-up data, the way the page's database holds it)
 {
   const today = new Date(), iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -436,6 +449,10 @@ console.log('ok private Square views');
   check(await q.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'people' && x.id === 'prefs'); return r && r.data.thanks === false && r.data.names['test@example.com'] === 'Test Owner'; }), 'account: choices saved for the business');
   check(!(await wide(q)), 'account: the top row fits the phone');
   check(!(await wide(q)), 'website: wider than the phone');
+  // the forms' link for a client is Sole's own page for the business (fill in and sign, no sign-in)
+  { await q.click('.tab[data-v=forms]'); await q.click('main .form:has-text("Client intake form") [data-act=formsend]');
+    check(/https:\/\/sole\.test\/\?new=cloud-test/.test(await q.textContent('.sheet')), 'forms: Text a link sends Sole’s own form page');
+    await q.click('.sheet .close'); await q.waitForTimeout(250); await q.click('.tab[data-v=today]'); }
   // a QR code for the business's website: two taps from anywhere (the initials, then Show my QR code)
   { await q.click('[data-act=me]'); await q.click('.sheet [data-act=qr]'); await q.waitForSelector('#qr-box svg');
     check(/example\.com\/cloud-test/.test(await q.textContent('#qr-box')) && (await q.getAttribute('#qr-box svg path', 'd') || '').length > 500, 'QR code: shows a code for the website and its address');

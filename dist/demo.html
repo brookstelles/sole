@@ -252,6 +252,13 @@ main{display:flex;flex-direction:column;gap:22px}
 .li{display:grid;grid-template-columns:76px 1fr auto;gap:12px;align-items:center;width:100%;border:0;background:transparent;text-align:left;padding:14px 16px;min-height:64px}
 .li + .li{border-top:1px solid var(--line)}
 .li.sv{grid-template-columns:1fr auto auto}
+.fq h3{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px}
+.fq-q{padding:10px 0;border-bottom:1px solid var(--line);display:grid;gap:2px}
+.fq-q span{font-size:14px;color:var(--muted)}
+.fdoc p{font-size:17px;line-height:1.5;margin:0 0 10px}
+.li.call{grid-template-columns:1fr auto;text-decoration:none;color:inherit}
+.li.call .who b{white-space:normal;overflow:visible;text-overflow:clip}
+.callout a.phone{color:inherit;font-weight:600;text-decoration:none;white-space:nowrap}
 .qr-card{background:#fff;color:#1E1B2E;border-radius:24px;padding:18px 18px 22px;display:grid;justify-items:center;gap:4px;text-align:center;box-shadow:var(--shadow)}
 .qr-card svg{width:min(100%,300px);height:auto;display:block}
 .qr-card b{font-size:19px;margin-top:4px}
@@ -678,6 +685,7 @@ a.btn{text-decoration:none}
   #print .pr-head{display:flex;justify-content:space-between;border-bottom:1px solid #999;padding-bottom:6pt;margin-bottom:12pt;font-family:Helvetica,Arial,sans-serif;font-size:10pt}
   #print h1{font-size:20pt;margin:0 0 8pt} #print h2{font-size:14pt;margin:16pt 0 6pt} #print h3{font-size:11pt;margin:0 0 4pt;font-family:Helvetica,Arial,sans-serif}
   #print table{border-collapse:collapse;width:100%} #print th,#print td{text-align:left;vertical-align:top;padding:3pt 8pt 3pt 0;border-bottom:1px solid #ddd}
+  #print .pr-q{margin:6pt 0;line-height:1.6} #print .pr-blank{display:inline-block;min-width:60%;border-bottom:1px solid #777;height:12pt;vertical-align:bottom} #print .pr-blank.short{min-width:20%}
   #print .pr-visit{break-inside:avoid;padding:6pt 0;border-bottom:1px solid #ddd} #print p{margin:2pt 0} #print .pr-none{color:#666}
 }
 .cl-file{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;width:100%;border:0;text-align:left;color:var(--ink);background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:12px 14px}
@@ -3052,7 +3060,8 @@ function clientsCard(){
 }
 /* ---------- Forms ---------- */
 const FORMS = P.forms;
-const INTAKE_URL = (FORMS.find(f => f.intake) || {}).url || '[form link]';
+const formLinkOf = f => f.intake && CLOUD_ON && P.site && P.site.slug ? `${location.origin}/?new=${encodeURIComponent(P.site.slug)}` : f.url || '';
+const INTAKE_URL = formLinkOf(FORMS.find(f => f.intake) || {}) || '[form link]';
 function viewForms(){
   const waiting = AP.filter(a => !CL[a.c].intake && (a.off > 0 || (a.off === 0 && a.start >= NOW))).sort((x,y) => x.off - y.off || x.start - y.start);
   return `
@@ -3063,14 +3072,35 @@ function viewForms(){
   ${FORMS.map((f,i) => `<article class="form">
     <div class="form-h"><span class="doc">${I.forms}</span><div><h3>${f.name}</h3><p>${f.kind} · ${f.about}</p></div></div>
     ${f.lines ? `<div class="callout">${f.lines.map(l => `<span>${l}</span>`).join('')}</div>` : ''}
+    ${f.calls ? `<div class="callout">${f.calls.map(([who, ph]) => `<span>${esc(who)}: <a class="phone" href="tel:${ph.replace(/[^0-9+]/g, '')}" target="_top">${esc(ph)}</a></span>`).join('')}</div>` : ''}
     ${RESP.filter(r => r.form === f.name).length ? `<button class="linkbtn" data-act="resps" data-i="${i}">${RESP.filter(r => r.form === f.name).length} filled in · see them</button>` : ''}
-    <div class="btn-row"><button class="btn primary" data-act="fill" data-i="${i}">Fill in now</button>${f.send ? `<button class="btn" data-act="formsend" data-i="${i}">Text a link</button>` : `<button class="btn" data-act="copylink" data-i="${i}">Copy link</button>`}</div>
-    <div class="form-more">${f.url ? `<a class="linkbtn" href="${f.url}" target="_blank" rel="noopener">Open to print or share</a>` : `<button class="linkbtn" data-act="formview" data-i="${i}">${f.upload ? 'Open it' : 'See the whole form'}</button>`}${f.send ? `<button class="linkbtn" data-act="copylink" data-i="${i}">Copy link</button>` : ''}</div>
+    ${f.read ? `<div class="btn-row"><button class="btn primary" data-act="formview" data-i="${i}">Open it</button><button class="btn" data-act="formprint" data-i="${i}">Print</button></div>`
+      : `<div class="btn-row"><button class="btn primary" data-act="fill" data-i="${i}">Fill in now</button>${f.send ? `<button class="btn" data-act="formsend" data-i="${i}">Text a link</button>` : `<button class="btn" data-act="copylink" data-i="${i}">Copy link</button>`}</div>
+    <div class="form-more"><button class="linkbtn" data-act="formview" data-i="${i}">${f.upload ? 'Open it' : 'See the whole form'}</button>${f.upload ? '' : `<button class="linkbtn" data-act="formprint" data-i="${i}">Print a blank copy</button>`}${f.send ? `<button class="linkbtn" data-act="copylink" data-i="${i}">Copy link</button>` : ''}</div>`}
   </article>`).join('')}
   </section>
   <button class="btn line" data-act="addform">${I.plus}Add a form</button>
   <p class="small muted">${P.formsNote}</p>
   ${papersSection()}`;
+}
+// a form as clients see it, every question (or a document's own words, with its numbers to call), to read in Sole
+function formDocHTML(f){
+  if (f.read) return `<div class="fdoc">${(f.body || []).map(p => `<p>${esc(p)}</p>`).join('')}</div>
+    ${f.calls ? `<div class="list">${f.calls.map(([who, ph]) => `<a class="li call" href="tel:${ph.replace(/[^0-9+]/g, '')}" target="_top"><span class="who"><b>${esc(who)}</b><span class="phone">${esc(ph)}</span></span><span class="tag ok">Call</span></a>`).join('')}</div>` : ''}`;
+  const hint = q => q.t === 'yesno' ? `Yes or no${q.follow ? `, then: ${q.follow}` : ''}` : q.o ? q.o.join(' · ') : q.t === 'sign' ? 'They sign with a finger on their phone' : q.t === 'consent' ? 'They tick to agree' : q.t === 'date' ? 'A date' : '';
+  return `<div class="fq">${fieldsFor(f).map(q => q.h ? `<h3>${esc(q.h)}</h3>` : `<div class="fq-q"><b>${esc(q.l)}</b>${hint(q) ? `<span>${esc(hint(q))}</span>` : ''}</div>`).join('')}</div>`;
+}
+// on paper: a blank copy to fill in by hand, or the document
+function printForm(f){
+  if (f.read) return printOut(`<h1>${esc(f.name)}</h1>${(f.body || []).map(p => `<p>${esc(p)}</p>`).join('')}${f.calls ? `<table>${f.calls.map(([who, ph]) => `<tr><th>${esc(who)}</th><td>${esc(ph)}</td></tr>`).join('')}</table>` : ''}`);
+  const line = '<span class="pr-blank"></span>';
+  printOut(`<h1>${esc(f.name)}</h1>${fieldsFor(f).map(q => q.h ? `<h2>${esc(q.h)}</h2>`
+    : q.t === 'sign' ? `<p class="pr-q">Signature ${line} Date <span class="pr-blank short"></span></p>`
+    : q.t === 'consent' ? `<p class="pr-q">☐ ${esc(q.l)}</p>`
+    : q.o ? `<p class="pr-q"><b>${esc(q.l)}</b><br>${q.o.map(o => `☐ ${esc(o)}`).join('&emsp;')}</p>`
+    : q.t === 'yesno' ? `<p class="pr-q"><b>${esc(q.l)}</b>&emsp;☐ Yes&emsp;☐ No${q.follow ? `<br>${esc(q.follow)} ${line}` : ''}</p>`
+    : q.t === 'long' ? `<p class="pr-q"><b>${esc(q.l)}</b></p><p class="pr-q">${line}</p><p class="pr-q">${line}</p>`
+    : `<p class="pr-q"><b>${esc(q.l)}</b> ${line}</p>`).join('')}`);
 }
 /* ---------- papers kept on file ----------
    License, insurance, certificates: a photo or PDF of each with when it expires. Suggested empty slots by trade
@@ -3940,9 +3970,13 @@ on('click', e => {
     case 'money': closeSheet(); S.tab = 'money'; if (v === 'year') S.money = 'year'; else { S.money = 'day'; S.range = v; } render(); window.scrollTo(0,0); break;
     case 'snap': S.money = 'home'; render(); window.scrollTo(0,0); break;
     case 'clients': closeSheet(); S.tab = 'money'; S.money = 'clients'; S.search = ''; render(); window.scrollTo(0,0); break;
-    case 'formsend': msgSheet(`Text a ${W1}`, `Hi! Before your ${P.firstVisit}, please fill in this ${FORMS[+el.dataset.i].name.toLowerCase()} on your phone: ${FORMS[+el.dataset.i].url || '[form link]'}`); break;
-    case 'copylink': { const u = FORMS[+el.dataset.i].url || 'Sole gives every form its own link once it’s set up.'; try { navigator.clipboard.writeText(u).then(() => toast('Link copied.'), () => toast(u)); } catch (_) { toast(u); } break; }
-    case 'addform': sheet(`${top('Add a form', 'Gift certificates, policies, anything you hand out or keep on file.')}
+    case 'formsend': msgSheet(`Text a ${W1}`, `Hi! Before your ${P.firstVisit}, please fill in this ${FORMS[+el.dataset.i].name.toLowerCase()} on your phone: ${formLinkOf(FORMS[+el.dataset.i]) || '[form link]'}`); break;
+    case 'copylink': { const u = formLinkOf(FORMS[+el.dataset.i]) || 'Sole gives every form its own link once it’s set up.'; try { navigator.clipboard.writeText(u).then(() => toast('Link copied.'), () => toast(u)); } catch (_) { toast(u); } break; }
+    case 'addform': if (P.real) { sheet(`${top('Add a form', 'Policies, consent forms, anything you hand out or keep on file.')}
+      <button class="btn primary" data-act="pp-add" data-v="" style="width:100%">${I.camera}Add a PDF or a photo of it</button>
+      <p class="small muted">It’s kept with your papers, here in Sole, and opens right here whenever you need it.</p>
+      <div class="card facts2"><p>Want ${WN} to fill one in and sign it on their phone, like your ${esc(P.intakeName)}? Ask Brooks, and it’s built into Sole for you.</p></div>`); break; }
+      sheet(`${top('Add a form', 'Gift certificates, policies, anything you hand out or keep on file.')}
       <div class="card facts2"><p>In the real app you’d pick a PDF, a Google Doc, or take a photo of a paper form, and it shows up here ready to print or send.</p></div>`); break;
     case 'month': closeSheet(); S.tab = 'money'; S.money = 'month'; S.mo = v; S.cmp = null; render(); window.scrollTo(0, 0); break;
     case 'mo-nav': { const [yy, mm] = (S.mo || isoDay(T0).slice(0, 7)).split('-').map(Number), d = new Date(yy, mm - 1 + +v, 1); S.mo = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; S.cmp = null; render(); break; }
@@ -4034,9 +4068,9 @@ on('click', e => {
       if (f.upload) { const d = (DOCS[KEY] || [])[f.doc];
         sheet(`${top(f.name, f.kind)}${d && d.isImg ? `<img class="form-img" src="${d.url}" alt="${esc(f.name)}">` : `<div class="card facts2"><p>${d ? `Your file <b>${esc(d.file)}</b> is saved with this business.` : 'This file was uploaded in an earlier visit.'}</p></div>`}
         <p class="small muted">In the real app, uploads open full screen to print, and send to clients as a link they can fill in and sign.</p>`); break; }
-      sheet(`${top(f.name, f.kind)}<p class="muted">${f.about}</p>
-      <div class="notes" style="padding:4px 16px">${(f.sections||[]).map((x,j) => `<div class="note" style="grid-template-columns:28px 1fr"><dt>${j+1}</dt><dd>${x}</dd></div>`).join('')}</div>
-      <p class="small muted">In the real app you’d edit this template, print it, or send it as a link clients fill in on their phone.</p>`); break; }
+      sheet(`${top(esc(f.name), esc(f.kind))}<p class="muted">${esc(f.about)}</p>${formDocHTML(f)}
+      <div class="btn-row">${f.read ? '' : `<button class="btn primary" data-act="fill" data-i="${el.dataset.i}">Fill in now</button>`}<button class="btn${f.read ? ' primary' : ''}" data-act="formprint" data-i="${el.dataset.i}">${f.read ? 'Print' : 'Print a blank copy'}</button></div>`); break; }
+    case 'formprint': printForm(FORMS[+el.dataset.i]); break;
     case 'trade': sheet(`<div class="sh-top"><div class="brand">${SUNMARK}<b>Sole</b></div><button class="close" data-act="close">Done</button></div>
       <p class="muted">Sole is for the owner who does the work: a one- or two-person business of any kind. Every business gets the same tools, set up with its own words, forms, name and colors.</p>
       <span class="label">Businesses</span>
