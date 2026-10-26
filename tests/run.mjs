@@ -179,6 +179,16 @@ console.log('ok private Square views');
   await q.click('main .form:has-text("Human trafficking") [data-act=formview]');
   check(/immediately contact the National Human Trafficking Resource Center/.test(await q.textContent('.sheet')) && await q.locator('.sheet a[href="tel:8883737888"]').count() === 1, 'forms: the procedure reads in Sole, numbers tap to call');
   check(!(await wide(q)), 'forms: fit the phone');
+  await q.click('.sheet .close'); await q.waitForTimeout(250);
+  // on an iPhone or iPad: Print makes a PDF and hands it to the share sheet (Print, Save to Files)
+  await q.route('http://sole.test/vendor/jspdf.umd.min.js', r => r.fulfill({contentType:'text/javascript', body:fs.readFileSync(root + 'site/vendor/jspdf.umd.min.js', 'utf8')}));
+  await q.evaluate(() => { window.__SOLE_PDF = true; window.__shared = []; navigator.canShare = () => true;
+    navigator.share = async d => { const f = d.files[0]; window.__shared.push({name:f.name, type:f.type, head:await f.slice(0, 5).text(), size:f.size}); }; });
+  await q.click('main .form:has-text("Client intake form") [data-act=formprint]'); await q.waitForSelector('.sheet [data-act=pdf-go]');
+  await q.click('.sheet [data-act=pdf-go]'); await q.waitForTimeout(300);
+  await q.click('main .form:has-text("Human trafficking") [data-act=formprint]'); await q.waitForTimeout(500);
+  { const sh = await q.evaluate(() => window.__shared);
+    check(sh.length === 2 && sh.every(x => x.type === 'application/pdf' && x.head === '%PDF-' && x.size > 1500) && sh[0].name === 'Client intake form.pdf', 'forms: on a phone, Print hands over a real PDF to print or save'); }
   await q.close(); console.log('ok forms in Sole'); }
 // Kelli's own book: appointments, clients, payments and costs kept in Sole (made-up data, the way the page's database holds it)
 {
@@ -692,6 +702,8 @@ check(/Thank you, Riley/.test(await p.textContent('.sheet')), 'forms: thank-you 
 await p.click('.sheet [data-act=resp]');
 const ans = await p.textContent('.sheet');
 check(/Lavender oil/.test(ans) && /Headaches, Sciatica/.test(ans) && await p.locator('.sheet .sig-img').count() === 1, 'forms: answers and signature are saved');
+await p.evaluate(() => { window.print = () => { window.__printed = true; }; }); await p.click('.sheet [data-act=resp-print]'); await p.waitForTimeout(150);
+check(await p.evaluate(() => window.__printed && /Lavender oil/.test(document.getElementById('print').textContent) && !!document.querySelector('#print img[alt=Signature]')), 'forms: a filled-in form prints with its answers and signature');
 await p.click('.sheet .close');
 await p.click('[data-act=resps] >> nth=0'); check(/Riley Test/.test(await p.textContent('.sheet')), 'forms: response listed under the form'); await p.click('.sheet .close');
 await p.click('.tab[data-v=money]'); await p.click('[data-act=snapgo][data-sec=y-proj] >> nth=0'); await p.click('.tab[data-v=today]');

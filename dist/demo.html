@@ -3063,6 +3063,7 @@ const FORMS = P.forms;
 const formLinkOf = f => f.intake && CLOUD_ON && P.site && P.site.slug ? `${location.origin}/?new=${encodeURIComponent(P.site.slug)}` : f.url || '';
 const INTAKE_URL = formLinkOf(FORMS.find(f => f.intake) || {}) || '[form link]';
 function viewForms(){
+  if (pdfMode()) pdfLib().catch(() => {});
   const waiting = AP.filter(a => !CL[a.c].intake && (a.off > 0 || (a.off === 0 && a.start >= NOW))).sort((x,y) => x.off - y.off || x.start - y.start);
   return `
   <p class="lede">Everything ${WN} fill in and everything you keep on file, in one place.</p>
@@ -3091,16 +3092,99 @@ function formDocHTML(f){
   return `<div class="fq">${fieldsFor(f).map(q => q.h ? `<h3>${esc(q.h)}</h3>` : `<div class="fq-q"><b>${esc(q.l)}</b>${hint(q) ? `<span>${esc(hint(q))}</span>` : ''}</div>`).join('')}</div>`;
 }
 // on paper: a blank copy to fill in by hand, or the document
-function printForm(f){
-  if (f.read) return printOut(`<h1>${esc(f.name)}</h1>${(f.body || []).map(p => `<p>${esc(p)}</p>`).join('')}${f.calls ? `<table>${f.calls.map(([who, ph]) => `<tr><th>${esc(who)}</th><td>${esc(ph)}</td></tr>`).join('')}</table>` : ''}`);
-  const line = '<span class="pr-blank"></span>';
-  printOut(`<h1>${esc(f.name)}</h1>${fieldsFor(f).map(q => q.h ? `<h2>${esc(q.h)}</h2>`
-    : q.t === 'sign' ? `<p class="pr-q">Signature ${line} Date <span class="pr-blank short"></span></p>`
-    : q.t === 'consent' ? `<p class="pr-q">☐ ${esc(q.l)}</p>`
-    : q.o ? `<p class="pr-q"><b>${esc(q.l)}</b><br>${q.o.map(o => `☐ ${esc(o)}`).join('&emsp;')}</p>`
-    : q.t === 'yesno' ? `<p class="pr-q"><b>${esc(q.l)}</b>&emsp;☐ Yes&emsp;☐ No${q.follow ? `<br>${esc(q.follow)} ${line}` : ''}</p>`
-    : q.t === 'long' ? `<p class="pr-q"><b>${esc(q.l)}</b></p><p class="pr-q">${line}</p><p class="pr-q">${line}</p>`
-    : `<p class="pr-q"><b>${esc(q.l)}</b> ${line}</p>`).join('')}`);
+function formBlocks(f){
+  if (f.read) return [['h1', f.name], ...(f.body || []).map(p => ['p', p]), ...(f.calls ? [['table', ['Who', 'Phone'], f.calls]] : [])];
+  return [['h1', f.name], ...fieldsFor(f).map(q => q.h ? ['h2', q.h] : q.t === 'sign' ? ['sig', null] : q.t === 'consent' ? ['tick', q.l] : q.o ? ['opts', q.l, q.o]
+    : q.t === 'yesno' ? ['yn', q.l, q.follow] : ['q', q.l, q.t === 'long' ? 2 : 1])];
+}
+const printForm = f => printDoc(f.name, formBlocks(f));
+// a form a client filled in: their answers and signature, as the owner sees them in Sole
+function respVal(fl, a){
+  let v = a[fl.id]; if (v === undefined || v === '' || (Array.isArray(v) && !v.length)) return null;
+  if (fl.t === 'consent') return v ? 'Agreed' : 'Not agreed';
+  if (Array.isArray(v)) return v.join(', ');
+  if (fl.t === 'yesno') return v === 'yes' ? `Yes${a[fl.id + '_more'] ? ': ' + a[fl.id + '_more'] : ''}` : 'No';
+  return String(v);
+}
+function respBlocks(r){
+  const f = FORMS[r.formIndex] || FORMS.find(x => x.name === r.form) || {name:r.form}, a = r.answers || {}, d = new Date(r.at);
+  return [['h1', f.name], ['p', `${CL[r.client] ? CL[r.client].name : r.name} · filled in ${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`],
+    ...fieldsFor(f).flatMap(fl => fl.h ? [['h2', fl.h]] : fl.t === 'sign' ? [['sig', r.sig || null, `${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`]] : respVal(fl, a) == null ? [] : [['ans', fl.l, respVal(fl, a)]])];
+}
+
+/* ---------- printing (asked for Oct 26, 2026: an owner prints forms at home, never through Google Drive). A printout is a
+   list of blocks. On a computer they print through #print. On an iPhone or iPad, where an app opened from the home
+   screen can't print the page, they become a PDF handed to the share sheet, whose Print sends it to the printer (and
+   Save to Files keeps it). The PDF library (jsPDF 2.5.1, MIT, unmodified) is site/vendor/jspdf.umd.min.js, fetched
+   ahead on the pages that print and kept on the phone. */
+function blocksHTML(B){
+  const blank = '<span class="pr-blank"></span>', box = '☐';
+  let out = '', kv = [];
+  const flush = () => { if (kv.length) { out += `<table>${kv.join('')}</table>`; kv = []; } };
+  B.forEach(b => {
+    if (b[0] === 'kv') { kv.push(`<tr><th>${esc(b[1])}</th><td>${esc(b[2])}</td></tr>`); return; }
+    flush();
+    const [k, x, y, z] = b;
+    out += k === 'h1' ? `<h1>${esc(x)}</h1>` : k === 'h2' ? `<h2>${esc(x)}</h2>` : k === 'h3' ? `<h3>${esc(x)}</h3>` : k === 'p' ? `<p>${esc(x)}</p>`
+      : k === 'q' ? `<p class="pr-q"><b>${esc(x)}</b> ${blank}</p>${y > 1 ? `<p class="pr-q">${blank}</p>`.repeat(y - 1) : ''}`
+      : k === 'yn' ? `<p class="pr-q"><b>${esc(x)}</b>&emsp;${box} Yes&emsp;${box} No${y ? `<br>${esc(y)} ${blank}` : ''}</p>`
+      : k === 'opts' ? `<p class="pr-q"><b>${esc(x)}</b><br>${y.map(o => `${box} ${esc(o)}`).join('&emsp;')}</p>`
+      : k === 'tick' ? `<p class="pr-q">${box} ${esc(x)}</p>`
+      : k === 'ans' ? `<p class="pr-q"><b>${esc(x)}</b><br>${esc(y)}</p>`
+      : k === 'sig' ? (x ? `<p class="pr-q"><img src="${x}" alt="Signature" style="height:60pt"><br>Signed${y ? ' ' + esc(y) : ''}</p>` : `<p class="pr-q">Signature ${blank} Date <span class="pr-blank short"></span></p>`)
+      : k === 'table' ? `<table class="pr-list"><tr>${x.map(h => `<th>${esc(h)}</th>`).join('')}</tr>${y.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table>` : '';
+  });
+  flush(); return out;
+}
+function pdfOf(B){
+  const doc = new window.jspdf.jsPDF({unit:'pt', format:'letter'}), M = 54, W = 612 - 2 * M, H = 792, TOP = M + 26;
+  // the PDF's own fonts know Latin letters only: curly quotes and dashes become plain ones, anything else is left out
+  const t = s => String(s == null ? '' : s).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/[^\t\n\r\x20-\x7E -ÿ]/g, '');
+  let y = TOP;
+  const room = h => { if (y + h > H - M) { doc.addPage(); y = TOP; } };
+  const font = (size, style) => { doc.setFont('helvetica', style || 'normal'); doc.setFontSize(size); };
+  const text = (s, size, style, gap) => { font(size, style); const lh = size * 1.3; doc.splitTextToSize(t(s), W).forEach(l => { room(lh); doc.text(l, M, y + size); y += lh; }); y += gap == null ? 4 : gap; };
+  const box = (x, yy) => { doc.setLineWidth(.7); doc.rect(x, yy, 9, 9); };
+  const line = (x, w) => { doc.setLineWidth(.6); doc.line(x, y, x + w, y); };
+  const lines = s => { font(10.5, 'bold'); return doc.splitTextToSize(t(s), W).length; };   // how many lines a question takes
+  B.forEach(b => {
+    const [k, x, yv] = b;
+    if (k === 'h1') text(x, 20, 'bold', 8);
+    else if (k === 'h2') { y += 10; text(x, 13, 'bold', 4); }
+    else if (k === 'h3') { y += 6; text(x, 11, 'bold', 2); }
+    else if (k === 'p') text(x, 10.5);
+    else if (k === 'kv') { font(10, 'bold'); const lw = 140, L = doc.splitTextToSize(t(yv), W - lw); room(L.length * 13); doc.text(doc.splitTextToSize(t(x), lw - 8)[0], M, y + 10); font(10.5); L.forEach((l, i) => doc.text(l, M + lw, y + 10 + i * 13)); y += L.length * 13 + 5; }
+    else if (k === 'q') { font(10.5, 'bold'); const lw = doc.getTextWidth(t(x));
+      if ((yv || 1) === 1 && lw < W * .55) { room(26); doc.text(t(x), M, y + 12); doc.setLineWidth(.6); doc.line(M + lw + 8, y + 14, M + W, y + 14); y += 26; }   // a short one: the line beside it
+      else { room(lines(x) * 13.65 + (yv || 1) * 18 + 8); text(x, 10.5, 'bold', 0); for (let i = 0; i < (yv || 1); i++) { y += 18; line(M, W); } y += 8; } }
+    else if (k === 'yn') { room(lines(x) * 13.65 + 18 + (yv ? 32 : 0)); text(x, 10.5, 'bold', 2); font(10.5); box(M, y); doc.text('Yes', M + 14, y + 8.5); box(M + 54, y); doc.text('No', M + 68, y + 8.5); y += 15; if (yv) { text(yv, 10, 'normal', 0); y += 16; line(M, W); y += 5; } y += 5; }
+    else if (k === 'opts') { font(10); let rows = 1, cx = M; yv.forEach(o => { const w = doc.getTextWidth(t(o)) + 28; if (cx + w > M + W) { cx = M; rows++; } cx += w; });
+      room(lines(x) * 13.65 + rows * 15 + 20); text(x, 10.5, 'bold', 2); font(10); cx = M; yv.forEach(o => { const w = doc.getTextWidth(t(o)) + 28; if (cx + w > M + W) { cx = M; y += 15; } box(cx, y); doc.text(t(o), cx + 13, y + 8.5); cx += w; }); y += 20; }
+    else if (k === 'tick') { font(10); const L = doc.splitTextToSize(t(x), W - 16); room(L.length * 13); box(M, y); L.forEach((l, i) => doc.text(l, M + 16, y + 8.5 + i * 13)); y += L.length * 13 + 8; }
+    else if (k === 'ans') { text(x, 9.5, 'bold', 0); text(yv, 10.5, 'normal', 6); }
+    else if (k === 'sig') { if (x) { room(84); try { doc.addImage(x, 'PNG', M, y, 180, 60); } catch (_) {} y += 66; font(9); doc.text(t('Signed' + (yv ? ' ' + yv : '')), M, y + 9); y += 18; }
+      else { room(46); y += 30; line(M, 280); line(M + 310, 150); font(9); doc.text('Signature', M, y + 11); doc.text('Date', M + 310, y + 11); y += 22; } }
+    else if (k === 'table') { const cw = W / x.length, row = (r, bold) => { room(17); font(9.5, bold ? 'bold' : 'normal'); r.forEach((c, i) => doc.text(doc.splitTextToSize(t(c), cw - 6)[0] || '', M + i * cw, y + 10)); y += 17; doc.setLineWidth(.3); doc.line(M, y - 3, M + W, y - 3); };
+      row(x, true); yv.forEach(r => row(r)); y += 8; }
+  });
+  for (let i = 1, n = doc.getNumberOfPages(); i <= n; i++) {   // the business and the day on every page, as on paper
+    doc.setPage(i); font(9, 'bold'); doc.text(t(P.biz), M, M); font(9); doc.text(t(`Printed ${shortDate(isoDay(new Date()))}${n > 1 ? ` · page ${i} of ${n}` : ''}`), M + W, M, {align:'right'}); doc.setLineWidth(.4); doc.line(M, M + 6, M + W, M + 6);
+  }
+  return doc.output('blob');
+}
+let PDF_LIB = null, PDF_READY = null;   // PDF_READY: a PDF made after a wait, handed over on the next tap (the share sheet needs a fresh one)
+const pdfLib = () => window.jspdf ? Promise.resolve() : PDF_LIB || (PDF_LIB = new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'vendor/jspdf.umd.min.js'; sc.onload = ok; sc.onerror = () => { PDF_LIB = null; no(); }; document.head.appendChild(sc); }));
+const pdfMode = () => !!window.__SOLE_PDF || (IOS && !!navigator.canShare);   // tests: __SOLE_PDF
+async function printDoc(title, B){
+  if (!pdfMode()) return printOut(blocksHTML(B));
+  const had = !!window.jspdf;
+  try { await pdfLib(); } catch (_) { return printOut(blocksHTML(B)); }
+  const file = new File([pdfOf(B)], `${String(title).replace(/[^\w\s-]/g, '').trim() || 'Sole'}.pdf`, {type:'application/pdf'});
+  if (!navigator.canShare || !navigator.canShare({files:[file]})) return printOut(blocksHTML(B));
+  if (had) try { await navigator.share({files:[file], title}); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  PDF_READY = {file, title};
+  sheet(`${top(esc(title), 'Ready to print.')}<button class="btn primary" data-act="pdf-go" style="width:100%">Print or save it</button>
+    <p class="small muted">Tap Print to send it to your printer, or Save to Files to keep a copy.</p>`);
 }
 /* ---------- papers kept on file ----------
    License, insurance, certificates: a photo or PDF of each with when it expires. Suggested empty slots by trade
@@ -3362,6 +3446,7 @@ function visitItem({a, v, date}){
   return `<li class="tl-i${future ? ' soon' : v.noshow || (a && !a.paid && !future) ? ' miss' : ''}">${a ? `<button class="tl-card" data-act="appt" data-id="${a.id}">${body}</button>` : `<div class="tl-card">${body}</div>`}</li>`;
 }
 function clientPage(k){
+  if (pdfMode()) pdfLib().catch(() => {});
   const c = CL[k], n = nextAppt(k), sp = spend(k), x = clFlags(k), tel = String(c.phone || '').replace(/[^0-9+]/g, '');
   const vs = clientVisits(k), coming = vs.filter(i => i.a && (i.a.off > 0 || (i.a.off === 0 && i.a.start >= NOW))), past = vs.filter(i => !coming.includes(i));
   const rs = RESP.filter(r => r.client === k), intake = FORMS.find(f => f.intake);
@@ -3435,19 +3520,19 @@ function printOut(html){
 }
 function printRecord(k){
   const c = CL[k], F = visitForm(), vs = Object.values(VISITS).filter(v => v.c === k && v.date).sort((a, b) => b.date.localeCompare(a.date));
-  const row = (l, v) => v ? `<tr><th>${l}</th><td>${esc(v)}</td></tr>` : '';
-  printOut(`<h1>${esc(c.name)}</h1>
-    <table>${row('Phone', c.phone && c.phone !== 'Not added yet' ? c.phone : '')}${row('Email', c.email)}${row('Address', c.address)}${row('Birthday', c.born ? shortDate(c.born) : '')}${row(cap(W1) + ' since', c.since ? String(c.since) : '')}
-      ${rowsOf(c).filter(x => !x.meter).map(x => row(x.l, x.v)).join('')}${row('Pressure', c.pressure ? pressureWord(c.pressure) : '')}</table>
-    <h2>${F.title} (${vs.filter(v => v.at).length})</h2>
-    ${vs.map(v => `<div class="pr-visit"><h3>${shortDate(v.date)}${v.start != null ? ' · ' + clock(v.start) : ''}${(v.svc || (SV[v.s] || {}).name) ? ' · ' + esc(v.svc || SV[v.s].name) : ''}</h3>
-      ${v.at ? F.chips.map(g => (v[g.k] || []).length ? `<p><b>${g.l}:</b> ${esc(v[g.k].join(', '))}</p>` : '').join('') + F.text.map(t => v[t.k] ? `<p><b>${t.l}:</b> ${esc(v[t.k])}</p>` : '').join('') : '<p class="pr-none">No notes for this visit.</p>'}</div>`).join('')}
-    ${RESP.filter(r => r.client === k).length ? `<h2>Forms</h2>${RESP.filter(r => r.client === k).map(r => `<p>${esc(r.form)}, filled in ${shortDate(r.date)}${r.sig ? ', signed' : ''}</p>`).join('')}` : ''}`);
+  const kv = (l, v) => v ? [['kv', l, v]] : [];
+  printDoc(c.name, [['h1', c.name],
+    ...kv('Phone', c.phone && c.phone !== 'Not added yet' ? c.phone : ''), ...kv('Email', c.email), ...kv('Address', c.address), ...kv('Birthday', c.born ? shortDate(c.born) : ''), ...kv(cap(W1) + ' since', c.since ? String(c.since) : ''),
+    ...rowsOf(c).filter(x => !x.meter).flatMap(x => kv(x.l, x.v)), ...kv('Pressure', c.pressure ? pressureWord(c.pressure) : ''),
+    ['h2', `${F.title} (${vs.filter(v => v.at).length})`],
+    ...vs.flatMap(v => [['h3', `${shortDate(v.date)}${v.start != null ? ' · ' + clock(v.start) : ''}${(v.svc || (SV[v.s] || {}).name) ? ' · ' + (v.svc || SV[v.s].name) : ''}`],
+      ...(v.at ? [...F.chips.flatMap(g => (v[g.k] || []).length ? [['kv', g.l, v[g.k].join(', ')]] : []), ...F.text.flatMap(t => v[t.k] ? [['kv', t.l, v[t.k]]] : [])] : [['p', 'No notes for this visit.']])]),
+    ...(RESP.filter(r => r.client === k).length ? [['h2', 'Forms'], ...RESP.filter(r => r.client === k).map(r => ['p', `${r.form}, filled in ${shortDate(r.date)}${r.sig ? ', signed' : ''}`])] : [])]);
 }
 function printList(){
   const r = recordsOf();
-  printOut(`<h1>Records on file</h1><p>${r.notes} ${visitForm().title} for ${r.people.length} ${WN}${r.first ? `, ${shortDate(r.first)} to ${shortDate(r.last)}` : ''}.</p>
-    <table class="pr-list"><tr><th>${cap(W1)}</th><th>Notes</th><th>First</th><th>Latest</th><th>Forms</th></tr>${r.people.map(x => `<tr><td>${esc(CL[x.k].name)}</td><td>${x.n}</td><td>${shortDate(x.first)}</td><td>${shortDate(x.last)}</td><td>${x.forms || ''}</td></tr>`).join('')}</table>`);
+  printDoc('Records on file', [['h1', 'Records on file'], ['p', `${r.notes} ${visitForm().title} for ${r.people.length} ${WN}${r.first ? `, ${shortDate(r.first)} to ${shortDate(r.last)}` : ''}.`],
+    ['table', [cap(W1), 'Notes', 'First', 'Latest', 'Forms'], r.people.map(x => [CL[x.k].name, String(x.n), shortDate(x.first), shortDate(x.last), x.forms ? String(x.forms) : ''])]]);
 }
 
 /* ---------- Ask ---------- */
@@ -3898,7 +3983,8 @@ function submitFill(){
 }
 /* a filled-in form updates the person it belongs to: their notes, and that their form is done */
 function applyResponse(r, quiet){
-  let k = r.client && CL[r.client] ? r.client : Object.keys(CL).find(x => CL[x].name.trim().toLowerCase() === (r.name || '').trim().toLowerCase());
+  const ph = String((r.answers || {}).phone || '').replace(/\D/g, '').slice(-10), phoneOf = x => String(CL[x].phone || '').replace(/\D/g, '').slice(-10);
+  let k = r.client && CL[r.client] ? r.client : (ph.length === 10 && Object.keys(CL).find(x => phoneOf(x) === ph)) || Object.keys(CL).find(x => CL[x].name.trim().toLowerCase() === (r.name || '').trim().toLowerCase());
   if (!k) { k = 'f' + r.id; CL[k] = {name:(r.name || 'New client').includes(' ') ? r.name : (r.name || 'New client') + ' ', phone:r.answers.phone || 'Not added yet', since:+r.date.slice(0,4), visits:0, last:null, isNew:true, intake:true, rows:[], note:'', mine:true}; }
   r.client = k;
   const c = CL[k], f = FORMS[r.formIndex] || FORMS.find(x => x.name === r.form) || {}, a = r.answers || {};
@@ -3924,14 +4010,12 @@ function respHTML(r){
   const rows = fieldsFor(f).map(fl => {
     if (fl.h) return `<h3 class="fill-h">${esc(fl.h)}</h3>`;
     if (fl.t === 'sign') return r.sig ? `<div class="note"><dt>Signed</dt><dd><img class="sig-img" src="${r.sig}" alt="Signature"></dd></div>` : '';
-    let v = a[fl.id]; if (v === undefined || v === '' || (Array.isArray(v) && !v.length)) return '';
-    if (fl.t === 'consent') v = v ? 'Agreed' : 'Not agreed';
-    if (Array.isArray(v)) v = v.join(', ');
-    if (fl.t === 'yesno') v = v === 'yes' ? `Yes${a[fl.id + '_more'] ? ': ' + a[fl.id + '_more'] : ''}` : 'No';
+    const v = respVal(fl, a); if (v == null) return '';
     const flagged = fl.flag && (fl.t === 'multi' || a[fl.id] === 'yes');
     return `<div class="note ${flagged ? 'avoid' : ''}"><dt>${esc(fl.l.replace(/\?$/, ''))}</dt><dd>${esc(v)}</dd></div>`;
   }).join('');
-  return `${top(esc(f.name), `${esc(CL[r.client] ? CL[r.client].name : r.name)} · ${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`)}<dl class="notes resp" style="margin:0">${rows}</dl>`;
+  return `${top(esc(f.name), `${esc(CL[r.client] ? CL[r.client].name : r.name)} · ${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`)}<dl class="notes resp" style="margin:0">${rows}</dl>
+    <button class="btn" data-act="resp-print" data-v="${esc(r.id)}" style="width:100%">Print</button>`;
 }
 
 /* ---------- toast ---------- */
@@ -4071,6 +4155,8 @@ on('click', e => {
       sheet(`${top(esc(f.name), esc(f.kind))}<p class="muted">${esc(f.about)}</p>${formDocHTML(f)}
       <div class="btn-row">${f.read ? '' : `<button class="btn primary" data-act="fill" data-i="${el.dataset.i}">Fill in now</button>`}<button class="btn${f.read ? ' primary' : ''}" data-act="formprint" data-i="${el.dataset.i}">${f.read ? 'Print' : 'Print a blank copy'}</button></div>`); break; }
     case 'formprint': printForm(FORMS[+el.dataset.i]); break;
+    case 'resp-print': { const r = RESP.find(x => x.id === v); if (r) printDoc(`${r.form} ${CL[r.client] ? CL[r.client].name : r.name || ''}`, respBlocks(r)); break; }
+    case 'pdf-go': if (PDF_READY) navigator.share({files:[PDF_READY.file], title:PDF_READY.title}).then(() => { PDF_READY = null; closeSheet(); }, () => {}); break;
     case 'trade': sheet(`<div class="sh-top"><div class="brand">${SUNMARK}<b>Sole</b></div><button class="close" data-act="close">Done</button></div>
       <p class="muted">Sole is for the owner who does the work: a one- or two-person business of any kind. Every business gets the same tools, set up with its own words, forms, name and colors.</p>
       <span class="label">Businesses</span>
