@@ -22,6 +22,7 @@ const wide = p => p.evaluate(() => document.documentElement.scrollWidth > 390);
 async function tour(p, label){
   for (const k of ['massage','hair','barber','tattoo','landscape','tennis']) {
     await p.click('[data-act=trade]'); await p.click(`[data-act=pick][data-v=${k}]`);
+    { const g = await p.textContent('.glance'); check(/Today so far/.test(g) && /Booked today/.test(g) && /This week\s*\$[\d,]+/.test(g) && /after .*fees/.test(g), `${label} ${k}: today in against booked, and the week`); }
     await p.click('[data-act=ask][data-q*="spent"]');
     await p.click('.tab[data-v=schedule]'); await p.click('[data-act=day] >> nth=2');
     if (await p.locator('[data-act=gap]').count()) { await p.click('[data-act=gap] >> nth=0'); await p.click('[data-act=b-c] >> nth=0');
