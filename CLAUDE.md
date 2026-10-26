@@ -85,7 +85,7 @@ Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`). T
 
 - Built in Lovable (workspace "Brooks's Lovable", free plan). It reads everything from Sole, so Sole stays the one place to change things: the `site` Edge Function (GET `?b=heart-and-soul`, verify_jwt off) returns the business name, services and prices, usual hours, and the profile's `site` block (slug, tagline, about, specialties, address, phone, email, hoursNote, reviews; in the PRIVATE block and `businesses.data`). Never clients, the book or money.
 - No online booking yet (decided Oct 26, 2026): Call and Text buttons. New clients fill in the intake form on Sole's own page, `sole.brookstelles.com/?new=heart-and-soul` (`formStart` with a slug; the `intake` function's `open-new`/`submit-new`: name, phone, agreed and signed, at most 25 a day); it lands in `forms` with `via: 'website'` and Sole makes them a client.
-- Address and phone came from her MassageBook page; confirm before publishing.
+- Address (her new studio, 1850 Holman Drive; records call the town North Palm Beach, same 33408) and phone confirmed by Brooks Oct 26, 2026. The site's own domain is heartandsoulmassagepbg.com (in Cloudflare).
 
 ## Open questions
 
