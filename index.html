@@ -691,6 +691,8 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
 .tab .badge{position:relative}
 .tab .badge::after{content:"";position:absolute;top:-1px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--warm);border:2px solid var(--surface)}
 
+.toast:has(.undo){display:flex;align-items:center;justify-content:space-between;gap:10px}
+.toast .undo{margin-left:12px;border:0;background:none;color:inherit;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px;padding:6px 2px;min-height:32px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:30;
   width:min(calc(100% - 32px),440px);background:var(--ink);color:var(--bg);border-radius:14px;padding:13px 16px;font-size:15px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.2);animation:rise .2s ease-out}
 
@@ -3183,12 +3185,26 @@ function respHTML(r){
 
 /* ---------- toast ---------- */
 let tt;
-function toast(m){ clearTimeout(tt); let el = $('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role','status'); document.body.appendChild(el); } el.textContent = m; tt = setTimeout(() => el.remove(), 3600); }
+function toast(m){ clearTimeout(tt); let el = $('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role','status'); document.body.appendChild(el); }
+  const u = UNDO.arm && Date.now() - UNDO.arm.at < 2000 ? UNDO.arm : null; UNDO.arm = null; UNDO.snap = u ? u.snap : null;
+  el.textContent = m; if (u) { const b = document.createElement('button'); b.className = 'undo'; b.dataset.act = 'undo'; b.textContent = 'Undo'; el.appendChild(b); }
+  tt = setTimeout(() => { el.remove(); UNDO.snap = null; }, u ? 7000 : 3600); }
+// Undo: a copy of the book is taken before booking, moving, canceling, a payment or a no-show; the toast that follows
+// offers to put it back for a few seconds (saving the book again undoes it in the database too)
+const UNDO = {arm:null, snap:null}, UNDOABLE = ['b-go', 'cancel-yes', 'pf-save', 'wk-noshow', 'charge-card', 'ac-save'];
+const bookCopy = () => JSON.parse(JSON.stringify({AP, BL, LEDGER, VISITS, CL}));
+function bookPut(c){
+  AP.splice(0, AP.length, ...c.AP); BL.splice(0, BL.length, ...c.BL); LEDGER.splice(0, LEDGER.length, ...c.LEDGER);
+  Object.keys(VISITS).forEach(k => delete VISITS[k]); Object.assign(VISITS, c.VISITS);
+  Object.keys(CL).forEach(k => { if (!(k in c.CL)) delete CL[k]; }); Object.assign(CL, c.CL);
+}
 
 /* ---------- events ---------- */
 on('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const v = el.dataset.v, id = +el.dataset.id;
+  if (UNDOABLE.includes(el.dataset.act)) UNDO.arm = {snap:bookCopy(), at:Date.now()};
+  if (el.dataset.act === 'undo') { if (UNDO.snap) { bookPut(UNDO.snap); UNDO.snap = null; closeSheet(); render(); toast('Undone.'); } return; }
   { const a = el.dataset.id && ['move', 'cancel'].includes(el.dataset.act) ? AP.find(x => x.id === id) : null;
     if (a && a.sq) { sheet(`${top('Booked in Square', `${first(a.c)} booked this in Square, so it changes there.`)}
       <p>Open Square to move or cancel it. The change shows up here a minute or two later. New bookings made in Sole stay in Sole.</p>`); return; } }

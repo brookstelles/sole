@@ -270,7 +270,11 @@ console.log('ok private Square views');
   if (!(await q.locator('.sheet [data-act=b-t][aria-pressed=true]').count())) await q.click('.sheet [data-act=b-t] >> nth=0');
   check(/Book Cloud/.test(await q.textContent('#book-go')), 'website: a day and time picked from the calendar');
   check(!(await wide(q)), 'website: the calendar fits the phone');
-  await q.click('#book-go'); await q.waitForTimeout(200); if (await q.locator('.sheet .close').count()) await q.click('.sheet .close');
+  const nAp = () => q.evaluate(() => window.__FAKE.T.items.filter(r => r.col === 'appts').length), ap0 = await nAp();
+  await q.click('#book-go'); await q.waitForTimeout(400); const ap1 = await nAp();
+  await q.click('.toast [data-act=undo]'); await q.waitForTimeout(400);
+  check(ap1 === ap0 + 1 && await nAp() === ap0, 'website: undo takes a booking back out of the book');
+  if (await q.locator('.sheet .close').count()) await q.click('.sheet .close');
   // a form texted to a client: a one-time link, filled in and signed on their own phone, back in the book
   await q.click('.tab[data-v=clients]'); await q.fill('#clt-search', 'Imported Person'); await q.click('#clt-list .li.client >> nth=0');
   await q.click('main [data-act=intake]');   await q.waitForSelector('.sheet');
@@ -494,6 +498,12 @@ check(/Lavender oil/.test(ans) && /Headaches, Sciatica/.test(ans) && await p.loc
 await p.click('.sheet .close');
 await p.click('[data-act=resps] >> nth=0'); check(/Riley Test/.test(await p.textContent('.sheet')), 'forms: response listed under the form'); await p.click('.sheet .close');
 await p.click('.tab[data-v=money]'); await p.click('[data-act=snapgo][data-sec=y-proj] >> nth=0'); await p.click('.tab[data-v=today]');
+// undo: cancel a visit, then put it back from the toast
+{ await p.click('.tab[data-v=today]'); const L = () => p.locator('section:has(h2:has-text("Today’s")) [data-act=appt]'), n0 = await L().count();
+  await L().nth(n0 - 1).click(); await p.click('.sheet [data-act=cancel]'); await p.click('.sheet [data-act=cancel-yes]');
+  const n1 = await L().count(), hasUndo = await p.locator('.toast [data-act=undo]').count();
+  if (hasUndo) await p.click('.toast [data-act=undo]');
+  check(n1 === n0 - 1 && hasUndo === 1 && await L().count() === n0 && /Undone/.test(await p.textContent('.toast')), 'undo: a canceled visit comes back'); }
 console.log('ok digital forms');
 
 await b.close();
