@@ -269,6 +269,7 @@ main{display:flex;flex-direction:column;gap:22px}
 .li.call{grid-template-columns:1fr auto;text-decoration:none;color:inherit}
 .li.call .who b{white-space:normal;overflow:visible;text-overflow:clip}
 .callout a.phone{color:inherit;font-weight:600;text-decoration:none;white-space:nowrap}
+.gc-steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;font-size:16px;line-height:1.45}
 .qr-card{background:#fff;color:#1E1B2E;border-radius:24px;padding:18px 18px 22px;display:grid;justify-items:center;gap:4px;text-align:center;box-shadow:var(--shadow)}
 .qr-card svg{width:min(100%,300px);height:auto;display:block}
 .qr-card b{font-size:19px;margin-top:4px}
@@ -2648,6 +2649,7 @@ function meHTML(){
     <div class="field"><span class="label">Services and prices</span><button class="btn line" data-act="sv-list">Change services and prices</button><span class="small muted">${svOpen().length} offered, from ${money(Math.min(...svOpen().map(k => SV[k].price)))}. Add one, change a price or length, or stop offering one.</span></div>
     ${TEXT_ON && P.real ? `<div class="field"><span class="label">Texts when you book or move someone</span>${seg('me-autotext', PREFS.autoText === false ? 'off' : 'on', [['on', 'Sole sends them'], ['off', 'I send them']])}<span class="small muted">${PREFS.autoText === false ? 'Messages opens with the text written, for you to send.' : 'From Sole’s number, a few seconds after you book, so Undo can stop it. Replies show up in Sole and buzz your phone.'}</span></div>` : ''}
     <div class="field"><span class="label">Thank-you texts the day after</span>${seg('me-thanks', PREFS.thanks === false ? 'off' : 'on', [['on', 'On'], ['off', 'Off']])}<span class="small muted">For everyone on ${esc(P.biz)}.</span></div>
+    ${CLOUD_ON && P.real && BIZ ? `<div class="field"><span class="label">Backup in Google Calendar</span><button class="btn line" data-act="gcal">${I.schedule}Copy my ${P.unit} to Google Calendar</button><span class="small muted">Every ${P.unitOne}, kept up to date by itself.</span></div>` : ''}
     ${CLOUD_ON && USER_EMAIL ? `<button class="btn line danger-line" data-act="me-out" style="width:100%;margin-top:8px">Sign out</button>` : ''}`;
 }
 /* ---------- a QR code for the business's website (asked for Oct 26, 2026): her initials, then Show my QR code, and
@@ -2655,6 +2657,24 @@ function meHTML(){
    (qrcode-generator 1.4.4, MIT, Kazuhiko Arase) is site/vendor/qrcode.js: loaded the first time, then kept on the phone. */
 let QR_LIB = null;
 const qrLib = () => window.qrcode ? Promise.resolve() : QR_LIB || (QR_LIB = new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'vendor/qrcode.js'; sc.onload = ok; sc.onerror = () => { QR_LIB = null; no(); }; document.head.appendChild(sc); }));
+/* ---------- a copy of the appointments in Google Calendar (asked for Oct 27, 2026, as a backup): the calendar Edge
+   Function serves them as a private calendar feed that Google subscribes to. It only reads: changes stay in Sole. */
+let GCAL = null;
+const gcalHTML = () => `${top(`Your ${P.unit} in Google Calendar`, 'A copy that keeps itself up to date.')}
+  ${!GCAL ? '<p class="muted">One moment…</p>' : GCAL.error ? `<p class="im-err" role="alert">${esc(GCAL.error)}</p>` : `
+  <div class="field"><span class="label">Your private link</span><input class="text-in" id="gc-url" readonly value="${esc(GCAL.url)}" aria-label="Your private calendar link"></div>
+  <button class="btn primary" data-act="gc-copy">Copy the link</button>
+  <ol class="gc-steps"><li>On a computer, open <b>calendar.google.com</b>.</li><li>On the left, next to <b>Other calendars</b>, click <b>+</b>, then <b>From URL</b>.</li><li>Paste the link and click <b>Add calendar</b>.</li></ol>
+  <p class="small muted">Your ${P.unit} show up in a calendar called “${esc(P.biz)} appointments”, on your phone too. Google looks for changes a few times a day, so a new booking can take some hours to show. It’s a copy: book, move and cancel in Sole.</p>
+  <p class="small muted">On an iPhone with no computer: in Settings, under Calendar accounts, choose Add Subscribed Calendar and paste the link.</p>
+  <p class="small muted">Keep the link to yourself: anyone who has it can see your schedule.</p>
+  <button class="linkbtn" data-act="gc-reset">${GCAL.sure ? 'Tap again: the old link stops working' : 'Make a new link'}</button>`}`;
+const rerenderGcal = () => { const sh = $('#layer .sheet'); if (sh && sh.dataset.gcal) sh.innerHTML = `<div class="grab"></div>${gcalHTML()}`; };
+async function gcalLink(action){
+  try { const r = await SB.functions.invoke('calendar', {body:{action, business_id:BIZ}}), d = (r && r.data) || {}; GCAL = d.url ? {url:d.url} : {error:'Couldn’t make the link just now. Try again in a minute.'}; }
+  catch (_) { GCAL = {error:'Couldn’t make the link just now. Try again in a minute.'}; }
+  rerenderGcal();
+}
 async function qrSheet(){
   const url = P.site.url, shown = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
   sheet(`${top(esc(P.biz), 'Have them point their phone’s camera here.')}
@@ -4506,6 +4526,10 @@ on('click', e => {
     case 'sv-list': sheet(servicesHTML()); break;
     case 'qr': qrSheet(); break;
     case 'qr-share': navigator.share({title:P.biz, url:P.site.url}).catch(() => {}); break;
+    case 'gcal': GCAL = null; sheet(gcalHTML()); $('#layer .sheet').dataset.gcal = '1'; gcalLink('link'); break;
+    case 'gc-copy': { const u = GCAL && GCAL.url; if (!u) break; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast('Link copied. Paste it into Google Calendar.'), () => { const i = $('#gc-url'); if (i) { i.focus(); i.select(); } toast('Copy the link from the box.'); }); break; }
+    case 'gc-reset': if (!GCAL || !GCAL.url) break; if (!GCAL.sure) { GCAL.sure = true; rerenderGcal(); break; }
+      GCAL = null; rerenderGcal(); gcalLink('reset').then(() => { if (GCAL && GCAL.url) toast('New link made. Add it to Google Calendar again; the old one has stopped.'); }); break;
     case 'qr-copy': (navigator.clipboard ? navigator.clipboard.writeText(P.site.url) : Promise.reject()).then(() => toast('Link copied. Paste it in a text or an email.'), () => toast(P.site.url)); break;
     case 'sv-new': SVE = {k:null, name:'', min:60, price:'', desc:''}; sheet(serviceHTML()); setTimeout(() => { const n = $('#sv-name'); if (n) n.focus(); }, 50); break;
     case 'sv-edit': { const c = SV[v]; SVE = {k:v, name:c.name, min:c.min, price:c.price, desc:c.desc || ''}; sheet(serviceHTML()); break; }

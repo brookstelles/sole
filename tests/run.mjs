@@ -447,6 +447,15 @@ console.log('ok private Square views');
     check(await q.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'inbox' && x.id === 'mTEST'); return !!(r && r.data.done); }), 'messages: answered is saved');
     await q.click('.tab[data-v=forms]'); check(/Messages from your website/.test(await q.textContent('main')) && /0 to answer/.test(await q.textContent('#inbox')), 'messages: listed in Forms');
     await q.click('.tab[data-v=today]'); }
+  // a copy of the appointments in Google Calendar: a private link from the account sheet, and a new one on request
+  { await q.click('[data-act=me]'); await q.click('.sheet [data-act=gcal]'); await q.waitForSelector('#gc-url');
+    const t = await q.textContent('.sheet');
+    check(/a{48}$/.test(await q.inputValue('#gc-url')) && /Other calendars/.test(t) && /From URL/.test(t) && /Cloud Test Massage appointments/.test(t), 'google calendar: the private link and how to add it');
+    check(!(await wide(q)), 'google calendar: the sheet fits the phone');
+    await q.click('.sheet [data-act=gc-reset]'); check(/old link stops working/.test(await q.textContent('.sheet [data-act=gc-reset]')), 'google calendar: a new link asks once more first');
+    await q.click('.sheet [data-act=gc-reset]'); await q.waitForTimeout(200);
+    check(/b{48}$/.test(await q.inputValue('#gc-url')), 'google calendar: a new link replaces the old');
+    await q.click('.sheet .close'); }
   // the account: initials at the top; light or dark on this phone; a name; thank-you texts on or off for the business
   check((await q.textContent('.me')).trim() === 'T', 'account: initials of who is signed in');
   check(await q.evaluate(() => { const b = document.querySelector('[data-act=me]'); b.click(); const t = document.querySelector('.sheet').textContent; document.querySelector('.sheet .close').click(); return /isn’t allowed to send them/.test(t); }), 'notifications: blocked on this phone says where to turn them on');
