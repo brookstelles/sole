@@ -2,7 +2,7 @@
   massage: {
     trade:'Massage therapist', short:'Massage', biz:'Tidewater Massage', look:'sole', owner:'Lena', team:['Lena'], now:640,
     unit:'massages', unitOne:'massage', firstVisit:'first massage', treat:'birthday massage', intakeName:'intake form',
-    reviewOn:'Google', booking:'your booking app and Square', real:false,
+    reviewOn:'Google', booking:'your booking app and Square', real:false, geo:{lat:36.85, lon:-75.98},
     source:'Everything on this page is sample data.',
     hours:{open:540, close:1080, turn:15, closed:[0,6]},
     services:{

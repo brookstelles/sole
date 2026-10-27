@@ -3,6 +3,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style id="pre-bg">html{background:#14112E}</style>
+<script>(function(h){if(h>=11&&h<17)document.getElementById("pre-bg").textContent="html{background:#1C5AA6}"})(new Date().getHours())</script>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="apple-touch-icon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-title" content="SolePro">
@@ -167,7 +169,8 @@ main{display:flex;flex-direction:column;gap:22px}
 .sky-in{position:relative;min-height:100%;display:flex;flex-direction:column;align-items:center;
   padding:0 max(16px,env(safe-area-inset-right,0px)) calc(28px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .sky-head{height:var(--hz);display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:118px}
-.sky-word{font-family:var(--display);font-weight:300;font-size:64px;line-height:1;letter-spacing:.08em;margin:0 0 0 .08em;color:#fff}
+.sky-word{font-family:var(--body);font-weight:700;font-size:60px;line-height:1;letter-spacing:-.01em;margin:0;color:#fff}
+.sky-word .pro{color:#F6C46C}
 .sky-word span{display:inline-block;animation:sky-letter .8s cubic-bezier(.2,.7,.2,1) both}
 .sky-tag{margin-top:12px;font-family:var(--display);font-size:13px;letter-spacing:.3em;text-transform:uppercase;color:#FAD889;animation:fade 1s 1.7s both}
 .sky-card{width:100%;max-width:400px;margin-top:34px;padding:22px 20px;border-radius:24px;display:grid;gap:14px;
@@ -199,6 +202,34 @@ main{display:flex;flex-direction:column;gap:22px}
 .signin.leaving .glow{animation:sky-burst 1.1s ease-in forwards}
 .signin.leaving .sun{animation:sky-up 1.1s ease-in forwards}
 .signin.leaving .sky-in{animation:sky-lift .7s ease-in forwards}
+/* the same scene at other times of day */
+.signin[data-tod="day"] .sky .air{background:linear-gradient(180deg,#1C5AA6 0%,#2F74C0 40%,#5A9BD8 78%,#8FC2EA 100%)}
+.signin[data-tod="day"] .stars{display:none}
+.signin[data-tod="day"] .glow{left:50%;bottom:auto;top:calc(var(--hz) * .14 - 95px);width:300px;height:300px;margin-left:-150px;background:radial-gradient(closest-side,rgba(255,244,205,.55),rgba(255,244,205,0))}
+.signin[data-tod="day"] .sky .sun{bottom:auto;top:calc(var(--hz) * .14);width:110px;height:110px;margin-left:-55px;animation:sky-noon 1.4s .1s cubic-bezier(.2,.7,.2,1) both}
+.signin[data-tod="day"] .sky .sea{background:linear-gradient(180deg,#3E86BD 0%,#25679C 25%,#174C79 60%,#0F3456 100%)}
+.signin[data-tod="day"] .sky .sea::before{background:rgba(255,255,255,.6)}
+.signin[data-tod="day"] .sky .shine i{background:#fff;opacity:.55}
+.signin[data-tod="day"] .sky-tag{color:#fff}
+.signin[data-tod="day"] .sky-word .pro{color:#FFD77A}
+.signin[data-tod="dusk"] .sky .air{background:linear-gradient(180deg,#1A1440 0%,#3A2462 30%,#7A3B6E 55%,#D0575C 78%,#F08A4A 92%,#F7B267 100%)}
+.signin[data-tod="dusk"] .sky .sun{animation:sky-set 2.2s .15s cubic-bezier(.3,.6,.3,1) both}
+.signin[data-tod="dusk"] .sky .sun circle{fill:#F39A4E}
+.signin[data-tod="dusk"] .sky .sun .rays{stroke:#F7B26E}
+.signin[data-tod="dusk"] .glow{background:radial-gradient(closest-side,rgba(246,140,80,.6),rgba(246,140,80,0))}
+.signin[data-tod="dusk"] .sky .sea{background:linear-gradient(180deg,#6B3F6E 0%,#3A2558 20%,#1E1640 55%,#120F2C 100%)}
+.signin[data-tod="dusk"] .sky .shine i{background:#F39A4E}
+.signin[data-tod="night"] .sky .air{background:linear-gradient(180deg,#05040F 0%,#0B0A22 40%,#16133D 78%,#242057 100%)}
+.signin[data-tod="night"] .glow{background:radial-gradient(closest-side,rgba(190,196,255,.16),rgba(190,196,255,0))}
+.signin[data-tod="night"] .sky .sea{background:linear-gradient(180deg,#2A2660 0%,#1A1745 20%,#0F0D2A 55%,#08071A 100%)}
+.signin[data-tod="night"] .sky .sea::before{background:rgba(214,210,240,.35)}
+.signin[data-tod="night"] .sky .shine i{background:#D6D2F0;opacity:.4}
+.signin[data-tod="night"] .sky-tag{color:#D6D2F0}
+.sky .moon{position:absolute;left:62%;top:calc(var(--hz) * .12);width:84px;height:84px;animation:sky-noon 1.6s .1s cubic-bezier(.2,.7,.2,1) both;filter:drop-shadow(0 0 18px rgba(239,235,216,.35))}
+.sky .moon svg{width:100%;height:100%}
+.signin.leaving .moon{animation:sky-up 1.1s ease-in forwards}
+@keyframes sky-noon{from{opacity:0;transform:translateY(24px) scale(.85)}}
+@keyframes sky-set{from{transform:translateY(-62%)}}
 @keyframes sky-out{0%,40%{opacity:1}100%{opacity:0}}
 @keyframes sky-burst{to{transform:scale(7);opacity:1}}
 @keyframes sky-up{to{transform:translateY(-40px) scale(1.25)}}
@@ -229,6 +260,11 @@ main{display:flex;flex-direction:column;gap:22px}
 .btn.danger-line{width:100%;margin-top:12px;color:var(--bad)}
 .vn-same{width:100%}
 .msg-body{font-size:16px;line-height:1.5;white-space:normal}
+.wx{display:flex;align-items:center;gap:8px;margin:8px 0 0;font-size:15px;color:var(--muted)}
+.wx svg{width:20px;height:20px;flex:none;color:var(--gold)}
+.wx.wet svg,.wx-s.wet svg{color:var(--accent)}
+.wx-s{white-space:nowrap}
+.wx-s svg{width:15px;height:15px;vertical-align:-3px;margin-right:3px;color:var(--gold)}
 .callout.msg-mine{margin-left:28px;background:var(--accent);color:var(--accent-ink)}.msg-mine small{opacity:.75;font-size:13px}
 .vn-same .muted{font-weight:500}
 .vn-quick{gap:6px}
@@ -455,6 +491,11 @@ html[data-look="sole"][data-theme="dark"]{
 .brand{display:flex;align-items:center;gap:10px}
 .brand svg{width:36px;height:36px;color:var(--gold)}
 .brand b{font-family:var(--display);font-size:30px;font-weight:300;letter-spacing:.02em}
+.brand svg.badge{color:inherit}
+.brand b.wordmark{font-family:var(--body);font-weight:700;letter-spacing:-.01em}
+.wordmark span{color:#D9971C}
+:root[data-theme="dark"] .wordmark span{color:#F2B544}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .wordmark span{color:#F2B544} }
 .trades{display:flex;flex-direction:column;gap:8px}
 .trades button{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;border:1.5px solid var(--line);background:var(--surface);border-radius:16px;padding:12px 14px;text-align:left;min-height:60px}
 .trades button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
@@ -1005,7 +1046,7 @@ const PROFILES = {
     cloud:{url:'https://qfimqsqmxiqiydjexkfc.supabase.co', key:'sb_publishable_jCwOLmgU9N6YzZBf7KdK2A_pSW2f1aj', host:/(^|\.)(brookstelles\.com|solepro\.app)$/, home:'https://app.solepro.app', movedFrom:/^(sole\.brookstelles\.com|solepro\.app|www\.solepro\.app)$/},
     trade:'Massage therapist', short:'Massage', biz:'Tidewater Massage', look:'sole', owner:'Lena', team:['Lena'], now:640,
     unit:'massages', unitOne:'massage', firstVisit:'first massage', treat:'birthday massage', intakeName:'intake form',
-    reviewOn:'Google', booking:'your booking app and Square', real:false,
+    reviewOn:'Google', booking:'your booking app and Square', real:false, geo:{lat:36.85, lon:-75.98},
     source:'Everything on this page is sample data.',
     hours:{open:540, close:1080, turn:15, closed:[0,6]},
     services:{
@@ -1511,6 +1552,7 @@ let SHEETS = [], SHEET_GEN = 0, BOOT_GEN = 0;   // the sheets under the open one
 let REOPEN = null;   // a sheet to put back after the page rebuilds itself ('services', 'setup')
 let NEW_CODE = null;   // website: the invite code of someone setting up a new business (the setup screens cover the page)
 let TOAST_T = null; const UNDO = {arm:null, snap:null};
+let WX = null, WX_BUSY = false, WX_REDRAW = null;   // the weather where the business is (Open-Meteo, free, no account), kept on the phone for half an hour
 let TEXT_ON = null; const TEXT_Q = [];   // website: SolePro texts clients from its own number (the text Edge Function); texts waiting out the Undo window
 let OPEN_MSG = new URLSearchParams(location.search).get('msg');   // a tapped notification opens SolePro on that message   // the message on screen and what Undo puts back: both outlive a rebuild
 // the real business's own book (appointments, time off, clients, payments and costs), one database document per item;
@@ -2090,6 +2132,9 @@ const MOTIF = P.look === 'seaglass' ? LILY : SUN;
 const BIZMARK = P.logo ? `<img src="${P.logo}" alt="">` : P.look === 'seaglass' ? LILY.replace('class="lily"', 'class="mark"') : esc(P.biz.split(/\s+/).filter(w => /^[A-Za-z]/.test(w)).slice(0,2).map(w => w[0].toUpperCase()).join(''));
 const SUNMARK = `<svg viewBox="-32 -32 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle r="10" fill="currentColor"/>${
   Array.from({length:8}, (_,i) => `<path transform="rotate(${i*45})" d="M0 -16V-25"/>`).join('')}</g></svg>`;
+// SolePro's own mark (chosen Oct 27, 2026): the sun coming up over the horizon on an indigo tile
+const BADGE = `<svg class="badge" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="23" fill="#3A3576"/><clipPath id="sp-hz"><rect width="100" height="64"/></clipPath><circle cx="50" cy="64" r="21" fill="#F2B544" clip-path="url(#sp-hz)"/><line x1="74.25" y1="50.00" x2="82.91" y2="45.00" stroke="#F2B544" stroke-width="6.5" stroke-linecap="round"/><line x1="64.00" y1="39.75" x2="69.00" y2="31.09" stroke="#F2B544" stroke-width="6.5" stroke-linecap="round"/><line x1="50.00" y1="36.00" x2="50.00" y2="26.00" stroke="#F2B544" stroke-width="6.5" stroke-linecap="round"/><line x1="36.00" y1="39.75" x2="31.00" y2="31.09" stroke="#F2B544" stroke-width="6.5" stroke-linecap="round"/><line x1="25.75" y1="50.00" x2="17.09" y2="45.00" stroke="#F2B544" stroke-width="6.5" stroke-linecap="round"/><rect x="16" y="66" width="68" height="6" rx="3" fill="#F2B544"/><rect x="30" y="77" width="40" height="5" rx="2.5" fill="#F2B544" opacity=".55"/></svg>`;
+const WORDMARK = '<b class="wordmark">Sole<span>Pro</span></b>';
 
 /* ---------- state ---------- */
 const S = {tab:'today', week:0, day:0, range:'week', bar:0, answer:null, search:'', yr:2026, wiC:0, wiP:0, money:'home', who:ME, ...(KEEP || {})};
@@ -2162,7 +2207,7 @@ function viewToday(){
   const wk = sumOf('week'), td = sumOf('today');
   return `
   ${P.fresh ? setupCard() : ''}${(() => { const o = [0,1,2,3,4,5,6,7].find(d => familyOn(d).length); if (o == null) return ''; const f = familyOn(o)[0];
-    return `<button class="heads" data-act="sday" data-v="${o}">${esc(f.what)}${f.who ? ` for ${esc(f.who)}` : ''} ${o === 0 ? 'today' : o === 1 ? 'tomorrow' : DOW[dateOf(o).getDay()]} · ${esc(f.why)}</button>`; })()}<div class="dash"><div class="dash-a"><section class="sec"><p class="lede">${ap.length ? `<b>${ap.length} ${ap.length === 1 ? W1 : WN} today.</b> ${left ? `${left} still to come. Your last one ends at ${clock(end)}.` : 'All done for the day.'}` : `<b>Nothing booked today.</b> ${Object.keys(CL).length ? 'Book someone, or block time for yourself.' : `Add your first ${W1} to get going.`}`}</p></section>
+    return `<button class="heads" data-act="sday" data-v="${o}">${esc(f.what)}${f.who ? ` for ${esc(f.who)}` : ''} ${o === 0 ? 'today' : o === 1 ? 'tomorrow' : DOW[dateOf(o).getDay()]} · ${esc(f.why)}</button>`; })()}<div class="dash"><div class="dash-a"><section class="sec"><p class="lede">${ap.length ? `<b>${ap.length} ${ap.length === 1 ? W1 : WN} today.</b> ${left ? `${left} still to come. Your last one ends at ${clock(end)}.` : 'All done for the day.'}` : `<b>Nothing booked today.</b> ${Object.keys(CL).length ? 'Book someone, or block time for yourself.' : `Add your first ${W1} to get going.`}`}</p>${wxLine()}</section>
   ${next ? `<section class="next" aria-label="Next ${W1}">${MOTIF}
     <p class="eyebrow">Next · ${clock(next.start)} · in ${dur(mins)}</p>
     <h2>${c.name}</h2>
@@ -2318,7 +2363,7 @@ function dayView(off, mon, hist){
   <section class="sec">
     <div class="sec-h"><h2>${off===0?'Today':dayLong(off)}</h2><button class="chip sm" data-act="dayhours" data-v="${off}">${closed ? 'Closed' : `${hrs(openOf(off))}–${hrs(closeOf(off))}`}</button></div>
     ${dayTags(off) ? `<div class="day-tags">${dayTags(off)}</div>` : ''}
-    ${n || !closed ? `<p class="small muted">${n} ${n === 1 ? W1 : WN}${off >= 0 && !closed ? ` · ${open ? dur(open) + ' open' : 'full'}` : ''}</p>` : ''}
+    ${n || !closed ? `<p class="small muted">${n} ${n === 1 ? W1 : WN}${off >= 0 && !closed ? ` · ${open ? dur(open) + ' open' : 'full'}` : ''}${wxDayBit(off)}</p>` : wxDayBit(off) ? `<p class="small muted">${wxDayBit(off).slice(3)}</p>` : ''}
     ${closed && !n ? `<div class="empty">You’re closed ${off === 0 ? 'today' : 'this day'}. <button class="linkbtn" data-act="dayhours" data-v="${off}">Open it</button></div>`
       : `${ap.length || off >= 0 ? `<div class="list">${dayRows(off)}</div>` : ''}${old.length ? `<div class="list"${ap.length || off >= 0 ? ' style="margin-top:10px"' : ''}>${old.map(histRow).join('')}</div>` : ''}`}
   </section>`;
@@ -2648,6 +2693,8 @@ function meHTML(){
     ${pushHTML()}
     <div class="field"><span class="label">Services and prices</span><button class="btn line" data-act="sv-list">Change services and prices</button><span class="small muted">${svOpen().length} offered, from ${money(Math.min(...svOpen().map(k => SV[k].price)))}. Add one, change a price or length, or stop offering one.</span></div>
     ${TEXT_ON && P.real ? `<div class="field"><span class="label">Texts when you book or move someone</span>${seg('me-autotext', PREFS.autoText === false ? 'off' : 'on', [['on', 'SolePro sends them'], ['off', 'I send them']])}<span class="small muted">${PREFS.autoText === false ? 'Messages opens with the text written, for you to send.' : 'From SolePro’s number, a few seconds after you book, so Undo can stop it. Replies show up in SolePro and buzz your phone.'}</span></div>` : ''}
+    <div class="field"><span class="label">Weather on Today</span>${P.geo || PREFS.geo ? seg('me-wx', PREFS.wx === false ? 'off' : 'on', [['on', 'Show it'], ['off', 'Hide it']]) + `<span class="small muted">${P.geo ? 'For the area around your business.' : 'For where this phone was when you turned it on.'} A short line on Today and on each day of your schedule.</span>`
+      : `<button class="btn line" data-act="me-wx-here">${I.today}Show the weather here</button><span class="small muted">Uses this phone’s location once, to know your area.</span>`}</div>
     <div class="field"><span class="label">Thank-you texts the day after</span>${seg('me-thanks', PREFS.thanks === false ? 'off' : 'on', [['on', 'On'], ['off', 'Off']])}<span class="small muted">For everyone on ${esc(P.biz)}.</span></div>
     ${CLOUD_ON && P.real && BIZ ? `<div class="field"><span class="label">Backup in Google Calendar</span><button class="btn line" data-act="gcal">${I.schedule}Copy my ${P.unit} to Google Calendar</button><span class="small muted">Every ${P.unitOne}, kept up to date by itself.</span></div>` : ''}
     ${CLOUD_ON && USER_EMAIL ? `<button class="btn line danger-line" data-act="me-out" style="width:100%;margin-top:8px">Sign out</button>` : ''}`;
@@ -3890,6 +3937,51 @@ function messageFor(k, kind){
   return `Hi ${f}! `;
 }
 
+// the weather, quietly: kind of day, temperature, and when rain is likely (for outdoor work, which visits it lands on)
+const OUTDOOR = ['landscape', 'pool', 'walk', 'handy'].includes(P.visitKind || KEY);
+const WX_WORD = {clear:'sunny', partly:'partly cloudy', cloudy:'cloudy', fog:'foggy', rain:'rainy', snow:'snowy', storm:'stormy'};
+const wxKind = c => c === 0 ? 'clear' : c <= 2 ? 'partly' : c === 3 ? 'cloudy' : c <= 48 ? 'fog' : (c >= 51 && c <= 67) || (c >= 80 && c <= 82) ? 'rain' : (c >= 71 && c <= 77) || c === 85 || c === 86 ? 'snow' : c >= 95 ? 'storm' : 'cloudy';
+const WX_SVG = {
+  clear:'<circle cx="12" cy="12" r="4.2"/><path d="M12 2.8v2.2M12 19v2.2M2.8 12h2.2M19 12h2.2M5.5 5.5l1.6 1.6M16.9 16.9l1.6 1.6M5.5 18.5l1.6-1.6M16.9 7.1l1.6-1.6"/>',
+  moon:'<path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10z"/>',
+  partly:'<path d="M8 3.5v1.5M3.5 8H5M4.8 4.8l1 1M12.2 4.8l-1 1"/><path d="M5.6 10.6a3.5 3.5 0 1 1 6-3"/><path d="M8.5 20h9a3.5 3.5 0 0 0 .3-7 5 5 0 0 0-9.6 1.2A2.9 2.9 0 0 0 8.5 20z"/>',
+  cloudy:'<path d="M7 19h10a4 4 0 0 0 .4-8 6 6 0 0 0-11.6 1.6A3.2 3.2 0 0 0 7 19z"/>',
+  fog:'<path d="M4 9h16M6 13h12M4 17h16"/>',
+  rain:'<path d="M7 15h10a4 4 0 0 0 .4-8A6 6 0 0 0 5.8 8.6 3.2 3.2 0 0 0 7 15z"/><path d="M8 18l-1 2.5M12 18l-1 2.5M16 18l-1 2.5"/>',
+  snow:'<path d="M7 15h10a4 4 0 0 0 .4-8A6 6 0 0 0 5.8 8.6 3.2 3.2 0 0 0 7 15z"/><path d="M8 19h.01M12 20h.01M16 19h.01"/>',
+  storm:'<path d="M7 15h10a4 4 0 0 0 .4-8A6 6 0 0 0 5.8 8.6 3.2 3.2 0 0 0 7 15z"/><path d="M12.5 15l-2 3.5h3l-2 3.5"/>'};
+const wxIcon = (k, night) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${WX_SVG[k === 'clear' && night ? 'moon' : k]}</svg>`;
+function wxDay(off){
+  if (!WX || !WX.daily) return null; const i = WX.daily.time.indexOf(isoDay(dateOf(off))); if (i < 0) return null;
+  return {kind:wxKind(WX.daily.weather_code[i]), hi:Math.round(WX.daily.temperature_2m_max[i]), lo:Math.round(WX.daily.temperature_2m_min[i])};
+}
+// the first stretch of hours that day (6 am to 9 pm, from now on today) when rain is more likely than not
+function wxRain(off){
+  const h = WX && WX.hourly; if (!h) return null;
+  const day = isoDay(dateOf(off)), p = hr => { const i = h.time.indexOf(`${day}T${String(hr).padStart(2, '0')}:00`); return i < 0 ? 0 : h.precipitation_probability[i] || 0; };
+  let s = Math.max(6, off === 0 ? Math.floor(NOW / 60) : 6); while (s <= 21 && p(s) < 50) s++;
+  if (s > 21) return null; let e = s; while (e <= 21 && p(e) >= 50) e++;
+  return {s, e};
+}
+const hr12 = h => `${h % 12 || 12}`, ampm = h => h < 12 || h === 24 ? 'am' : 'pm';
+const hrRange = r => ampm(r.s) === ampm(r.e) ? `${hr12(r.s)}–${hr12(r.e)}\u00a0${ampm(r.e)}` : `${hr12(r.s)}\u00a0${ampm(r.s)}–${hr12(r.e)}\u00a0${ampm(r.e)}`;
+const wxHits = (off, r) => r && OUTDOOR ? AP.filter(a => a.off === off && a.start < r.e * 60 && a.start + minOf(a) > r.s * 60).length : 0;
+// Today: now and the rest of today; after 6 pm, tomorrow
+function wxLine(){
+  if (!WX || !WX.current || PREFS.wx === false) return '';
+  const late = NOW >= 18 * 60, off = late ? 1 : 0, d = wxDay(off); if (!d) return '';
+  const r = wxRain(off), hits = wxHits(off, r), now = WX.current, kind = late ? d.kind : wxKind(now.weather_code), night = !late && !now.is_day;
+  const lead = late ? `Tomorrow: ${WX_WORD[d.kind]}, high ${d.hi}°` : `${Math.round(now.temperature_2m)}° and ${kind === 'clear' && night ? 'clear' : WX_WORD[kind]} · high ${d.hi}°`;
+  const rain = r ? ` · rain likely ${hrRange(r)}${hits ? `, during ${hits} ${hits === 1 ? P.unitOne : P.unit}` : ''}` : '';
+  return `<p class="wx${hits ? ' wet' : ''}">${wxIcon(kind, night)}<span>${lead}${rain}</span></p>`;
+}
+// the schedule's day: its weather after the count, while the forecast reaches it
+function wxDayBit(off){
+  if (off < 0 || PREFS.wx === false) return ''; const d = wxDay(off); if (!d) return '';
+  const r = wxRain(off), hits = wxHits(off, r);
+  return ` · <span class="wx-s${hits ? ' wet' : ''}">${wxIcon(d.kind, false)}${d.hi}°${r ? `, rain ${hrRange(r)}` : ''}</span>`;
+}
+
 // after booking or moving: SolePro texts the client itself when texting is set up and they have a number; otherwise
 // Messages opens with the text written, for the owner to send
 const autoText = () => !!TEXT_ON && !!P.real && PREFS.autoText !== false;
@@ -4055,7 +4147,7 @@ function obRender(){
   const dots = `<div class="ob-dots">${Array.from({length:OB_STEPS}, (_,i) => `<i class="${i <= OB.step ? 'on' : ''}"></i>`).join('')}</div>`;
   const nav = (next, label) => `<div class="btn-row">${OB.step ? '<button class="btn" data-act="ob-back">Back</button>' : '<span></span>'}<button class="btn primary" data-act="${next}">${label}</button></div>`;
   let body = '';
-  if (OB.step === 0) body = `<div class="welcome"><div class="brand">${SUNMARK}<b>SolePro</b></div>
+  if (OB.step === 0) body = `<div class="welcome"><div class="brand">${BADGE}${WORDMARK}</div>
       <p>The app for the one-person business. Your schedule, your customers, your money and your paperwork, in one place made for yours.</p>
       <p class="muted small">Setup takes about two minutes. Upload your logo and your forms, and SolePro looks and feels like yours.</p></div>
       <button class="btn primary" data-act="ob-next">Create my account</button>`;
@@ -4084,7 +4176,7 @@ function obRender(){
       <div class="prices">${T.services.map(([k, n, m, p]) => `<div class="price"><div><input class="text-in" id="ob-name-${k}" value="${esc(OB.names[k] != null ? OB.names[k] : n)}" aria-label="Service name" style="padding:8px 10px;font-weight:600"><span>${dur(m)}</span></div><label>$<input id="ob-price-${k}" inputmode="numeric" value="${OB.prices[k] != null ? esc(OB.prices[k]) : p}" aria-label="Price"></label></div>`).join('')}</div>
       <p class="small muted">Add more services, and connect your booking app and Square, from the app once you’re in.</p>
       ${nav('ob-done', `Open ${esc(OB.biz)}`)}`;
-  const html = `<div class="ob">${OB.step ? `<div class="sh-top"><div class="brand" style="gap:8px">${SUNMARK.replace('<svg', '<svg style="width:26px;height:26px"')}<b style="font-size:22px">SolePro</b></div><button class="close" data-act="close">Cancel</button></div>` : ''}${body}</div>`;
+  const html = `<div class="ob">${OB.step ? `<div class="sh-top"><div class="brand" style="gap:8px">${BADGE.replace('<svg', '<svg style="width:28px;height:28px"')}${WORDMARK.replace('<b ', '<b style="font-size:22px" ')}</div><button class="close" data-act="close">Cancel</button></div>` : ''}${body}</div>`;
   if ($('.sheet')) { $('.sheet').innerHTML = `<div class="grab"></div>${html}`; $('.sheet').scrollTop = 0; } else sheet(html, OB.cloud ? 'full' : '');
 }
 function obFinish(){
@@ -4399,7 +4491,7 @@ on('click', e => {
     case 'formprint': printForm(FORMS[+el.dataset.i]); break;
     case 'resp-print': { const r = RESP.find(x => x.id === v); if (r) printDoc(`${r.form} ${CL[r.client] ? CL[r.client].name : r.name || ''}`, respBlocks(r)); break; }
     case 'pdf-go': if (PDF_READY) navigator.share({files:[PDF_READY.file], title:PDF_READY.title}).then(() => { PDF_READY = null; closeSheet(); }, () => {}); break;
-    case 'trade': sheet(`<div class="sh-top"><div class="brand">${SUNMARK}<b>SolePro</b></div><button class="close" data-act="close">Done</button></div>
+    case 'trade': sheet(`<div class="sh-top"><div class="brand">${BADGE}${WORDMARK}</div><button class="close" data-act="close">Done</button></div>
       <p class="muted">SolePro is for the owner who does the work: a one- or two-person business of any kind. Every business gets the same tools, set up with its own words, forms, name and colors.</p>
       <span class="label">Businesses</span>
       <div class="trades">${[...Object.keys(PROFILES), ...Object.keys(ACCOUNTS)].map(k => { const p = PROFILES[k], a = ACCOUNTS[k];
@@ -4537,6 +4629,11 @@ on('click', e => {
     case 'sv-save': svSave(); break;
     case 'sv-off': case 'sv-on': { const c = SV[SVE.k]; svStore({k:SVE.k, price:c.price, min:c.min, v:{off:el.dataset.act === 'sv-off' ? true : undefined}}, el.dataset.act === 'sv-off' ? `${c.name}, ${dur(c.min)}, is off the list. Visits already booked with it stay.` : `${c.name}, ${dur(c.min)}, is offered again.`); break; }
     case 'me-autotext': PREFS.autoText = v !== 'off'; savePrefs(); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
+    case 'me-wx': PREFS.wx = v !== 'off'; savePrefs(); ME_DIRTY = true; $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
+    case 'me-wx-here': if (!navigator.geolocation) { toast('This phone can’t share its location.'); break; }
+      el.disabled = true; navigator.geolocation.getCurrentPosition(pos => { PREFS.geo = {lat:+pos.coords.latitude.toFixed(2), lon:+pos.coords.longitude.toFixed(2)}; PREFS.wx = true; savePrefs(); ME_DIRTY = true;
+        if ($('.sheet')) $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; toast('Weather is on. It shows on Today.'); },
+        () => { el.disabled = false; toast('Location wasn’t allowed. Turn it on for this site in Settings, then try again.'); }, {maximumAge:864e5, timeout:15000}); break;
     case 'me-thanks': PREFS.thanks = v !== 'off'; savePrefs(); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
     case 'me-face-off': try { localStorage.removeItem('sole-face'); } catch (_) {} $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; toast(`${FACE} is off on this phone. Next time, sign in with a code.`); break;
     case 'me-face-on': if (!pkOk()) { toast(`${FACE} isn’t ready on this address yet. Try again later.`); break; } el.disabled = true; pkCeremony('reg').then(() => true, err => err && (err.code === 'webauthn_credential_exists' || err.name === 'InvalidStateError'))
@@ -4636,11 +4733,13 @@ RESP.forEach(r => applyResponse(r, true));
 render();
 if (REOPEN === 'services') { REOPEN = null; sheet(servicesHTML()); }
 if (REOPEN === 'setup') { REOPEN = null; OB = {step:1, trade:null, what:'', who:0, unit:0, biz:'', owner:'', mate:'', two:false, logo:null, colors:[], color:null, docs:[], prices:{}, names:{}, cloud:true}; obRender(); }
+WX_REDRAW = () => { if (!document.querySelector('.sheet') && ['today', 'schedule'].includes(S.tab)) { KEEP = {...S}; const y = window.scrollY; boot(KEY); window.scrollTo(0, y); } };
+if (PREFS.wx !== false) wxLoad(P.geo || PREFS.geo);
 if (TEXT_ON === null && CLOUD_ON && SB && BIZ && P.real) { TEXT_ON = false; SB.functions.invoke('text', {body:{action:'status'}}).then(r => { TEXT_ON = !!(r && r.data && r.data.on); }).catch(() => {}); }
 if (OPEN_MSG && INBOX.some(m => m.id === OPEN_MSG)) { const id = OPEN_MSG; OPEN_MSG = null; try { history.replaceState(history.state, '', location.pathname); } catch (_) {} inboxSheet(id); }
 if (P.real && !SQ) loadSquare(KEY);
 if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.getItem('sole-seen'); } catch (_) {}
-  if (!seen) sheet(`<div class="welcome"><div class="brand">${SUNMARK}<b>SolePro</b></div>
+  if (!seen) sheet(`<div class="welcome"><div class="brand">${BADGE}${WORDMARK}</div>
     <p>The app for the one-person business. Your schedule, your customers, your money and your paperwork, in one place made for yours.</p></div>
     <button class="btn primary" data-act="welcome-setup">Set up my business</button>
     <button class="btn line" data-act="welcome-look">Look around a sample business</button>`); }
@@ -4651,6 +4750,23 @@ if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.g
    the rest of the app is the same on both. On claude.ai nothing here runs. */
 const CLOUD_CFG = PROFILES.massage.cloud || {};   // set in the private edition only
 let FORM_LINK = null, CLIENT_NAME = () => '', TOAST = () => {}, USER_EMAIL = '', ME_DIRTY = false;
+/* ---------- the weather (asked for Oct 27, 2026): one quiet line on Today and on each day of the schedule ----------
+   From Open-Meteo for the business's spot (P.geo, or PREFS.geo when the owner shared this phone's location). Tests
+   pass made-up weather in __SOLE_WX; a browser driven by a test fetches nothing. */
+function wxLoad(geo){
+  if (window.__SOLE_WX !== undefined) { WX = window.__SOLE_WX; return; }
+  if (!geo || geo.lat == null || navigator.webdriver) return;
+  const key = `${(+geo.lat).toFixed(2)},${(+geo.lon).toFixed(2)}`;
+  try { const c = JSON.parse(localStorage.getItem('sole-wx') || 'null'); if (c && c.key === key) { WX = c.data; if (Date.now() - c.at < 30 * 60e3) return; } } catch (_) {}
+  if (WX_BUSY) return; WX_BUSY = true;
+  const [lat, lon] = key.split(',');
+  fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&hourly=precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&temperature_unit=fahrenheit&timezone=auto&forecast_days=8`)
+    .then(r => r.ok ? r.json() : null).then(d => { WX_BUSY = false; if (!d || !d.daily || !d.current) return;
+      const first = !WX; WX = d; try { localStorage.setItem('sole-wx', JSON.stringify({key, at:Date.now(), data:d})); } catch (_) {}
+      if (first && WX_REDRAW) WX_REDRAW(); })
+    .catch(() => { WX_BUSY = false; });
+}
+
 /* ---------- texts from SolePro's own number (asked for Oct 27, 2026) ----------
    After booking or moving, the confirmation goes to the client by itself once the Undo window has passed (Undo stops
    it); leaving the app sends it right away. If it can't go, Messages opens with it written, as before. */
@@ -4712,6 +4828,9 @@ async function introDone(){
   sc.classList.add('leaving'); setTimeout(() => sc.remove(), INTRO_MS ? 1150 : 0);
 }
 const welcomeHTML = name => `<p class="sky-hello">${lsGet('sole-been') ? 'Welcome back' : 'Welcome'}</p><p class="sky-biz">${cloudEsc(name)}</p><p class="muted sky-wait small">Opening your book…</p>`;
+// the opening follows the clock (asked for Oct 27, 2026): a sunrise in the morning, the sun high at midday, a sunset in
+// the evening, the moon and stars at night (tests: __SOLE_HOUR)
+const TOD = (h => h >= 5 && h < 11 ? 'dawn' : h >= 11 && h < 17 ? 'day' : h >= 17 && h < 20 ? 'dusk' : 'night')(window.__SOLE_HOUR != null ? window.__SOLE_HOUR : new Date().getHours());
 // the sunrise is drawn once; later screens (code, opening the book) only change the card, so the intro doesn't replay
 function cloudScreen(html){
   document.documentElement.dataset.look = 'sole'; $id('hdr').innerHTML = ''; $id('tabs').innerHTML = '';
@@ -4719,11 +4838,12 @@ function cloudScreen(html){
     let seed = 7; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
     const stars = Array.from({length:44}, () => `<i style="left:${(rnd()*100).toFixed(1)}%;top:${(rnd()*72).toFixed(1)}%;opacity:${(.3 + rnd()*.6).toFixed(2)};animation-delay:-${(rnd()*4).toFixed(1)}s"></i>`).join('');
     const shine = [64, 92, 54, 78, 40, 58, 28, 40, 18].map((w, i) => `<i style="width:${w}px;animation-delay:-${(i*.37).toFixed(2)}s"></i>`).join('');
-    $id('main').innerHTML = `<section class="signin">
+    $id('main').innerHTML = `<section class="signin" data-tod="${TOD}">
       <div class="sky" aria-hidden="true"><div class="air"><div class="stars">${stars}</div><div class="glow"></div>
-        <div class="sun"><svg viewBox="-32 -32 64 64"><circle r="10" fill="#F6C46C"/><g class="rays" fill="none" stroke="#FAD889" stroke-width="2.2" stroke-linecap="round">${Array.from({length:8}, (_, i) => `<path transform="rotate(${i*45})" d="M0 -15V-23"/>`).join('')}</g></svg></div></div>
+        ${TOD === 'night' ? '<div class="moon"><svg viewBox="-32 -32 64 64"><circle r="15" fill="#EFEBD8"/><circle r="13.5" cx="8" cy="-6" fill="#0E0C2A"/></svg></div>'
+          : `<div class="sun"><svg viewBox="-32 -32 64 64"><circle r="10" fill="#F6C46C"/><g class="rays" fill="none" stroke="#FAD889" stroke-width="2.2" stroke-linecap="round">${Array.from({length:8}, (_, i) => `<path transform="rotate(${i*45})" d="M0 -15V-23"/>`).join('')}</g></svg></div>`}</div>
         <div class="sea"><div class="shine">${shine}</div></div></div>
-      <div class="sky-in"><div class="sky-head"><h1 class="sky-word" aria-label="SolePro">${[...'SolePro'].map((ch, i) => `<span aria-hidden="true" style="animation-delay:${(1 + i*.12).toFixed(2)}s">${ch}</span>`).join('')}</h1>
+      <div class="sky-in"><div class="sky-head"><h1 class="sky-word" aria-label="SolePro">${[...'SolePro'].map((ch, i) => `<span aria-hidden="true"${i > 3 ? ' class="pro"' : ''} style="animation-delay:${(1 + i*.12).toFixed(2)}s">${ch}</span>`).join('')}</h1>
         <p class="sky-tag">For the one-person business</p></div>
         <div class="sky-card" id="sky-card"></div></div></section>`;
   }

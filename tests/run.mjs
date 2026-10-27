@@ -299,6 +299,33 @@ console.log('ok private Square views');
   await p.close();
   console.log('ok website page');
 }
+// SolePro's mark, and the weather on Today and the schedule (a made-up forecast shaped like Open-Meteo's)
+{
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const days = [...Array(8)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return iso(d); });
+  const hours = days.flatMap(d => [...Array(24)].map((_, h) => `${d}T${String(h).padStart(2, '0')}:00`));
+  const wx = {current:{temperature_2m:78.4, weather_code:0, is_day:1},
+    daily:{time:days, weather_code:days.map(() => 1), temperature_2m_max:days.map(() => 84.2), temperature_2m_min:days.map(() => 70), precipitation_probability_max:days.map(() => 80)},
+    hourly:{time:hours, precipitation_probability:hours.map(t => +t.slice(11, 13) >= 6 && +t.slice(11, 13) < 22 ? 80 : 0)}};
+  const p = await open('dist/demo.html', `window.__SOLE_WX = ${JSON.stringify(wx)};`);
+  check(await p.locator('.welcome .brand svg.badge').count() === 1, 'mark: the badge on the welcome');
+  await p.click('[data-act=welcome-look]'); await p.click('[data-act=trade]');
+  check(await p.locator('.sheet .brand svg.badge').count() === 1 && /^SolePro$/.test((await p.textContent('.sheet .brand .wordmark')).trim()), 'mark: the sunrise badge and the SolePro wordmark');
+  await p.click('[data-act=pick][data-v=landscape]');
+  const line = await p.textContent('.wx');
+  check(/^(\d+° and sunny · high 84°|Tomorrow: partly cloudy, high 84°)/.test(line.trim()), 'weather: a quiet line on Today: ' + line);
+  check(/rain likely .*\spm/.test(line), 'weather: when rain is likely: ' + line);
+  await p.click('.tab[data-v=schedule]');
+  check(/84°, rain/.test(await p.textContent('main')), 'weather: the schedule day has its high and rain');
+  check(!(await wide(p)), 'weather: fits the phone');
+  // turned off from the account sheet
+  await p.click('.tab[data-v=today]');
+  await p.click('[data-act=trade]'); await p.click('[data-act=pick][data-v=massage]'); check(await p.locator('.wx').count() === 1, 'weather: on the massage business too');
+  await p.click('[data-act=me]'); await p.click('.sheet [data-act=me-wx][data-v=off]'); await p.click('.sheet .close');
+  check(await p.locator('.wx').count() === 0, 'weather: Hide it means gone');
+  await p.close();
+  console.log('ok mark and weather');
+}
 
 // SolePro's own website: sign in with a code, the book and Square payments from Supabase (a stand-in client, made-up data)
 {
@@ -562,7 +589,7 @@ console.log('ok private Square views');
   // to start every animation over), and a phone that has opened the book before says welcome back from the start
   { const o = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); o.on('pageerror', e => errs.push('opening: ' + e.message));
     const slow = fake.replace('then:(ok, no) => Promise.resolve(run()).then(ok, no)', 'then:(ok, no) => new Promise(r => setTimeout(r, 250)).then(() => run()).then(ok, no)');
-    await o.addInitScript(`localStorage.setItem('sole-been','1'); localStorage.setItem('sole-face-later', String(Date.now())); localStorage.setItem('sole-biz-name','Cloud Test Massage');\nwindow.__FAKE_DB = ${JSON.stringify(seed)};\n${slow}\nwindow.__SOLE_CLOUD_CLIENT.auth.verifyOtp({email:'test@example.com', token:'123456'});`);
+    await o.addInitScript(`window.__SOLE_HOUR = 7; localStorage.setItem('sole-been','1'); localStorage.setItem('sole-face-later', String(Date.now())); localStorage.setItem('sole-biz-name','Cloud Test Massage');\nwindow.__FAKE_DB = ${JSON.stringify(seed)};\n${slow}\nwindow.__SOLE_CLOUD_CLIENT.auth.verifyOtp({email:'test@example.com', token:'123456'});`);
     await o.route('https://sole.test/', r => r.fulfill({contentType:'text/html', body:site})); o.goto('https://sole.test/').catch(() => {});
     const ys = [], cards = new Set();
     for (let i = 0; i < 30; i++) { const r = await o.evaluate(() => { const s = document.querySelector('.sky .sun'), c = document.getElementById('sky-card');
@@ -571,6 +598,13 @@ console.log('ok private Square views');
     check(ys.length > 10 && ys.every((y, i) => !i || y <= ys[i - 1] + 0.5), 'opening: the sun rises once, without starting over');
     check([...cards].every(c => /Welcome back\s*Cloud Test Massage/.test(c)), 'opening: a returning phone says welcome back from the start');
     await o.close(); }
+  // the opening shows the time of day: sunrise in the morning, the sun high at midday, sunset, and the moon at night
+  for (const [h, tod] of [[7, 'dawn'], [13, 'day'], [18, 'dusk'], [23, 'night']]) {
+    const x = await page(`window.__SOLE_HOUR = ${h};`);
+    await x.waitForSelector('.signin');
+    const r = await x.evaluate(() => ({tod:document.querySelector('.signin').dataset.tod, moon:!!document.querySelector('.sky .moon'), sun:!!document.querySelector('.sky .sun')}));
+    check(r.tod === tod && r.moon === (tod === 'night') && r.sun === (tod !== 'night'), `opening at ${h}:00 shows ${tod}: ${JSON.stringify(r)}`);
+    await x.close(); }
   // texts from SolePro's number: booking texts the client by itself once the Undo window has passed, Undo stops it, the
   // owner can turn it off, and a reply lands in Messages and is answered from SolePro
   { const t = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); t.on('pageerror', e => errs.push('texts: ' + e.message));
