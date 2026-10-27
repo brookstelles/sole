@@ -27,6 +27,10 @@ window.__SOLE_CLOUD_CLIENT = (() => {
       then:(ok, no) => Promise.resolve(run()).then(ok, no)};
     return api;
   };
+  // the text Edge Function: on when the test says texting is set up (__FAKE_TEXT_ON); texts sent are kept in __FAKE.texts
+  const text = b => { if (b.action === 'status') return {data:{on:!!window.__FAKE_TEXT_ON}};
+    if (!window.__FAKE_TEXT_ON) return {data:{error:'off'}}; if (String(b.to || '').replace(/\D/g, '').length < 10) return {data:{error:'phone'}};
+    (window.__FAKE.texts = window.__FAKE.texts || []).push(b); return {data:{ok:true, sid:'SM' + window.__FAKE.texts.length}}; };
   // the signup Edge Function: an invite code, then a new business and its owner (see supabase/functions/signup)
   const signup = ({action, code, profile, trade}) => {
     const em = session && session.user.email; if (!em) return {data:{error:'sign in first'}};
@@ -70,6 +74,6 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     from:query,
     channel:() => { const ch = {on:(type, opts, cb) => { subs.push({table:opts.table, cb}); return ch; }, subscribe:() => ch}; return ch; },
     storage:{from:() => ({upload:async () => ({error:null}), createSignedUrl:async () => ({data:{signedUrl:'data:,'}})})},
-    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'intake' ? intake(o.body) : name === 'signup' ? signup(o.body) : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
+    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'intake' ? intake(o.body) : name === 'signup' ? signup(o.body) : name === 'text' ? text(o.body) : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
   };
 })();

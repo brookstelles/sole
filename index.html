@@ -220,6 +220,7 @@ main{display:flex;flex-direction:column;gap:22px}
 .btn.danger-line{width:100%;margin-top:12px;color:var(--bad)}
 .vn-same{width:100%}
 .msg-body{font-size:16px;line-height:1.5;white-space:normal}
+.callout.msg-mine{margin-left:28px;background:var(--accent);color:var(--accent-ink)}.msg-mine small{opacity:.75;font-size:13px}
 .vn-same .muted{font-weight:500}
 .vn-quick{gap:6px}
 .rb-what{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -357,7 +358,7 @@ main{display:flex;flex-direction:column;gap:22px}
 .empty{background:var(--surface);border-radius:20px;padding:24px 16px;text-align:center;color:var(--muted);box-shadow:var(--shadow)}
 
 /* money */
-.seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--sunk);border-radius:14px;padding:4px;gap:4px}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--sunk);border-radius:14px;padding:4px;gap:4px}
 .seg button{border:0;background:transparent;border-radius:10px;min-height:42px;font-weight:600;font-size:15px;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
 .hero{display:flex;flex-direction:column;gap:4px}
@@ -1532,6 +1533,7 @@ let SHEETS = [], SHEET_GEN = 0, BOOT_GEN = 0;   // the sheets under the open one
 let REOPEN = null;   // a sheet to put back after the page rebuilds itself ('services', 'setup')
 let NEW_CODE = null;   // website: the invite code of someone setting up a new business (the setup screens cover the page)
 let TOAST_T = null; const UNDO = {arm:null, snap:null};
+let TEXT_ON = null; const TEXT_Q = [];   // website: Sole texts clients from its own number (the text Edge Function); texts waiting out the Undo window
 let OPEN_MSG = new URLSearchParams(location.search).get('msg');   // a tapped notification opens Sole on that message   // the message on screen and what Undo puts back: both outlive a rebuild
 // the real business's own book (appointments, time off, clients, payments and costs), one database document per item;
 // REAL_SAVED mirrors what the database holds so only changed items are written
@@ -2167,7 +2169,7 @@ function viewToday(){
     <div class="btn-row"><button class="btn primary" data-act="req-ok">Accept</button><button class="btn" data-act="req-other">Offer another time</button></div></div>`);
   // To do: one line each; the ones with a list open in place (S.td)
   const todo = [], row = (t, sub, icon, attrs) => todo.push(`<button class="li td" ${attrs}><span class="td-i">${icon}</span><span class="who"><b>${t}</b><span>${sub}</span></span>${I.chev}</button>`);
-  INBOX.filter(m => !m.done).sort((x, y) => String(x.at).localeCompare(String(y.at))).forEach(m => row(`${esc(String(m.name || 'Someone').split(' ')[0])} wrote from your website`, `${esc(msgWhen(m.at))} · ${esc(String(m.message || '').slice(0, 60))}${String(m.message || '').length > 60 ? '…' : ''}`, I.send, `data-act="inb" data-v="${esc(m.id)}"`));
+  INBOX.filter(m => !m.done).sort((x, y) => String(x.at).localeCompare(String(y.at))).forEach(m => row(`${esc(String(m.name || 'Someone').split(' ')[0])} ${m.via === 'text' ? 'texted back' : 'wrote from your website'}`, `${esc(msgWhen(m.at))} · ${esc(String(m.message || '').slice(0, 60))}${String(m.message || '').length > 60 ? '…' : ''}`, I.send, `data-act="inb" data-v="${esc(m.id)}"`));
   unpaid().filter(a => a.off >= -7).forEach(a => row(`${esc(CL[a.c].name)} hasn’t paid`, `${cap(dayName(a.off))} · ${svLabel(a.s)} · ${money(prOf(a))}`, I.wallet, `data-act="charge" data-id="${a.id}"`));
   { const dn = notesDue(), ft = visitForm().title.toLowerCase().replace('soap', 'SOAP'), today = dn.every(a => a.off === 0);
     if (dn.length) row(dn.length === 1 ? `Write ${esc(first(dn[0].c))}’s ${ft}` : `Write ${today ? 'today’s' : 'your'} ${ft}`,
@@ -2667,6 +2669,7 @@ function meHTML(){
     ${face ? `<div class="field"><span class="label">${FACE}</span>${lsGet('sole-face') ? `<p class="small muted">On. Sole opens with a glance.</p><button class="btn line" data-act="me-face-off">Turn off ${FACE} on this phone</button>` : `<button class="btn line" data-act="me-face-on">${FACE_ICON}Turn on ${FACE}</button>`}</div>` : ''}
     ${pushHTML()}
     <div class="field"><span class="label">Services and prices</span><button class="btn line" data-act="sv-list">Change services and prices</button><span class="small muted">${svOpen().length} offered, from ${money(Math.min(...svOpen().map(k => SV[k].price)))}. Add one, change a price or length, or stop offering one.</span></div>
+    ${TEXT_ON && P.real ? `<div class="field"><span class="label">Texts when you book or move someone</span>${seg('me-autotext', PREFS.autoText === false ? 'off' : 'on', [['on', 'Sole sends them'], ['off', 'I send them']])}<span class="small muted">${PREFS.autoText === false ? 'Messages opens with the text written, for you to send.' : 'From Sole’s number, a few seconds after you book, so Undo can stop it. Replies show up in Sole and buzz your phone.'}</span></div>` : ''}
     <div class="field"><span class="label">Thank-you texts the day after</span>${seg('me-thanks', PREFS.thanks === false ? 'off' : 'on', [['on', 'On'], ['off', 'Off']])}<span class="small muted">For everyone on ${esc(P.biz)}.</span></div>
     ${CLOUD_ON && USER_EMAIL ? `<button class="btn line danger-line" data-act="me-out" style="width:100%;margin-top:8px">Sign out</button>` : ''}`;
 }
@@ -2745,18 +2748,25 @@ const msgWhen = at => { const d = new Date(at), off = offOfDate(d), t = clock(d.
 function inboxSheet(id){
   const m = INBOX.find(x => x.id === id); if (!m) return;
   const f = String(m.name || 'there').split(' ')[0], tel = String(m.phone || '').replace(/[^0-9+]/g, ''), back = `Hi ${f}, it’s ${P.owner} from ${P.biz}. Thank you for your message! `;
-  sheet(`${top(esc(m.name || 'Someone'), `Wrote from your website · ${esc(msgWhen(m.at))}`)}
+  // a reply to one of Sole's texts is answered from Sole's number, so the conversation stays in one place
+  const viaText = m.via === 'text' && TEXT_ON && tel.length >= 10;
+  const html = `${top(esc(m.name || 'Someone'), `${m.via === 'text' ? 'Texted back' : 'Wrote from your website'} · ${esc(msgWhen(m.at))}`)}
     <div class="callout msg-body">${esc(m.message || '').replace(/\n/g, '<br>')}</div>
+    ${(m.replies || []).map(r => `<div class="callout msg-body msg-mine"><small>You · ${esc(msgWhen(r.at))}</small><span>${esc(r.text).replace(/\n/g, '<br>')}</span></div>`).join('')}
+    ${viaText ? `<div class="field"><span class="label">Text back from Sole</span><textarea class="text-in" id="inb-reply" rows="3" placeholder="Write your answer"></textarea></div>
+      <div class="btn-row"><button class="btn primary" data-act="inb-send" data-v="${esc(m.id)}">${I.send}Send</button><a class="btn" href="tel:${tel}" target="_top">Call</a></div>` : ''}
     <dl class="notes" style="margin:0">${m.phone ? `<div class="note"><dt>Phone</dt><dd class="phone">${esc(m.phone)}</dd></div>` : ''}${m.email ? `<div class="note"><dt>Email</dt><dd style="word-break:break-all">${esc(m.email)}</dd></div>` : ''}</dl>
-    <div class="btn-row">${tel.length >= 10 ? `<a class="btn primary" href="sms:${tel}&body=${encodeURIComponent(back)}" target="_top">${I.send}Text back</a><a class="btn" href="tel:${tel}" target="_top">Call</a>` : ''}${m.email ? `<a class="btn ${tel.length >= 10 ? '' : 'primary'}" href="mailto:${esc(m.email)}?subject=${encodeURIComponent(P.biz)}&body=${encodeURIComponent(back)}" target="_top">Email back</a>` : ''}</div>
+    ${viaText ? '' : `<div class="btn-row">${tel.length >= 10 ? `<a class="btn primary" href="sms:${tel}&body=${encodeURIComponent(back)}" target="_top">${I.send}Text back</a><a class="btn" href="tel:${tel}" target="_top">Call</a>` : ''}${m.email ? `<a class="btn ${tel.length >= 10 ? '' : 'primary'}" href="mailto:${esc(m.email)}?subject=${encodeURIComponent(P.biz)}&body=${encodeURIComponent(back)}" target="_top">Email back</a>` : ''}</div>`}
     ${m.done ? `<p class="small muted">Answered ${esc(msgWhen(m.done))}.</p><button class="btn line" data-act="inb-undone" data-v="${esc(m.id)}">Not answered yet</button>`
-      : `<button class="btn line" data-act="inb-done" data-v="${esc(m.id)}">${I.check}Mark as answered</button><p class="small muted">It stays on Today’s To do until you do.</p>`}`);
+      : `<button class="btn line" data-act="inb-done" data-v="${esc(m.id)}">${I.check}Mark as answered</button><p class="small muted">It stays on Today’s To do until you do.</p>`}`;
+  const sh = $('#layer .sheet'); if (sh && sh.dataset.msg === id) { sh.innerHTML = `<div class="grab"></div>${html}`; return; }
+  sheet(html); const nsh = $('#layer .sheet'); if (nsh) nsh.dataset.msg = id;
 }
 async function saveMsg(m){ try { const db = await dbOf(); if (db) await db.collection('inbox').doc(m.id).set(JSON.parse(JSON.stringify(m))); } catch (_) { toast('Saved on this phone. It couldn’t reach your account just now.'); } }
 function inboxSection(){
   if (!INBOX.length) return '';
   const L = [...INBOX].sort((x, y) => String(y.at).localeCompare(String(x.at))).slice(0, 12);
-  return `<section class="sec" id="inbox"><div class="sec-h"><h2>Messages from your website</h2><span class="aside">${INBOX.filter(m => !m.done).length} to answer</span></div>
+  return `<section class="sec" id="inbox"><div class="sec-h"><h2>${INBOX.some(m => m.via === 'text') ? 'Messages' : 'Messages from your website'}</h2><span class="aside">${INBOX.filter(m => !m.done).length} to answer</span></div>
     <div class="list">${L.map(m => `<button class="li td${m.done ? ' done' : ''}" data-act="inb" data-v="${esc(m.id)}"><span class="td-i">${m.done ? I.check : I.send}</span><span class="who"><b>${esc(m.name || 'Someone')}</b><span>${esc(msgWhen(m.at))} · ${esc(String(m.message || '').slice(0, 50))}</span></span>${I.chev}</button>`).join('')}</div></section>`;
 }
 // notifications on this phone (web push): an iPhone allows them only for Sole opened from the home screen
@@ -3883,6 +3893,16 @@ function messageFor(k, kind){
   return `Hi ${f}! `;
 }
 
+// after booking or moving: Sole texts the client itself when texting is set up and they have a number; otherwise
+// Messages opens with the text written, for the owner to send
+const autoText = () => !!TEXT_ON && !!P.real && PREFS.autoText !== false;
+const canText = k => autoText() && String(CL[k].phone || '').replace(/\D/g, '').length >= 10;
+function tellClient(k, kind, a, title){
+  const text = messageFor(k, kind, a), back = () => msgSheet(title, text, CL[k].phone);
+  if (!canText(k)) { back(); return; }
+  textLater({to:CL[k].phone, name:CL[k].name.trim(), body:text, kind, ref:`${a.uid || a.id}:${isoDay(dateOf(a.off))}:${a.start}`, who:first(k), back});
+}
+
 /* ---------- booking ---------- */
 let B = null;
 const recent = () => Object.keys(CL).filter(k => (CL[k].visits > 0 || CL[k].mine) && !CL[k].anon);
@@ -4010,15 +4030,15 @@ function bookGo(){
     a.off = B.off; a.start = B.start; a.w = B.w; a.s = B.s;
     const changed = svc ? `${first(a.c)} is now ${svLabel(a.s)}${also ? ` on ${dayName(a.off)} and ${also} more` : ''}.${skip ? ` ${skip} didn’t fit and stay as they were.` : ''}` : '';
     if (!moved) { closeSheet(); render(); if (svc) toast(changed); return; }
-    if (LIVEBOOK) { closeSheet(); render(); toast(`Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}.${svc ? ' ' + changed : ''}`); msgSheet(`Let ${first(a.c)} know`, messageFor(a.c, 'moved', a), CL[a.c].phone); return; }
+    if (LIVEBOOK) { closeSheet(); render(); toast(`Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}.${svc ? ' ' + changed : ''}${canText(a.c) ? ` Sole will text ${first(a.c)}.` : ''}`); tellClient(a.c, 'moved', a, `Let ${first(a.c)} know`); return; }
     msg = `Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}.${svc ? ' ' + changed : ''} In the real app, ${first(a.c)} gets a text.`; }
   else {
     let k = B.c;
     if (k === 'new') { k = 'n' + Date.now().toString(36); CL[k] = {name:B.newName.trim(), phone:'Not added yet', since:T0.getFullYear(), visits:0, last:null, isNew:true, intake:false, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true, ...(P.look === 'seaglass' ? {} : {rows:[]})}; if (!CL[k].name.includes(' ')) CL[k].name += ' '; }
     const na = add(k, B.s, B.off, B.start, {w:B.w, mine:true, uid:uidOf('a')});
     if (B.fromReq) REQ.open = false;
-    if (LIVEBOOK) { if (S.tab === 'schedule') { S.day = B.off; S.week = Math.floor(B.off / 7); } closeSheet(); render(); toast(`Booked ${first(k)} for ${dayName(B.off)} at ${clock(B.start)}.`);
-      msgSheet(`Confirm with ${first(k)}`, messageFor(k, 'confirm', na), CL[k].phone); return; }
+    if (LIVEBOOK) { if (S.tab === 'schedule') { S.day = B.off; S.week = Math.floor(B.off / 7); } closeSheet(); render(); toast(`Booked ${first(k)} for ${dayName(B.off)} at ${clock(B.start)}.${canText(k) ? ` Sole will text ${first(k)}.` : ''}`);
+      tellClient(k, 'confirm', na, `Confirm with ${first(k)}`); return; }
     msg = `Booked ${first(k)} for ${dayName(B.off)} at ${clock(B.start)}. In the real app, a confirmation text goes out.`;
   }
   if (S.tab === 'schedule') { S.day = B.off; S.week = Math.floor(B.off / 7); }
@@ -4257,7 +4277,7 @@ on('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const v = el.dataset.v, id = +el.dataset.id;
   if (UNDOABLE.includes(el.dataset.act)) UNDO.arm = {snap:bookCopy(), at:Date.now()};
-  if (el.dataset.act === 'undo') { if (UNDO.snap) { bookPut(UNDO.snap); UNDO.snap = null; closeSheet(); render(); toast('Undone.'); } return; }
+  if (el.dataset.act === 'undo') { if (UNDO.snap) { textCancel(UNDO.snap); bookPut(UNDO.snap); UNDO.snap = null; closeSheet(); render(); toast('Undone.'); } return; }
   { const a = el.dataset.id && ['move', 'cancel'].includes(el.dataset.act) ? AP.find(x => x.id === id) : null;
     if (a && a.sq) { sheet(`${top('Booked in Square', `${first(a.c)} booked this in Square, so it changes there.`)}
       <p>Open Square to move or cancel it. The change shows up here a minute or two later. New bookings made in Sole stay in Sole.</p>`); return; } }
@@ -4331,6 +4351,12 @@ on('click', e => {
     case 'az': { const g = document.getElementById('clg-' + (v === '#' ? 'num' : v)); if (g) g.scrollIntoView({block:'start', behavior:'smooth'}); break; }
     case 'dig-all': S.digAll = !S.digAll; render(); break;
     case 'inb': inboxSheet(v); break;
+    case 'inb-send': { const m = INBOX.find(x => x.id === v), t = (($('#inb-reply') || {}).value || '').trim(); if (!m) break; if (!t) { toast('Write your answer first.'); break; }
+      el.disabled = true; el.textContent = 'Sending…';
+      const j = {to:m.phone, name:m.name, body:t, kind:'reply', ref:m.id, who:String(m.name || 'them').split(' ')[0],
+        done:() => { const at = new Date().toISOString(); m.replies = [...(m.replies || []), {at, text:t}]; m.done = m.done || at; saveMsg(m); inboxSheet(m.id); toast('Sent.'); },
+        back:() => { el.disabled = false; el.innerHTML = `${I.send}Send`; }};
+      TEXT_Q.push(j); textNow(j); break; }
     case 'inb-done': case 'inb-undone': { const m = INBOX.find(x => x.id === v); if (!m) break; if (el.dataset.act === 'inb-done') m.done = new Date().toISOString(); else delete m.done;
       saveMsg(m); closeSheet(); render(); toast(m.done ? 'Marked as answered.' : 'Back on your To do.'); break; }
     case 'me-push-on': pushOn(); break;
@@ -4509,6 +4535,7 @@ on('click', e => {
     case 'sv-min': { svRead(); SVE.min = +v; const sc = $('.sheet').scrollTop; $('.sheet').innerHTML = `<div class="grab"></div>${serviceHTML()}`; $('.sheet').scrollTop = sc; break; }
     case 'sv-save': svSave(); break;
     case 'sv-off': case 'sv-on': { const c = SV[SVE.k]; svStore({k:SVE.k, price:c.price, min:c.min, v:{off:el.dataset.act === 'sv-off' ? true : undefined}}, el.dataset.act === 'sv-off' ? `${c.name}, ${dur(c.min)}, is off the list. Visits already booked with it stay.` : `${c.name}, ${dur(c.min)}, is offered again.`); break; }
+    case 'me-autotext': PREFS.autoText = v !== 'off'; savePrefs(); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
     case 'me-thanks': PREFS.thanks = v !== 'off'; savePrefs(); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
     case 'me-face-off': try { localStorage.removeItem('sole-face'); } catch (_) {} $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; toast(`${FACE} is off on this phone. Next time, sign in with a code.`); break;
     case 'me-face-on': if (!pkOk()) { toast(`${FACE} isn’t ready on this address yet. Try again later.`); break; } el.disabled = true; pkCeremony('reg').then(() => true, err => err && (err.code === 'webauthn_credential_exists' || err.name === 'InvalidStateError'))
@@ -4608,6 +4635,7 @@ RESP.forEach(r => applyResponse(r, true));
 render();
 if (REOPEN === 'services') { REOPEN = null; sheet(servicesHTML()); }
 if (REOPEN === 'setup') { REOPEN = null; OB = {step:1, trade:null, what:'', who:0, unit:0, biz:'', owner:'', mate:'', two:false, logo:null, colors:[], color:null, docs:[], prices:{}, names:{}, cloud:true}; obRender(); }
+if (TEXT_ON === null && CLOUD_ON && SB && BIZ && P.real) { TEXT_ON = false; SB.functions.invoke('text', {body:{action:'status'}}).then(r => { TEXT_ON = !!(r && r.data && r.data.on); }).catch(() => {}); }
 if (OPEN_MSG && INBOX.some(m => m.id === OPEN_MSG)) { const id = OPEN_MSG; OPEN_MSG = null; try { history.replaceState(history.state, '', location.pathname); } catch (_) {} inboxSheet(id); }
 if (P.real && !SQ) loadSquare(KEY);
 if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.getItem('sole-seen'); } catch (_) {}
@@ -4622,6 +4650,19 @@ if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.g
    the rest of the app is the same on both. On claude.ai nothing here runs. */
 const CLOUD_CFG = PROFILES.massage.cloud || {};   // set in the private edition only
 let FORM_LINK = null, CLIENT_NAME = () => '', TOAST = () => {}, USER_EMAIL = '', ME_DIRTY = false;
+/* ---------- texts from Sole's own number (asked for Oct 27, 2026) ----------
+   After booking or moving, the confirmation goes to the client by itself once the Undo window has passed (Undo stops
+   it); leaving the app sends it right away. If it can't go, Messages opens with it written, as before. */
+function textLater(j){ j.snap = UNDO.snap; j.t = setTimeout(() => textNow(j), window.__SOLE_TEXT_MS != null ? window.__SOLE_TEXT_MS : 8000); TEXT_Q.push(j); }
+async function textNow(j){
+  clearTimeout(j.t); const i = TEXT_Q.indexOf(j); if (i < 0) return; TEXT_Q.splice(i, 1);
+  let d; try { const r = await SB.functions.invoke('text', {body:{action:'send', business_id:BIZ, to:j.to, name:j.name, body:j.body, kind:j.kind, ref:j.ref}}); d = (r && r.data) || {error:'net'}; } catch (_) { d = {error:'net'}; }
+  if (d.ok) { if (!document.hidden && j.kind !== 'reply') TOAST(`Texted ${j.who}.`); if (j.done) j.done(); return; }
+  TOAST(d.error === 'stopped' ? `${j.who} turned off texts from Sole. Send it from your own phone.` : d.error === 'phone' ? `${j.who}’s number didn’t work. Check it, or send it from your own phone.` : `The text to ${j.who} didn’t go. Send it from your own phone.`);
+  if (j.back) j.back();
+}
+const textCancel = snap => { for (let i = TEXT_Q.length - 1; i >= 0; i--) if (!snap || TEXT_Q[i].snap === snap) { clearTimeout(TEXT_Q[i].t); TEXT_Q.splice(i, 1); } };
+document.addEventListener('visibilitychange', () => { if (document.hidden) [...TEXT_Q].forEach(textNow); });
 const setTheme = t => { try { if (t) localStorage.setItem('sole-theme', t); else localStorage.removeItem('sole-theme'); } catch (_) {} if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
 try { const t = localStorage.getItem('sole-theme'); if (t) document.documentElement.dataset.theme = t; } catch (_) {}   // the texted form being filled in (formStart); a client's name, for formLink
 // Sole's address moved (Oct 26, 2026): the old one forwards to the new, texted form links included

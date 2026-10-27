@@ -40,3 +40,26 @@ Supabase project: **Sole** (organization Sole, free plan, East US (Ohio)), creat
   `customer.created`, `customer.updated`; its signature key goes into `SQUARE_WEBHOOK_SIGNATURE_KEY`.
 - **Cloudflare Zero Trust → Access → Applications → sole:** delete it. The website no longer carries Kelli's numbers
   (they're in `businesses.data`, members only), so the Sole sign-in is the only lock she needs.
+
+## Texts to clients (Twilio), to turn on automatic booking texts
+
+Sole is ready; it stays on "Messages opens for Kelli to send" until these are done. Nothing here needs the code changed.
+
+1. **twilio.com:** make an account (Brooks), then upgrade it (add a card; the free trial only texts verified numbers).
+2. **Buy a number:** Phone Numbers → Buy a number, one that can send SMS. A local 561 number reads as personal;
+   a toll-free one (833, 844...) is the other choice.
+3. **Register it** (US carriers block unregistered business texting). For a local number: Messaging → Regulatory
+   Compliance → A2P 10DLC, register the business (sole proprietor is fine) and one campaign, use case
+   "Customer care" or "Account notifications". For toll-free: Toll-free verification. Either way, sample messages:
+   "Hi Jamie! You're booked for Swedish massage, 60 min Tuesday at 2:00 pm. See you then! Kelli, Heart and Soul
+   Massage" and "Hi Jamie, your appointment is now Thursday at 3:00 pm. See you then! Kelli". How people opt in: they
+   give their number when they book, in person, by phone or on the intake form. Approval takes from a few days to a
+   few weeks.
+4. **Messaging → Services → Create:** a Messaging Service named Sole with the number in its sender pool. Under
+   Integration, "Send a webhook" for incoming messages: `https://qfimqsqmxiqiydjexkfc.supabase.co/functions/v1/text`
+   (POST). Leave Advanced Opt-Out on (Twilio answers STOP, START and HELP).
+5. **Supabase → Edge Functions → Secrets:** add `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` (Twilio console home page)
+   and `TWILIO_FROM` (the Messaging Service id, starts with MG). Type them there; don't paste them into a chat.
+6. **Check:** open Sole again (it asks once per opening whether texting is on). Book yourself with your own phone
+   number: the text arrives about 8 seconds later; answer it and your reply shows on Today. Sent and received texts
+   are in the `texts` table; numbers that answered STOP are in `text_optouts`.

@@ -18,6 +18,8 @@ async function open(file, init){
   return p;
 }
 const wide = p => p.evaluate(() => document.documentElement.scrollWidth > 390);
+// the schedule's day n days from today (the week strip runs Monday to Sunday, so it may be on next week's)
+const goDay = async (p, n) => { for (let i = 0; i < 3 && !(await p.locator(`[data-act=day][data-v="${n}"]`).count()); i++) await p.click('[data-act=snav][data-v="1"]'); await p.click(`[data-act=day][data-v="${n}"]`); };
 
 async function tour(p, label, keys = ['massage','hair','barber','tattoo','landscape','tennis']){
   for (const k of keys) {
@@ -45,7 +47,7 @@ async function tour(p, label, keys = ['massage','hair','barber','tattoo','landsc
       await p.evaluate(() => document.querySelector('[data-act=ty-sent]').removeAttribute('href')); await p.click('[data-act=ty-sent] >> nth=0'); await p.waitForTimeout(500);
       check(await p.locator('[data-act=ty-sent]').count() === n - 1, `${label} ${k}: a thanked client leaves the list`); }
     await p.click('[data-act=ask][data-q*="spent"]');
-    await p.click('.tab[data-v=schedule]'); await p.click('[data-act=day] >> nth=2');
+    await p.click('.tab[data-v=schedule]'); await goDay(p, 2);
     if (await p.locator('[data-act=gap]').count()) { await p.click('[data-act=gap] >> nth=0'); await p.click('[data-act=b-c] >> nth=0');
       if (await p.locator('[data-act=b-t]').count()) { await p.click('[data-act=b-t] >> nth=0'); await p.click('#book-go'); if (await p.locator('.sheet .close').count()) await p.click('.sheet .close'); } else await p.click('.sheet .close'); }
     await p.click('.tab[data-v=money]'); await p.click('.topc >> nth=0'); await p.click('.sheet .close');
@@ -154,7 +156,7 @@ console.log('ok private Square views');
   const today = await q.textContent('main');
   check(/Test Person 3/.test(today) && /Test Deep Tissue/.test(today), 'bookings: today shows the Square booking');
   check(!/Dana Whitfield/.test(today), 'bookings: the sample schedule is gone');
-  await q.click('.tab[data-v=schedule]'); await q.click('[data-act=day] >> nth=1');
+  await q.click('.tab[data-v=schedule]'); await goDay(q, 1);
   const tmr = await q.textContent('main');
   check(/Booker Test/.test(tmr), 'bookings: tomorrow shows a new client by name');
   check(!/Test Person 4/.test(tmr), 'bookings: cancelled bookings stay off');
@@ -393,7 +395,7 @@ console.log('ok private Square views');
   check(await q.waitForFunction(() => /Imported sent their client intake form/.test((document.querySelector('.toast') || {}).textContent || ''), null, {timeout:4000}).then(() => true, () => false), 'website: a texted form shows up on her phone the moment it is sent');
   await q.click('.tab[data-v=today]');
   check(/Cloud Test Massage/.test(await q.textContent('.biz-name')) && /Robin/.test(await q.textContent('#hdr')), 'website: the business comes from the database');
-  check(await q.evaluate(() => __FAKE.invoked.length === 1), 'website: asks the server to catch up with Square');
+  check(await q.evaluate(() => __FAKE.invoked.filter(x => 'full' in x).length === 1), 'website: asks the server to catch up with Square');
   await q.click('.tab[data-v=money]');
   check(/\$115/.test(await q.textContent('main')) && /Test Card Person/.test(await q.textContent('#s-clients')), 'website: Square payments and card customers come from the tables');
   await q.click('#s-books [data-act=addpay]'); await q.fill('#pf-amt', '60'); await q.click('.sheet [data-act=pf-save]'); await q.waitForTimeout(200);
@@ -560,6 +562,36 @@ console.log('ok private Square views');
     check(ys.length > 10 && ys.every((y, i) => !i || y <= ys[i - 1] + 0.5), 'opening: the sun rises once, without starting over');
     check([...cards].every(c => /Welcome back\s*Cloud Test Massage/.test(c)), 'opening: a returning phone says welcome back from the start');
     await o.close(); }
+  // texts from Sole's number: booking texts the client by itself once the Undo window has passed, Undo stops it, the
+  // owner can turn it off, and a reply lands in Messages and is answered from Sole
+  { const t = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); t.on('pageerror', e => errs.push('texts: ' + e.message));
+    const tseed = {...seed, items:[...seed.items, {business_id:'B1', col:'inbox', id:'mTXT', data:{id:'mTXT', name:'Imported Person', phone:'(555) 010-2233', message:'Can we do 3 instead?', at:new Date().toISOString(), via:'text'}}]};
+    await t.addInitScript(`window.__SOLE_INTRO_MS = 0; window.__SOLE_TEXT_MS = 1500; window.__FAKE_TEXT_ON = true; localStorage.setItem('sole-face-later', String(Date.now()));\nwindow.__FAKE_DB = ${JSON.stringify(tseed)};\n${fake}`);
+    await t.route('https://sole.test/', r => r.fulfill({contentType:'text/html', body:site})); await t.goto('https://sole.test/', {waitUntil:'networkidle'});
+    await t.fill('#si-email', 'test@example.com'); await t.click('#si-form button'); await t.fill('#si-code', '123456'); await t.click('#si-form button'); await t.waitForSelector('.biz-name'); await t.waitForTimeout(300);
+    const sent = () => t.evaluate(() => window.__FAKE.texts || []);
+    const bookIt = async () => { await t.click('.tab[data-v=schedule]'); await t.click('[data-act=book]'); await t.fill('#b-find', 'imported'); await t.click('#b-who [data-act=b-c][data-v="mb:imported-person"]');
+      for (let i = 0; i < 6 && !(await t.locator('[data-act=b-t]').count()); i++) await t.click(`[data-act=b-d] >> nth=${i + 1}`);
+      await t.click('[data-act=b-t] >> nth=0'); await t.click('#book-go'); await t.waitForTimeout(150); };
+    await bookIt();
+    check(/Sole will text Imported/.test(await t.textContent('.toast')) && !(await t.locator('.sheet').count()), 'texts: booking says Sole will text, and Messages doesn’t open');
+    check(!(await sent()).length, 'texts: nothing goes during the Undo window');
+    await t.waitForTimeout(1700);
+    { const L = await sent(); check(L.length === 1 && L[0].kind === 'confirm' && /You’re booked for/.test(L[0].body) && L[0].to === '(555) 010-2233' && L[0].business_id === 'B1', 'texts: the confirmation goes out by itself'); }
+    check(/Texted Imported/.test(await t.textContent('.toast')), 'texts: and says so');
+    await bookIt(); await t.click('.toast [data-act=undo]'); await t.waitForTimeout(2000);
+    check((await sent()).length === 1, 'texts: Undo stops the text');
+    await t.click('[data-act=me]'); check(/Sole sends them/.test(await t.textContent('.sheet')), 'texts: the account sheet has the choice');
+    await t.click('.sheet [data-act=me-autotext][data-v=off]'); await t.click('.sheet .close');
+    await bookIt(); check(/You’re booked/.test(await t.inputValue('#msg')), 'texts: turned off, Messages opens with it written'); await t.click('.sheet .close');
+    check(await t.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'people' && x.id === 'prefs'); return !!r && r.data.autoText === false; }), 'texts: the choice is saved with the business');
+    await t.click('.tab[data-v=today]'); check(/Imported texted back/.test(await t.textContent('main')), 'texts: a reply is on Today');
+    await t.click('[data-act=inb][data-v=mTXT]'); check(/Texted back/.test(await t.textContent('.sheet')) && await t.locator('#inb-reply').count() === 1, 'texts: a reply is answered from Sole');
+    await t.fill('#inb-reply', '3 works! See you then.'); await t.click('.sheet [data-act=inb-send]'); await t.waitForTimeout(300);
+    { const L = await sent(), r = L[L.length - 1] || {}; check(r.kind === 'reply' && r.body === '3 works! See you then.' && /3 works/.test(await t.textContent('.sheet .msg-mine')), 'texts: the answer goes from Sole and shows under theirs'); }
+    check(await t.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'inbox' && x.id === 'mTXT'); return !!(r && r.data.done && r.data.replies.length === 1); }), 'texts: answered and saved');
+    check(!(await wide(t)), 'texts: the message sheet fits the phone');
+    await t.close(); }
   // a new business: someone signs in with an email that isn't on one, gives an invite code, goes through setup, and
   // opens their own empty book; nobody else's business shows
   { const n = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); n.on('pageerror', e => errs.push('new business: ' + e.message));
@@ -660,7 +692,7 @@ await tour(p, 'demo');
   const go = await p.textContent('#book-go'); check(/Take \d+ days off/.test(go), 'time off: the button says how many days');
   await p.click('#book-go'); await p.waitForTimeout(150);
   check(/Beach week: \d+ days off/.test(await p.textContent('.toast')), 'time off: vacation saved');
-  await p.click('[data-act=day] >> nth=1');
+  await goDay(p, 1);
   check(/All day/.test(await p.textContent('main')) && /Beach week/.test(await p.textContent('main')), 'time off: the day shows the vacation all day');
   await p.click('[data-act=block] >> nth=0');
   check(/Remove all \d+/.test(await p.textContent('.sheet')), 'time off: a vacation can be removed in one go');
