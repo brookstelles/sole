@@ -1,6 +1,6 @@
-// What a business's public website shows, read live from Sole: its name, words, services with prices and descriptions,
+// What a business's public website shows, read live from SolePro: its name, words, services with prices and descriptions,
 // usual hours, address, about, specialties and reviews (the profile's `site`), and where new clients fill in the intake form.
-// Services are the owner's own list when she has changed them in Sole (the book's people/prefs `services`; ones she
+// Services are the owner's own list when she has changed them in SolePro (the book's people/prefs `services`; ones she
 // stopped offering are left out), else the profile's.
 // Never a phone number or email (visitors send a message through intake instead), clients, the book or money.
 // GET ?b=<site slug> (heart-and-soul). Deploy with verify_jwt off.

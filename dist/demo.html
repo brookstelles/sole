@@ -1,4 +1,4 @@
-<title>Sole Demo</title>
+<title>SolePro Demo</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -140,7 +140,7 @@ main{display:flex;flex-direction:column;gap:22px}
 .num.out{color:var(--muted)}
 .rcp-snap{cursor:pointer}
 .rcp-img{display:block;width:100%;max-height:340px;object-fit:contain;border-radius:14px;background:var(--sunk);margin-block:10px}
-/* Sign-in on Sole's website: a sunrise over the water, played once as the page opens; the card floats on the sea */
+/* Sign-in on SolePro's website: a sunrise over the water, played once as the page opens; the card floats on the sea */
 .signin{--hz:clamp(250px,50vh,460px);position:fixed;inset:0;z-index:30;overflow-x:hidden;overflow-y:auto;background:#14112E;color:#fff;text-align:center}
 .sky{position:fixed;inset:0;overflow:hidden;pointer-events:none}
 .sky .air{position:absolute;inset:0 0 auto;height:var(--hz);overflow:hidden;
@@ -422,7 +422,7 @@ main{display:flex;flex-direction:column;gap:22px}
 .cost .tr i{display:block;height:100%;background:var(--accent);border-radius:4px}
 .cost b{text-align:right;font-weight:600}
 
-/* Sole's own look for businesses without their own colors: dusk indigo and sun gold */
+/* SolePro's own look for businesses without their own colors: dusk indigo and sun gold */
 html[data-look="sole"]{
   --bg:#F3F2F7; --surface:#FFFFFF; --sunk:#E7E5EF; --ink:#1E1B2E; --muted:#5D5972; --line:#D8D5E3; --art:#E2AE45;
   --accent:#3A3576; --accent-ink:#FFFFFF; --accent-soft:#E2E0F1;
@@ -978,7 +978,7 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
 <div id="layer"></div>
 
 <script>
-/* ---------- Sole: business profiles ----------
+/* ---------- SolePro: business profiles ----------
    One engine, one profile per trade: services, client notes, forms, hours, words and numbers.
    The private edition's massage profile is a real business; the others are sample businesses.
    build_demo.py swaps that block for demo/massage.js to make the public demo. */
@@ -1044,7 +1044,7 @@ const PROFILES = {
       {name:'Cancellation policy', kind:'Template', about:'Late arrivals, late cancellations and no-shows.',
        sections:['Late arrivals','Cancelling within 24 hours','No-shows']},
     ],
-    formsNote:'These are Sole templates. Edit them to match your practice, or add your own.',
+    formsNote:'These are SolePro templates. Edit them to match your practice, or add your own.',
   },
 
   hair: {
@@ -1094,7 +1094,7 @@ const PROFILES = {
       {name:'Cancellation and late policy', kind:'Template', about:'What happens with late arrivals and no-shows.',
        sections:['Late arrivals','Cancellations within 24 hours','No-shows and deposits']},
     ],
-    formsNote:'These are Sole templates. Edit them to match your salon, or add your own.',
+    formsNote:'These are SolePro templates. Edit them to match your salon, or add your own.',
   },
 
   barber: {
@@ -1144,7 +1144,7 @@ const PROFILES = {
       {name:'No-show and late policy', kind:'Template', about:'Posted at the chair and sent with every booking.',
        sections:['Late arrivals','No-shows','Deposits for new clients']},
     ],
-    formsNote:'These are Sole templates. Edit them to match your shop, or add your own.',
+    formsNote:'These are SolePro templates. Edit them to match your shop, or add your own.',
   },
 
   tattoo: {
@@ -1191,7 +1191,7 @@ const PROFILES = {
       {name:'Deposit and booking policy', kind:'Template', about:'Deposits, rescheduling and what happens with no-shows.',
        sections:['Deposit amount','Rescheduling','No-shows']},
     ],
-    formsNote:'These are Sole templates. Edit them to match your studio, or add your own.',
+    formsNote:'These are SolePro templates. Edit them to match your studio, or add your own.',
   },
 
   landscape: {
@@ -1242,7 +1242,7 @@ const PROFILES = {
       {name:'Before and after photos', kind:'Template', about:'Permission to post photos of their yard.',
        sections:['What may be shared','Where it may be posted','Signature']},
     ],
-    formsNote:'These are Sole templates. Edit them to match your business, or add your own.',
+    formsNote:'These are SolePro templates. Edit them to match your business, or add your own.',
   },
 
   tennis: {
@@ -1288,7 +1288,7 @@ const PROFILES = {
       {name:'Packages and cancellations', kind:'Template', about:'Lesson packages, rain policy and late cancellations.',
        sections:['Packages and expiry','Rain and heat policy','Cancelling within 24 hours']},
     ],
-    formsNote:'These are Sole templates. Edit them to match your coaching, or add your own.',
+    formsNote:'These are SolePro templates. Edit them to match your coaching, or add your own.',
   },
 };
 
@@ -1321,7 +1321,7 @@ const VISIT_FORMS = {
   other:{title:'Visit notes', chips:[], text:[{k:'done', l:'What you did', ph:'What happened this visit'}, {k:'next', l:'Next time', plan:true, ph:'What to remember for next time'}]},
 };
 
-/* ---------- trades Sole sets itself up for ---------- */
+/* ---------- trades SolePro sets itself up for ---------- */
 const TRADES = [
   // [id, label, base template, group, who, whoOne, unit, unitOne, intake form, monthly volume, services [id, name, minutes, price]]
   ...[
@@ -1466,10 +1466,10 @@ function makeProfile(id){
     unit:unit[0], unitOne:unit[1], firstVisit:'first ' + unit[1], treat:'birthday ' + unit[1], intakeName:T.intake, reviewOn:'Google', booking:'your booking app and Square',
     services:svc, hours:base.hours,
     rate:Math.max(20, Math.round(Object.values(svc).reduce((x, v) => x + v.price, 0) / newK.length)), rateNote:'your average price',
-    license:a.license ? {short:a.license.short, next:a.license.next, tile:`next renewal${a.license.name ? ', ' + a.license.name : ''}`, title:a.license.name || 'Your license', text:`Renews ${a.license.next}. Sole reminds you three months ahead.`}
-      : {short:'Add', next:'Not added yet', tile:'your license and renewal date', title:'Your license', text:'Add your license and its renewal date, and Sole reminds you three months ahead.'},
+    license:a.license ? {short:a.license.short, next:a.license.next, tile:`next renewal${a.license.name ? ', ' + a.license.name : ''}`, title:a.license.name || 'Your license', text:`Renews ${a.license.next}. SolePro reminds you three months ahead.`}
+      : {short:'Add', next:'Not added yet', tile:'your license and renewal date', title:'Your license', text:'Add your license and its renewal date, and SolePro reminds you three months ahead.'},
     forms:[...uploads, ...(T.id === T.base && T.base !== 'massage' ? base.forms : [genericIntake])],
-    formsNote:'Your uploads and Sole templates live here. Print them, or send them as a link.',
+    formsNote:'Your uploads and SolePro templates live here. Print them, or send them as a link.',
   };
   // day one: no customers, no bookings, no history until the owner adds them or connects Square
   if (!a.sample) return {...common, fresh:true, now:nowMin(), clients:{}, today:[], blocks:[], last:[], tpl:[], req:null, askName:'',
@@ -1501,8 +1501,8 @@ let SHEETS = [], SHEET_GEN = 0, BOOT_GEN = 0;   // the sheets under the open one
 let REOPEN = null;   // a sheet to put back after the page rebuilds itself ('services', 'setup')
 let NEW_CODE = null;   // website: the invite code of someone setting up a new business (the setup screens cover the page)
 let TOAST_T = null; const UNDO = {arm:null, snap:null};
-let TEXT_ON = null; const TEXT_Q = [];   // website: Sole texts clients from its own number (the text Edge Function); texts waiting out the Undo window
-let OPEN_MSG = new URLSearchParams(location.search).get('msg');   // a tapped notification opens Sole on that message   // the message on screen and what Undo puts back: both outlive a rebuild
+let TEXT_ON = null; const TEXT_Q = [];   // website: SolePro texts clients from its own number (the text Edge Function); texts waiting out the Undo window
+let OPEN_MSG = new URLSearchParams(location.search).get('msg');   // a tapped notification opens SolePro on that message   // the message on screen and what Undo puts back: both outlive a rebuild
 // the real business's own book (appointments, time off, clients, payments and costs), one database document per item;
 // REAL_SAVED mirrors what the database holds so only changed items are written
 const SOLE_COLS = ['appts', 'blocks', 'clients', 'ledger', 'visits', 'weeks', 'days'];
@@ -1702,7 +1702,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 const T0 = new Date(); T0.setHours(0,0,0,0);
 const SOLE = P.real && SQ ? (SQ.sole || (SQ.sole = {appts:[], blocks:[], clients:{}, ledger:[]})) : null;   // the real business's own book
 if (SOLE) { SOLE.visits = SOLE.visits || {}; SOLE.weeks = SOLE.weeks || {}; }
-const LIVEBOOK = !!SOLE;   // the real schedule: what's booked in Sole, plus anything booked in Square
+const LIVEBOOK = !!SOLE;   // the real schedule: what's booked in SolePro, plus anything booked in Square
 const NOW = LIVEBOOK ? nowMin() : P.now;   // otherwise the sample's "right now"
 const OPEN = P.hours.open, CLOSE = P.hours.close, TURN = P.hours.turn;   // opening hours and the turnover after each client
 const DOW = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -1802,9 +1802,9 @@ if (LIVEBOOK) {
       last:card && card.last ? Math.round((T0 - new Date(card.last + 'T00:00:00')) / 864e5) : null, every:null, pressure:0, focus:'Not known yet', intake:true, isNew:!card, sq:id, note:''}; };
   Object.keys(CL).forEach(k => delete CL[k]);   // the sample clients go; the real ones come from Square
   (SQ.customers || []).filter(c => c.name).forEach(c => { CL['sq:' + c.id] = sqClient(c.id, c.name); });
-  // clients kept in Sole: the ones added here, and notes written on anyone
+  // clients kept in SolePro: the ones added here, and notes written on anyone
   Object.entries(SOLE.clients).forEach(([k, x]) => { if (x.mine) CL[k] = {...x}; else if (CL[k] || k.startsWith('sq:')) CL[k] = {...(CL[k] || sqClient(k.slice(3), x.name)), ...x, edited:true}; });
-  // Sole's own bookings and time off
+  // SolePro's own bookings and time off
   SOLE.appts.forEach(x => { const off = offOf(x.date); if (off >= -400 && CL[x.c] && SV[x.s]) add(x.c, x.s, off, x.start, {paid:!!x.paid, tip:x.tip || 0, w:x.w || ME, method:x.method, uid:x.uid, mine:true}); });
   SOLE.blocks.forEach(x => BL.push({id:seq++, off:offOf(x.date), start:x.start, min:x.min, label:x.label, w:x.w || ME, uid:x.uid, grp:x.grp, mine:true}));
   const pays = PAYS, used = PAY_USED;
@@ -1842,7 +1842,7 @@ if (LIVEBOOK) {
     const dk = isoDay(dateOf(a.off)), mine = CARDS_OF[a.c] || new Set(CL[a.c].sq ? [CL[a.c].sq] : []), p = pays.find(x => !used.has(x.id) && x.day === dk && mine.has(x.cust)) || pays.find(x => !used.has(x.id) && x.day === dk && x.net === prOf(a));
     if (p) { used.add(p.id); a.paid = true; a.auto = true; a.tip = p.tip; a.method = 'Card'; } });
 }
-// payments logged in Sole mark that day's visit paid
+// payments logged in SolePro mark that day's visit paid
 LEDGER.filter(x => x.kind === 'pay').forEach(x => { x.matched = false; if (!x.c) return; const off = offOf(x.date), a = AP.find(y => y.c === x.c && y.off === off && !y.paid);
   if (a) { a.paid = true; a.auto = true; a.tip = x.tip || 0; a.method = x.method; a.paidAmt = x.amount; x.matched = true; } });
 // clients brought in from another app keep the day they were last in, so "last in" counts on from it
@@ -1934,7 +1934,7 @@ function spend(k){
 function spendBase(k){
   if (CL[k].sq !== undefined && SQX) { const x = SQX.customers.find(y => y.id === CL[k].sq || (y.ids || []).includes(CL[k].sq)) || {all:{n:0, net:0}, year:{n:0, net:0, tips:0}, month:{n:0, net:0}};
     return {price:x.all.n ? x.all.net / x.all.n : 0, m:{v:x.month.n, $:x.month.net}, y:{v:x.year.n, $:x.year.net}, a:{v:x.all.n, $:x.all.net}, tipsY:x.year.tips || 0, tipsA:x.all.tips || 0}; }
-  if (LIVEBOOK) {   // someone added in Sole: card payments matched to their visits (cash and the rest come from the ledger)
+  if (LIVEBOOK) {   // someone added in SolePro: card payments matched to their visits (cash and the rest come from the ledger)
     const v = AP.filter(a => a.c === k && a.paid && a.method === 'Card' && a.off <= 0), mo = T0.getDate() - 1, yd = DOY, at = (L, d) => L.filter(a => -a.off <= d);
     const pk = L => ({v:L.length, $:L.reduce((t, a) => t + prOf(a), 0)});
     return {price:SV[CL[k].usual || Object.keys(SV)[0]].price, m:pk(at(v, mo)), y:pk(at(v, yd)), a:pk(v), tipsY:at(v, yd).reduce((t, a) => t + (a.tip || 0), 0), tipsA:v.reduce((t, a) => t + (a.tip || 0), 0)}; }
@@ -1948,7 +1948,7 @@ function spendBase(k){
 const regular = k => { const c = CL[k]; return c.every && c.every <= 28 && c.last != null && c.last <= c.every * 1.5; };
 
 /* ---------- money (made-up history) ---------- */
-// a day's takings: paid visits, plus payments logged in Sole that aren't tied to a visit
+// a day's takings: paid visits, plus payments logged in SolePro that aren't tied to a visit
 function take(off){
   const t = takeBase(off), dk = isoDay(dateOf(off)), L = LEDGER.filter(x => x.kind === 'pay' && !x.matched && x.date === dk);
   return {net:t.net + L.reduce((a, x) => a + x.amount, 0), tips:t.tips + L.reduce((a, x) => a + (x.tip || 0), 0), n:t.n + L.length};
@@ -2196,15 +2196,15 @@ function setupSteps(){
     {done:AP.length > 0, t:`Book your first ${P.unitOne}`, s:'Pick who, what and when.', act:'book'},
     {done:!!DONE_STEPS.svc, t:'Check your services and prices', s:'Add what you offer, change a length or a price.', act:'gs-svc'},
     {done:!!DONE_STEPS.forms, t:`Check your ${P.intakeName}`, s:'Make sure it says what you need before you send it.', act:'checkforms'},
-    {done:PAPERS.length > 0, t:'Add your license', s:'A photo of it and when it renews. Sole reminds you before it’s due.', act:'pp-add', v:'License'},
+    {done:PAPERS.length > 0, t:'Add your license', s:'A photo of it and when it renews. SolePro reminds you before it’s due.', act:'pp-add', v:'License'},
   ];
   return [
     {done:Object.keys(CL).length > 0, t:`Add your first ${W1}`, s:'Name and phone. Notes can come later.', act:'addc'},
     {done:AP.length > 0, t:`Book your first ${P.unitOne}`, s:'Pick who, what and when.', act:'book'},
     {done:!!DONE_STEPS.square, t:'Get paid with Square', s:'Payments and tips show up here by themselves.', act:'connect', v:'square'},
-    {done:!!DONE_STEPS.cal, t:'Bring in your calendar', s:'From the booking app you use now, or book everything in Sole.', act:'connect', v:'cal'},
+    {done:!!DONE_STEPS.cal, t:'Bring in your calendar', s:'From the booking app you use now, or book everything in SolePro.', act:'connect', v:'cal'},
     {done:!!DONE_STEPS.forms, t:`Check your ${P.intakeName}`, s:'Make sure it says what you need before you send it.', act:'checkforms'},
-    {done:!!(ACC && ACC.license), t:'Add your license', s:'Sole reminds you before it renews.', act:'addlicense'},
+    {done:!!(ACC && ACC.license), t:'Add your license', s:'SolePro reminds you before it renews.', act:'addlicense'},
   ];
 }
 function setupCard(){
@@ -2336,7 +2336,7 @@ function weekGrid(mon, hist){
     const ap = apptsFor(o), bl = BL.filter(b => b.off === o && (!MULTI || b.w === S.who)), old = oldOn(hist, o, ap);
     const ev = [...ap.map(a => ({s:a.start, e:endOf(a), a})), ...bl.filter(b => !allDay(b)).map(b => ({s:b.start, e:b.start + b.min, b})),
       ...old.filter(v => v.start != null).map(v => ({s:v.start, e:v.start + ((SV[v.s] || {}).min || 60), v}))].sort((x, y) => x.s - y.s || y.e - x.e);
-    // side by side when two things overlap (a Square booking on top of one made in Sole)
+    // side by side when two things overlap (a Square booking on top of one made in SolePro)
     const end = []; ev.forEach(x => { let i = end.findIndex(t => t <= x.s); if (i < 0) { i = end.length; end.push(0); } end[i] = x.e; x.lane = i; });
     ev.forEach(x => { x.n = Math.max(...ev.filter(z => z.s < x.e && z.e > x.s).map(z => z.lane)) + 1; });
     return {o, ap, old, ev, allOff:bl.filter(allDay), n:ap.length + old.length, val:booked([o]).$ + old.reduce((t, v) => t + (v.price || 0), 0)};
@@ -2398,7 +2398,7 @@ function viewMoney(){
 /* ---------- one month ----------
    What's done so far, what's still to come, and the same month in another year (last year unless she picks one),
    by this date and for the whole month. Money comes from every card payment the website keeps (SQ.all) plus payments
-   logged in Sole; visits from the book and the old booking app; whole past months from the business's own counts (HIST). */
+   logged in SolePro; visits from the book and the old booking app; whole past months from the business's own counts (HIST). */
 const pad2 = n => String(n).padStart(2, '0');
 const offOfDate = d => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - T0) / 864e5);
 let PAY_DAYS = null, HIST_DAYS = null;
@@ -2509,8 +2509,8 @@ function viewSnapFresh(){
   </section>
   ${moneyCard()}
   ${P.real ? `<section class="card sec"><div class="sec-h"><h2>Your year fills in as you go</h2></div>
-    <p class="muted">Each ${P.unitOne} you mark paid in Sole adds to your year, your busy and slow months, and what you kept. Connecting your own Square is coming soon.</p></section>` : `<section class="card sec"><div class="sec-h"><h2>Bring in your history</h2></div>
-    <p class="muted">Connect Square, or upload a spreadsheet of past sales, and Sole fills in your year, your busy and slow months, and what you kept.</p>
+    <p class="muted">Each ${P.unitOne} you mark paid in SolePro adds to your year, your busy and slow months, and what you kept. Connecting your own Square is coming soon.</p></section>` : `<section class="card sec"><div class="sec-h"><h2>Bring in your history</h2></div>
+    <p class="muted">Connect Square, or upload a spreadsheet of past sales, and SolePro fills in your year, your busy and slow months, and what you kept.</p>
     <div class="btn-row"><button class="btn primary" data-act="connect" data-v="square" ${DONE_STEPS.square ? 'disabled' : ''}>${DONE_STEPS.square ? 'Square connected' : 'Connect Square'}</button><button class="btn" data-act="fillsample">See it with sample data</button></div>
   </section>`}
   <section class="bento">
@@ -2565,7 +2565,7 @@ function viewSnap(){
     ${tiles.length > 3 ? `<button class="td-more tile-more" data-act="dig-all">${S.digAll ? 'Show less' : `Show ${tiles.length - 2} more: ${tiles.slice(2).map(t => (t.h.match(/<span class="k">(?:<svg[\s\S]*?<\/svg>)?([^<]*)/) || [])[1]).filter(Boolean).map(x => x.split(' · ')[0].toLowerCase()).join(', ')}`}${S.digAll ? I.down.replace('<svg', '<svg style="transform:rotate(180deg)"') : I.down}</button>` : ''}</section>
   <p class="small muted">${P.source}</p>`;
 }
-// payments Square didn't take (cash, Zelle and the rest) and costs, logged in Sole
+// payments Square didn't take (cash, Zelle and the rest) and costs, logged in SolePro
 const PAY_WAYS = ['Cash', 'Zelle', 'Venmo', 'Check', 'Other'];
 // what's booked (a paid visit at what it was paid, the rest at the service's price), and card fees: the rate this
 // business actually paid Square this year once there's enough to go on, otherwise Square's in-person rate
@@ -2573,7 +2573,7 @@ const CARDCO = () => SQX || /square/i.test(P.booking || '') ? 'Square' : 'card';
 function feeOf(amt, n){ const y = SQX && SQX.years && SQX.years[String(T0.getFullYear())]; return y && y.collected > 500 && y.fees ? amt * y.fees / y.collected : amt * 0.026 + 0.15 * n; }
 function booked(offs){ const L = AP.filter(a => offs.includes(a.off) && !noShow(a) && SV[a.s]);
   return {n:L.length, $:L.reduce((t, a) => t + (a.paid && a.paidAmt != null ? a.paidAmt : prOf(a)), 0)}; }
-// what came in on a day: Square's card payments once connected, plus payments logged in Sole; otherwise the paid visits
+// what came in on a day: Square's card payments once connected, plus payments logged in SolePro; otherwise the paid visits
 function inOn(off){
   const dk = isoDay(dateOf(off)), L = LEDGER.filter(x => x.kind === 'pay' && x.date === dk), add = (t, u) => ({net:t.net + u.reduce((a, x) => a + x.amount, 0), tips:t.tips + u.reduce((a, x) => a + (x.tip || 0), 0), n:t.n + u.length});
   if (SQX && SQX.byDay) return add({...(SQX.byDay[dk] || {net:0, tips:0, n:0})}, L);
@@ -2634,10 +2634,10 @@ function meHTML(){
     ${P.site && P.site.url ? `<div class="field"><span class="label">Share your business</span><button class="btn primary" data-act="qr">${I.qr}Show my QR code</button><span class="small muted">Someone points their phone’s camera at it and your website opens.</span></div>` : ''}
     ${USER_EMAIL ? `<div class="field"><span class="label">Your name</span><input class="text-in" id="me-name" value="${esc(MY_NAME)}" placeholder="First and last" autocomplete="name"></div>` : ''}
     <div class="field"><span class="label">Light or dark</span>${seg('me-theme', th, [['', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']])}<span class="small muted">Automatic follows your phone’s setting. Just on this phone.</span></div>
-    ${face ? `<div class="field"><span class="label">${FACE}</span>${lsGet('sole-face') ? `<p class="small muted">On. Sole opens with a glance.</p><button class="btn line" data-act="me-face-off">Turn off ${FACE} on this phone</button>` : `<button class="btn line" data-act="me-face-on">${FACE_ICON}Turn on ${FACE}</button>`}</div>` : ''}
+    ${face ? `<div class="field"><span class="label">${FACE}</span>${lsGet('sole-face') ? `<p class="small muted">On. SolePro opens with a glance.</p><button class="btn line" data-act="me-face-off">Turn off ${FACE} on this phone</button>` : `<button class="btn line" data-act="me-face-on">${FACE_ICON}Turn on ${FACE}</button>`}</div>` : ''}
     ${pushHTML()}
     <div class="field"><span class="label">Services and prices</span><button class="btn line" data-act="sv-list">Change services and prices</button><span class="small muted">${svOpen().length} offered, from ${money(Math.min(...svOpen().map(k => SV[k].price)))}. Add one, change a price or length, or stop offering one.</span></div>
-    ${TEXT_ON && P.real ? `<div class="field"><span class="label">Texts when you book or move someone</span>${seg('me-autotext', PREFS.autoText === false ? 'off' : 'on', [['on', 'Sole sends them'], ['off', 'I send them']])}<span class="small muted">${PREFS.autoText === false ? 'Messages opens with the text written, for you to send.' : 'From Sole’s number, a few seconds after you book, so Undo can stop it. Replies show up in Sole and buzz your phone.'}</span></div>` : ''}
+    ${TEXT_ON && P.real ? `<div class="field"><span class="label">Texts when you book or move someone</span>${seg('me-autotext', PREFS.autoText === false ? 'off' : 'on', [['on', 'SolePro sends them'], ['off', 'I send them']])}<span class="small muted">${PREFS.autoText === false ? 'Messages opens with the text written, for you to send.' : 'From SolePro’s number, a few seconds after you book, so Undo can stop it. Replies show up in SolePro and buzz your phone.'}</span></div>` : ''}
     <div class="field"><span class="label">Thank-you texts the day after</span>${seg('me-thanks', PREFS.thanks === false ? 'off' : 'on', [['on', 'On'], ['off', 'Off']])}<span class="small muted">For everyone on ${esc(P.biz)}.</span></div>
     ${CLOUD_ON && P.real && BIZ ? `<div class="field"><span class="label">Backup in Google Calendar</span><button class="btn line" data-act="gcal">${I.schedule}Copy my ${P.unit} to Google Calendar</button><span class="small muted">Every ${P.unitOne}, kept up to date by itself.</span></div>` : ''}
     ${CLOUD_ON && USER_EMAIL ? `<button class="btn line danger-line" data-act="me-out" style="width:100%;margin-top:8px">Sign out</button>` : ''}`;
@@ -2648,14 +2648,14 @@ function meHTML(){
 let QR_LIB = null;
 const qrLib = () => window.qrcode ? Promise.resolve() : QR_LIB || (QR_LIB = new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'vendor/qrcode.js'; sc.onload = ok; sc.onerror = () => { QR_LIB = null; no(); }; document.head.appendChild(sc); }));
 /* ---------- a copy of the appointments in Google Calendar (asked for Oct 27, 2026, as a backup): the calendar Edge
-   Function serves them as a private calendar feed that Google subscribes to. It only reads: changes stay in Sole. */
+   Function serves them as a private calendar feed that Google subscribes to. It only reads: changes stay in SolePro. */
 let GCAL = null;
 const gcalHTML = () => `${top(`Your ${P.unit} in Google Calendar`, 'A copy that keeps itself up to date.')}
   ${!GCAL ? '<p class="muted">One moment…</p>' : GCAL.error ? `<p class="im-err" role="alert">${esc(GCAL.error)}</p>` : `
   <div class="field"><span class="label">Your private link</span><input class="text-in" id="gc-url" readonly value="${esc(GCAL.url)}" aria-label="Your private calendar link"></div>
   <button class="btn primary" data-act="gc-copy">Copy the link</button>
   <ol class="gc-steps"><li>On a computer, open <b>calendar.google.com</b>.</li><li>On the left, next to <b>Other calendars</b>, click <b>+</b>, then <b>From URL</b>.</li><li>Paste the link and click <b>Add calendar</b>.</li></ol>
-  <p class="small muted">Your ${P.unit} show up in a calendar called “${esc(P.biz)} appointments”, on your phone too. Google looks for changes a few times a day, so a new booking can take some hours to show. It’s a copy: book, move and cancel in Sole.</p>
+  <p class="small muted">Your ${P.unit} show up in a calendar called “${esc(P.biz)} appointments”, on your phone too. Google looks for changes a few times a day, so a new booking can take some hours to show. It’s a copy: book, move and cancel in SolePro.</p>
   <p class="small muted">On an iPhone with no computer: in Settings, under Calendar accounts, choose Add Subscribed Calendar and paste the link.</p>
   <p class="small muted">Keep the link to yourself: anyone who has it can see your schedule.</p>
   <button class="linkbtn" data-act="gc-reset">${GCAL.sure ? 'Tap again: the old link stops working' : 'Make a new link'}</button>`}`;
@@ -2735,12 +2735,12 @@ const msgWhen = at => { const d = new Date(at), off = offOfDate(d), t = clock(d.
 function inboxSheet(id){
   const m = INBOX.find(x => x.id === id); if (!m) return;
   const f = String(m.name || 'there').split(' ')[0], tel = String(m.phone || '').replace(/[^0-9+]/g, ''), back = `Hi ${f}, it’s ${P.owner} from ${P.biz}. Thank you for your message! `;
-  // a reply to one of Sole's texts is answered from Sole's number, so the conversation stays in one place
+  // a reply to one of SolePro's texts is answered from SolePro's number, so the conversation stays in one place
   const viaText = m.via === 'text' && TEXT_ON && tel.length >= 10;
   const html = `${top(esc(m.name || 'Someone'), `${m.via === 'text' ? 'Texted back' : 'Wrote from your website'} · ${esc(msgWhen(m.at))}`)}
     <div class="callout msg-body">${esc(m.message || '').replace(/\n/g, '<br>')}</div>
     ${(m.replies || []).map(r => `<div class="callout msg-body msg-mine"><small>You · ${esc(msgWhen(r.at))}</small><span>${esc(r.text).replace(/\n/g, '<br>')}</span></div>`).join('')}
-    ${viaText ? `<div class="field"><span class="label">Text back from Sole</span><textarea class="text-in" id="inb-reply" rows="3" placeholder="Write your answer"></textarea></div>
+    ${viaText ? `<div class="field"><span class="label">Text back from SolePro</span><textarea class="text-in" id="inb-reply" rows="3" placeholder="Write your answer"></textarea></div>
       <div class="btn-row"><button class="btn primary" data-act="inb-send" data-v="${esc(m.id)}">${I.send}Send</button><a class="btn" href="tel:${tel}" target="_top">Call</a></div>` : ''}
     <dl class="notes" style="margin:0">${m.phone ? `<div class="note"><dt>Phone</dt><dd class="phone">${esc(m.phone)}</dd></div>` : ''}${m.email ? `<div class="note"><dt>Email</dt><dd style="word-break:break-all">${esc(m.email)}</dd></div>` : ''}</dl>
     ${viaText ? '' : `<div class="btn-row">${tel.length >= 10 ? `<a class="btn primary" href="sms:${tel}&body=${encodeURIComponent(back)}" target="_top">${I.send}Text back</a><a class="btn" href="tel:${tel}" target="_top">Call</a>` : ''}${m.email ? `<a class="btn ${tel.length >= 10 ? '' : 'primary'}" href="mailto:${esc(m.email)}?subject=${encodeURIComponent(P.biz)}&body=${encodeURIComponent(back)}" target="_top">Email back</a>` : ''}</div>`}
@@ -2756,7 +2756,7 @@ function inboxSection(){
   return `<section class="sec" id="inbox"><div class="sec-h"><h2>${INBOX.some(m => m.via === 'text') ? 'Messages' : 'Messages from your website'}</h2><span class="aside">${INBOX.filter(m => !m.done).length} to answer</span></div>
     <div class="list">${L.map(m => `<button class="li td${m.done ? ' done' : ''}" data-act="inb" data-v="${esc(m.id)}"><span class="td-i">${m.done ? I.check : I.send}</span><span class="who"><b>${esc(m.name || 'Someone')}</b><span>${esc(msgWhen(m.at))} · ${esc(String(m.message || '').slice(0, 50))}</span></span>${I.chev}</button>`).join('')}</div></section>`;
 }
-// notifications on this phone (web push): an iPhone allows them only for Sole opened from the home screen
+// notifications on this phone (web push): an iPhone allows them only for SolePro opened from the home screen
 const pushOk = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 let PUSH_KEY = null;
@@ -2764,18 +2764,18 @@ const b64u = v => { const b = atob((v + '='.repeat((4 - v.length % 4) % 4)).repl
 function pushFetchKey(){ if (!PUSH_KEY && CLOUD_ON && SB) SB.functions.invoke('push', {body:{action:'key'}}).then(r => { if (r && r.data && r.data.key) PUSH_KEY = r.data.key; }).catch(() => {}); }
 function pushHTML(){
   if (!CLOUD_ON) return '';
-  if (IOS && !STANDALONE) return `<div class="field"><span class="label">Notifications</span><p class="small muted">To get a buzz on this ${/iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && !/iPhone/.test(navigator.userAgent) ? 'iPad' : 'iPhone'} when someone writes from your website: tap Share, then Add to Home Screen, and open Sole from there.</p></div>`;
+  if (IOS && !STANDALONE) return `<div class="field"><span class="label">Notifications</span><p class="small muted">To get a buzz on this ${/iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && !/iPhone/.test(navigator.userAgent) ? 'iPad' : 'iPhone'} when someone writes from your website: tap Share, then Add to Home Screen, and open SolePro from there.</p></div>`;
   if (!pushOk()) return '';
   const on = lsGet('sole-push') && Notification.permission === 'granted';
   return `<div class="field"><span class="label">Notifications</span>${on ? `<p class="small muted">On. A message from your website buzzes this phone, like a text.</p><button class="btn line" data-act="me-push-off">Turn off on this phone</button>`
-    : Notification.permission === 'denied' ? `<p class="small muted">Sole isn’t allowed to send them. Turn them on in your phone’s Settings, under Notifications, then Sole.</p>`
+    : Notification.permission === 'denied' ? `<p class="small muted">SolePro isn’t allowed to send them. Turn them on in your phone’s Settings, under Notifications, then SolePro.</p>`
     : `<button class="btn line" data-act="me-push-on">${I.send}Turn on notifications</button><span class="small muted">A message from your website shows up like a text.</span>`}</div>`;
 }
 function pushOn(){
   const ask = Notification.requestPermission();   // first, while the tap still counts (an iPhone's rule)
   (async () => {
     const p = await ask;
-    if (p !== 'granted') { closeSheet(); toast(p === 'denied' ? 'Notifications are off for Sole. Turn them on in Settings, under Notifications.' : 'Notifications aren’t on.'); return; }
+    if (p !== 'granted') { closeSheet(); toast(p === 'denied' ? 'Notifications are off for SolePro. Turn them on in Settings, under Notifications.' : 'Notifications aren’t on.'); return; }
     const reg = await navigator.serviceWorker.ready;
     if (!PUSH_KEY) { const r = await SB.functions.invoke('push', {body:{action:'key'}}); PUSH_KEY = r && r.data && r.data.key; }
     const sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(PUSH_KEY)});
@@ -2875,13 +2875,13 @@ function viewCheck(){
     <p class="small muted">Paid in cash or Zelle? Tap Paid to add it. Paid by card? It shows up once Square has it.</p></section>` : ''}
   ${w.loose.length ? `<section class="sec"><div class="sec-h"><h2>Card payments with no ${P.unitOne}</h2><span class="aside">${w.loose.length}</span></div><div class="list">${w.loose.map(p => `<div class="li wk">${dayT(offOf(p.day), p.at)}<span class="who"><b>${esc(payName(p))}</b><span>${money(p.net)}${p.tip ? ' + ' + money(p.tip) + ' tip' : ''} by card</span></span>
       <span class="wk-btns"><button class="btn sm" data-act="wk-add" data-v="${p.id}">Add it</button><button class="btn sm" data-act="wk-ignore" data-v="${p.id}">Not a ${P.unitOne}</button></span></div>`).join('')}</div>
-    <p class="small muted">A ${P.unitOne} you didn’t book in Sole? Add it so it counts. A gift card or something you sold? Tap “Not a ${P.unitOne}”.</p></section>` : ''}
+    <p class="small muted">A ${P.unitOne} you didn’t book in SolePro? Add it so it counts. A gift card or something you sold? Tap “Not a ${P.unitOne}”.</p></section>` : ''}
   ${!w.todo ? `<section class="card facts2"><p>${w.visits.length ? `Every ${P.unitOne} has its payment${SQX ? ' and every card payment has its ' + P.unitOne : ''}.` : `Nothing booked ${w.w === 0 ? 'yet this week' : 'that week'}.`}${w.noshows ? ` ${w.noshows} no-show${w.noshows === 1 ? '' : 's'}.` : ''}</p></section>` : ''}
-  ${w.cash.length || w.costs.length ? `<section class="sec"><div class="sec-h"><h2>Added in Sole</h2></div><div class="list">${[...w.cash, ...w.costs].sort(entrySort).map(entryRow).join('')}</div></section>` : ''}
+  ${w.cash.length || w.costs.length ? `<section class="sec"><div class="sec-h"><h2>Added in SolePro</h2></div><div class="list">${[...w.cash, ...w.costs].sort(entrySort).map(entryRow).join('')}</div></section>` : ''}
   ${w.rec.checked ? `<p class="small muted" style="text-align:center">Checked ${(() => { const d = new Date(w.rec.at); return `${MON[d.getMonth()].slice(0,3)} ${d.getDate()}`; })()}.</p>`
     : `<button class="btn primary" style="width:100%" data-act="wk-done" data-v="${w.key}" ${w.todo ? 'disabled' : ''}>${w.todo ? `Fix the ${w.todo} above to finish` : 'Mark the week checked'}</button>`}`;
 }
-// a card payment for a visit that wasn't booked in Sole: add the visit
+// a card payment for a visit that wasn't booked in SolePro: add the visit
 let PV = null;
 function openPastVisit(pid){
   const p = PAYS.find(x => x.id === pid); if (!p) return;
@@ -2960,7 +2960,7 @@ function visitSummary(v){
 }
 function openLedger(){
   const L = [...LEDGER].sort(entrySort);
-  sheet(`${top('Money in and out', `${L.length} added in Sole`)}${L.length ? `<div class="list flat">${L.map(entryRow).join('')}</div>` : '<p class="muted">Nothing added yet.</p>'}
+  sheet(`${top('Money in and out', `${L.length} added in SolePro`)}${L.length ? `<div class="list flat">${L.map(entryRow).join('')}</div>` : '<p class="muted">Nothing added yet.</p>'}
     <div class="btn-row" style="margin-top:12px"><button class="btn" data-act="addpay">Add a payment</button><button class="btn" data-act="addcost">Add a cost</button></div>`);
 }
 function openEntry(id){
@@ -3010,7 +3010,7 @@ const costCats = () => [...new Set([...COSTS.map(c => c.n), 'Supplies', 'Other']
 function openCost(){ RC = {url:null, asset:null, cat:'', reading:false, msg:''}; sheet(costHTML()); }
 function costHTML(){
   const v = id => { const el = $('#' + id); return el ? esc(el.value) : ''; };
-  return `${top('Add a cost', 'Snap the receipt and Sole fills in the rest.')}
+  return `${top('Add a cost', 'Snap the receipt and SolePro fills in the rest.')}
     <label class="btn ${RC.url ? 'line' : 'primary'} rcp-snap" style="width:100%">${I.camera}${RC.url ? 'Take another photo' : 'Snap a receipt'}<input type="file" id="rc-file" accept="image/*" capture="environment" hidden></label>
     ${RC.url ? `<img class="rcp-img" src="${RC.url}" alt="Receipt">` : ''}
     <p class="small muted" id="rc-status" ${RC.reading || RC.msg ? '' : 'hidden'}>${RC.reading ? 'Reading the receipt…' : esc(RC.msg)}</p>
@@ -3141,7 +3141,7 @@ function viewForms(){
   <p class="small muted">${P.formsNote}</p>
   ${papersSection()}`;
 }
-// a form as clients see it, every question (or a document's own words, with its numbers to call), to read in Sole
+// a form as clients see it, every question (or a document's own words, with its numbers to call), to read in SolePro
 function formDocHTML(f){
   if (f.read) return `<div class="fdoc">${(f.body || []).map(p => `<p>${esc(p)}</p>`).join('')}</div>
     ${f.calls ? `<div class="list">${f.calls.map(([who, ph]) => `<a class="li call" href="tel:${ph.replace(/[^0-9+]/g, '')}" target="_top"><span class="who"><b>${esc(who)}</b><span class="phone">${esc(ph)}</span></span><span class="tag ok">Call</span></a>`).join('')}</div>` : ''}`;
@@ -3155,7 +3155,7 @@ function formBlocks(f){
     : q.t === 'yesno' ? ['yn', q.l, q.follow] : ['q', q.l, q.t === 'long' ? 2 : 1])];
 }
 const printForm = f => printDoc(f.name, formBlocks(f));
-// a form a client filled in: their answers and signature, as the owner sees them in Sole
+// a form a client filled in: their answers and signature, as the owner sees them in SolePro
 function respVal(fl, a){
   let v = a[fl.id]; if (v === undefined || v === '' || (Array.isArray(v) && !v.length)) return null;
   if (fl.t === 'consent') return v ? 'Agreed' : 'Not agreed';
@@ -3236,7 +3236,7 @@ async function printDoc(title, B){
   if (!pdfMode()) return printOut(blocksHTML(B));
   const had = !!window.jspdf;
   try { await pdfLib(); } catch (_) { return printOut(blocksHTML(B)); }
-  const file = new File([pdfOf(B)], `${String(title).replace(/[^\w\s-]/g, '').trim() || 'Sole'}.pdf`, {type:'application/pdf'});
+  const file = new File([pdfOf(B)], `${String(title).replace(/[^\w\s-]/g, '').trim() || 'SolePro'}.pdf`, {type:'application/pdf'});
   if (!navigator.canShare || !navigator.canShare({files:[file]})) return printOut(blocksHTML(B));
   if (had) try { await navigator.share({files:[file], title}); return; } catch (e) { if (e && e.name === 'AbortError') return; }
   PDF_READY = {file, title};
@@ -3261,7 +3261,7 @@ function papersSection(){
     <div class="list">${PAPERS.map(p => `<button class="li td" data-act="pp-open" data-v="${p.uid}"><span class="td-i">${p.type === 'pdf' ? I.forms : I.badge}</span><span class="who"><b>${esc(p.name)}</b><span>${ppWhen(p)}</span></span>${I.chev}</button>`).join('')}
       ${miss.map(n => `<button class="li td pp-miss" data-act="pp-add" data-v="${esc(n)}"><span class="td-i">${I.plus}</span><span class="who"><b>${esc(n)}</b><span>Not added yet</span></span>${I.chev}</button>`).join('')}</div>
     <button class="btn line" data-act="pp-add" style="width:100%;margin-top:10px">${I.plus}Add another paper</button>
-    <p class="small muted">A photo or PDF of each, here whenever someone asks. Sole reminds you a month before one runs out.</p></section>`;
+    <p class="small muted">A photo or PDF of each, here whenever someone asks. SolePro reminds you a month before one runs out.</p></section>`;
 }
 let PPF = null;   // a paper being added or changed
 function ppHTML(){
@@ -3492,7 +3492,7 @@ function clientTabRows(){
 }
 /* ---------- bringing in clients from the app used before ----------
    A file exported from another app (Square, Vagaro, Booksy, MassageBook, Google or iPhone contacts) or a list typed or
-   pasted in. Sole works out which column is which from the headings and what's in them, shows who it found, leaves
+   pasted in. SolePro works out which column is which from the headings and what's in them, shows who it found, leaves
    out anyone already here, and brings the rest in at once (Undo takes them out again). Nobody is texted. */
 let IM = null;
 const IM_HEADS = {
@@ -3671,7 +3671,7 @@ function clientPage(k){
   <section class="cl-hero">${MOTIF}
     <span class="av">${esc(initials(k))}</span>
     <h2>${esc(c.name)}</h2>
-    <p>${c.since ? `${cap(W1)} since ${c.since}` : `New ${W1}`}${sp.a.v ? ` · ${sp.a.v} ${sp.a.v === 1 ? P.unitOne : P.unit}` : c.from === 'import' && c.visits ? ` · ${c.visits} ${c.visits === 1 ? P.unitOne : P.unit} before Sole` : ''}${c.every ? ` · every ${Math.round(c.every / 7)} week${c.every >= 14 ? 's' : ''}` : ''}</p>
+    <p>${c.since ? `${cap(W1)} since ${c.since}` : `New ${W1}`}${sp.a.v ? ` · ${sp.a.v} ${sp.a.v === 1 ? P.unitOne : P.unit}` : c.from === 'import' && c.visits ? ` · ${c.visits} ${c.visits === 1 ? P.unitOne : P.unit} before SolePro` : ''}${c.every ? ` · every ${Math.round(c.every / 7)} week${c.every >= 14 ? 's' : ''}` : ''}</p>
     ${x.flags || x.form || x.new || x.due ? `<div class="cl-tags">${x.flags ? '<span class="tag" style="background:var(--bad-soft);color:var(--bad)">Health notes</span>' : ''}${x.form ? `<span class="tag warn">${esc(cap(P.intakeName))} needed</span>` : ''}${x.new ? `<span class="tag new">New</span>` : ''}${x.due ? '<span class="tag warn">Due back</span>' : ''}</div>` : ''}
     <div class="cl-acts">
       <button class="cl-act primary" data-act="book" data-c="${esc(k)}">${I.schedule}Book</button>
@@ -3697,7 +3697,7 @@ function clientPage(k){
         ${joined ? `<button class="linkish" data-act="sqsplit" data-v="${g.id}">Separate the cards</button>` : `<button class="linkish" data-act="sqmerge" data-v="${g.id}">Same person as another card?</button>`}</p>`; })()}</section>
   <section class="sec"><div class="sec-h"><h2>Visits</h2><span class="aside">${visitForm().title} on each</span></div>
     ${vs.length ? `<ol class="tl">${[...coming.reverse(), ...(S.clAll === k ? past : past.slice(0, 12))].map(visitItem).join('')}</ol>
-      ${past.length > 12 && S.clAll !== k ? `<button class="btn line" data-act="cl-all" data-c="${esc(k)}">Show all ${past.length} visits</button>` : ''}` : `<p class="muted">No visits in Sole yet. Each one you book shows here with its notes.</p>`}
+      ${past.length > 12 && S.clAll !== k ? `<button class="btn line" data-act="cl-all" data-c="${esc(k)}">Show all ${past.length} visits</button>` : ''}` : `<p class="muted">No visits in SolePro yet. Each one you book shows here with its notes.</p>`}
   </section>
   <section class="sec"><div class="sec-h"><h2>Forms</h2><span class="aside">${rs.length} on file</span></div>
     <div class="cl-files">${rs.map(r => `<button class="cl-file" data-act="resp" data-v="${esc(r.id)}"><span class="fi">${I.forms}</span><span><b>${esc(r.form)}</b><span>Filled in ${MON[+r.date.slice(5,7) - 1].slice(0,3)} ${+r.date.slice(8,10)}, ${r.date.slice(0,4)}${r.sig ? ' · signed' : ''}</span></span>${I.chev}</button>`).join('')}
@@ -3723,7 +3723,7 @@ function recordsPage(){
   return `<button class="cl-back" data-act="cl-back">${I.left}All ${WN}</button>
   <section class="card sec rec-sum"><h2>Records on file</h2>
     <p><b>${r.notes} ${F}</b> for ${r.people.length} ${r.people.length === 1 ? W1 : WN}${r.first ? `, ${shortDate(r.first)} to ${shortDate(r.last)}` : ''}.${r.forms ? ` ${r.forms} filled-in form${r.forms === 1 ? '' : 's'}.` : ''}</p>
-    <p class="small muted">Kept in Sole, private to you. Tap a name to open their full record. This list shows only what’s on file, not what’s in it.</p>
+    <p class="small muted">Kept in SolePro, private to you. Tap a name to open their full record. This list shows only what’s on file, not what’s in it.</p>
     <button class="btn" data-act="print-list">Print this list</button></section>
   <div class="list">${r.people.map(x => `<button class="li client" data-act="cl-open" data-c="${esc(x.k)}"><span class="av${avTint(x.k)}">${esc(initials(x.k))}</span><span class="who"><b>${esc(CL[x.k].name)}</b><span>${x.n} note${x.n === 1 ? '' : 's'}${x.n ? ` · ${shortDate(x.first)}${x.n > 1 ? ` to ${shortDate(x.last)}` : ''}` : ''}${x.forms ? ` · ${x.forms} form${x.forms === 1 ? '' : 's'}` : ''}</span></span>${I.chev}</button>`).join('')}</div>`;
 }
@@ -3767,7 +3767,7 @@ function ask(q){
     a = `<b>${c.name}</b> was last in ${lastText(hit).toLowerCase()}. ${sp.a.v ? `Spent <b>${money(sp.y.$)}</b> this year and ${money(sp.a.$)} all time. ` : ''}${n ? `Next visit: <b>${whenText(n)}</b>, ${svLabel(n.s)}.` : 'Nothing booked yet.'}
       <div class="btn-row" style="margin-top:10px"><button class="btn" data-act="client" data-c="${hit}">Open notes</button><button class="btn primary" data-act="book" data-c="${hit}">Book</button></div>`;
   } else if (/(year|pace|forecast|project|on track|going)/.test(s)) {
-    a = P.fresh ? `Your first year on Sole started this month. So far you’ve brought in <b>${money(sumOf('month').net)}</b> from ${sumOf('month').n} ${P.unit}. Connect Square or upload past sales and Sole fills in the rest of your year.` : `You’ve done <b>${SO_FAR} ${P.unit}</b> this year through ${MON[DONE-1]}, worth about <b>${money(SO_FAR*RATE)}</b>. You’re on pace for about <b>${PROJ}</b>, which would beat your best year (${BEST_PAST_Y}, with ${BEST_PAST}).
+    a = P.fresh ? `Your first year on SolePro started this month. So far you’ve brought in <b>${money(sumOf('month').net)}</b> from ${sumOf('month').n} ${P.unit}. Connect Square or upload past sales and SolePro fills in the rest of your year.` : `You’ve done <b>${SO_FAR} ${P.unit}</b> this year through ${MON[DONE-1]}, worth about <b>${money(SO_FAR*RATE)}</b>. You’re on pace for about <b>${PROJ}</b>, which would beat your best year (${BEST_PAST_Y}, with ${BEST_PAST}).
       <div class="btn-row" style="margin-top:10px"><button class="btn primary" data-act="money" data-v="year">See your year</button></div>`;
   } else if (/(paid|owe|unpaid|charge)/.test(s)) {
     const u = unpaid();
@@ -3855,7 +3855,7 @@ function msgSheet(title, text, phone){
   sheet(`${top(title, 'Written for you. Change anything you like.')}
     <textarea class="text-in" id="msg" aria-label="Message">${esc(text)}</textarea>
     ${LIVEBOOK ? `<div class="btn-row">${tel.length >= 10 ? `<a class="btn primary" id="msg-sms" href="sms:${tel}&body=${encodeURIComponent(text)}" target="_top">Open in Messages</a>` : ''}<button class="btn${tel.length >= 10 ? '' : ' primary'}" data-act="copy">Copy the text</button></div>
-      <p class="small muted">${tel.length >= 10 ? 'Messages opens with the text ready to send.' : `Copy it into Messages. Add a phone number to their notes and Sole opens Messages for you.`}</p>`
+      <p class="small muted">${tel.length >= 10 ? 'Messages opens with the text ready to send.' : `Copy it into Messages. Add a phone number to their notes and SolePro opens Messages for you.`}</p>`
     : `<button class="btn primary" data-act="copy">Copy the text</button>
     <p class="small muted">In this sample, copy it into Messages. The real app would send it from your number and show the reply here.</p>`}`);
 }
@@ -3880,7 +3880,7 @@ function messageFor(k, kind){
   return `Hi ${f}! `;
 }
 
-// after booking or moving: Sole texts the client itself when texting is set up and they have a number; otherwise
+// after booking or moving: SolePro texts the client itself when texting is set up and they have a number; otherwise
 // Messages opens with the text written, for the owner to send
 const autoText = () => !!TEXT_ON && !!P.real && PREFS.autoText !== false;
 const canText = k => autoText() && String(CL[k].phone || '').replace(/\D/g, '').length >= 10;
@@ -4017,14 +4017,14 @@ function bookGo(){
     a.off = B.off; a.start = B.start; a.w = B.w; a.s = B.s;
     const changed = svc ? `${first(a.c)} is now ${svLabel(a.s)}${also ? ` on ${dayName(a.off)} and ${also} more` : ''}.${skip ? ` ${skip} didn’t fit and stay as they were.` : ''}` : '';
     if (!moved) { closeSheet(); render(); if (svc) toast(changed); return; }
-    if (LIVEBOOK) { closeSheet(); render(); toast(`Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}.${svc ? ' ' + changed : ''}${canText(a.c) ? ` Sole will text ${first(a.c)}.` : ''}`); tellClient(a.c, 'moved', a, `Let ${first(a.c)} know`); return; }
+    if (LIVEBOOK) { closeSheet(); render(); toast(`Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}.${svc ? ' ' + changed : ''}${canText(a.c) ? ` SolePro will text ${first(a.c)}.` : ''}`); tellClient(a.c, 'moved', a, `Let ${first(a.c)} know`); return; }
     msg = `Moved ${first(a.c)} to ${dayName(a.off)} at ${clock(a.start)}.${svc ? ' ' + changed : ''} In the real app, ${first(a.c)} gets a text.`; }
   else {
     let k = B.c;
     if (k === 'new') { k = 'n' + Date.now().toString(36); CL[k] = {name:B.newName.trim(), phone:'Not added yet', since:T0.getFullYear(), visits:0, last:null, isNew:true, intake:false, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true, ...(P.look === 'seaglass' ? {} : {rows:[]})}; if (!CL[k].name.includes(' ')) CL[k].name += ' '; }
     const na = add(k, B.s, B.off, B.start, {w:B.w, mine:true, uid:uidOf('a')});
     if (B.fromReq) REQ.open = false;
-    if (LIVEBOOK) { if (S.tab === 'schedule') { S.day = B.off; S.week = Math.floor(B.off / 7); } closeSheet(); render(); toast(`Booked ${first(k)} for ${dayName(B.off)} at ${clock(B.start)}.${canText(k) ? ` Sole will text ${first(k)}.` : ''}`);
+    if (LIVEBOOK) { if (S.tab === 'schedule') { S.day = B.off; S.week = Math.floor(B.off / 7); } closeSheet(); render(); toast(`Booked ${first(k)} for ${dayName(B.off)} at ${clock(B.start)}.${canText(k) ? ` SolePro will text ${first(k)}.` : ''}`);
       tellClient(k, 'confirm', na, `Confirm with ${first(k)}`); return; }
     msg = `Booked ${first(k)} for ${dayName(B.off)} at ${clock(B.start)}. In the real app, a confirmation text goes out.`;
   }
@@ -4045,9 +4045,9 @@ function obRender(){
   const dots = `<div class="ob-dots">${Array.from({length:OB_STEPS}, (_,i) => `<i class="${i <= OB.step ? 'on' : ''}"></i>`).join('')}</div>`;
   const nav = (next, label) => `<div class="btn-row">${OB.step ? '<button class="btn" data-act="ob-back">Back</button>' : '<span></span>'}<button class="btn primary" data-act="${next}">${label}</button></div>`;
   let body = '';
-  if (OB.step === 0) body = `<div class="welcome"><div class="brand">${SUNMARK}<b>Sole</b></div>
+  if (OB.step === 0) body = `<div class="welcome"><div class="brand">${SUNMARK}<b>SolePro</b></div>
       <p>The app for the one-person business. Your schedule, your customers, your money and your paperwork, in one place made for yours.</p>
-      <p class="muted small">Setup takes about two minutes. Upload your logo and your forms, and Sole looks and feels like yours.</p></div>
+      <p class="muted small">Setup takes about two minutes. Upload your logo and your forms, and SolePro looks and feels like yours.</p></div>
       <button class="btn primary" data-act="ob-next">Create my account</button>`;
   if (OB.step === 1) body = `${dots}<h2>What does your business do?</h2>
       ${[...new Set(TRADES.map(t => t.group))].map(g => `<div class="field"><span class="label">${g}</span><div class="tradepick">${TRADES.filter(t => t.group === g).map(t => `<button data-act="ob-trade" data-v="${t.id}" aria-pressed="${OB.trade===t.id}">${t.label}</button>`).join('')}</div></div>`).join('')}
@@ -4061,11 +4061,11 @@ function obRender(){
       <div class="field"><span class="label">Your first name</span><input class="text-in" id="ob-owner" value="${esc(OB.owner)}" placeholder="Your first name" autocomplete="given-name"></div>
       <div class="field"><span class="label">Who works here?</span><div class="chips"><button class="chip" data-act="ob-two" data-v="0" aria-pressed="${!OB.two}">Just me</button><button class="chip" data-act="ob-two" data-v="1" aria-pressed="${OB.two}">Me and one other person</button></div>
       ${OB.two ? `<input class="text-in" id="ob-mate" value="${esc(OB.mate)}" placeholder="Their first name">` : ''}</div>${nav('ob-next','Next')}`;
-  if (OB.step === 3) body = `${dots}<h2>Your logo</h2><p class="muted">Sole takes its colors from your logo.</p>
+  if (OB.step === 3) body = `${dots}<h2>Your logo</h2><p class="muted">SolePro takes its colors from your logo.</p>
       <label class="drop" for="ob-logo">${OB.logo ? `<img src="${OB.logo}" alt="Your logo">` : '<b>Choose your logo</b><span>A photo or image file</span>'}<input type="file" id="ob-logo" accept="image/*"></label>
       ${OB.colors.length ? `<div class="field"><span class="label">Colors in your logo</span><div class="swatches">${OB.colors.map(c => `<button data-act="ob-color" data-v="${c}" style="background:${c}" aria-label="Use ${c}" aria-pressed="${OB.color===c}"></button>`).join('')}</div>
         <div class="preview-bar" style="background:${OB.color ? hsl(...[hexToHsl(OB.color)[0], Math.max(28, Math.min(72, hexToHsl(OB.color)[1])), 30]) : 'var(--accent)'};color:#fff">${esc(OB.biz || 'Your business')}</div></div>` : ''}
-      ${OB.logo ? '<button class="btn line" data-act="ob-nocolor">Use Sole’s colors instead</button>' : ''}${nav('ob-next', OB.logo ? 'Next' : 'Skip for now')}`;
+      ${OB.logo ? '<button class="btn line" data-act="ob-nocolor">Use SolePro’s colors instead</button>' : ''}${nav('ob-next', OB.logo ? 'Next' : 'Skip for now')}`;
   if (OB.step === 4) body = `${dots}<h2>Your forms and documents</h2><p class="muted">Intake forms, consent forms, policies, price lists. Each one becomes a form you can print or send. Spreadsheets of past sales become your history.</p>
       <label class="drop" for="ob-docs"><b>Add files</b><span>PDF, Word, photos or spreadsheets</span><input type="file" id="ob-docs" multiple></label>
       ${OB.docs.length ? `<div class="docs">${OB.docs.map(d => `<div class="docrow"><span class="doc">${d.isImg ? `<img src="${d.url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:8px">` : I.forms}</span><span style="min-width:0"><b>${esc(d.name)}</b><span>${d.kind} · ${d.size}</span></span><span class="tag ok">${d.kind === 'Spreadsheet' ? 'History' : 'Form'}</span></div>`).join('')}</div>` : ''}
@@ -4074,7 +4074,7 @@ function obRender(){
       <div class="prices">${T.services.map(([k, n, m, p]) => `<div class="price"><div><input class="text-in" id="ob-name-${k}" value="${esc(OB.names[k] != null ? OB.names[k] : n)}" aria-label="Service name" style="padding:8px 10px;font-weight:600"><span>${dur(m)}</span></div><label>$<input id="ob-price-${k}" inputmode="numeric" value="${OB.prices[k] != null ? esc(OB.prices[k]) : p}" aria-label="Price"></label></div>`).join('')}</div>
       <p class="small muted">Add more services, and connect your booking app and Square, from the app once you’re in.</p>
       ${nav('ob-done', `Open ${esc(OB.biz)}`)}`;
-  const html = `<div class="ob">${OB.step ? `<div class="sh-top"><div class="brand" style="gap:8px">${SUNMARK.replace('<svg', '<svg style="width:26px;height:26px"')}<b style="font-size:22px">Sole</b></div><button class="close" data-act="close">Cancel</button></div>` : ''}${body}</div>`;
+  const html = `<div class="ob">${OB.step ? `<div class="sh-top"><div class="brand" style="gap:8px">${SUNMARK.replace('<svg', '<svg style="width:26px;height:26px"')}<b style="font-size:22px">SolePro</b></div><button class="close" data-act="close">Cancel</button></div>` : ''}${body}</div>`;
   if ($('.sheet')) { $('.sheet').innerHTML = `<div class="grab"></div>${html}`; $('.sheet').scrollTop = 0; } else sheet(html, OB.cloud ? 'full' : '');
 }
 function obFinish(){
@@ -4087,7 +4087,7 @@ function obFinish(){
   saveAccounts();
   const sheets = OB.docs.length - docs.length, biz = OB.biz.trim();
   OB = null; closeSheet(); window.scrollTo(0,0); boot(id);
-  setTimeout(() => toast(`${biz} is set up.${sheets ? ` In the real app, Sole reads your past sales from ${sheets === 1 ? 'that spreadsheet' : 'those spreadsheets'}.` : ''}`), 50);
+  setTimeout(() => toast(`${biz} is set up.${sheets ? ` In the real app, SolePro reads your past sales from ${sheets === 1 ? 'that spreadsheet' : 'those spreadsheets'}.` : ''}`), 50);
 }
 async function obCloud(){
   const id = 'acct-new', T = TRADES.find(t => t.id === OB.trade), go = $('[data-act=ob-done]');
@@ -4267,7 +4267,7 @@ on('click', e => {
   if (el.dataset.act === 'undo') { if (UNDO.snap) { textCancel(UNDO.snap); bookPut(UNDO.snap); UNDO.snap = null; closeSheet(); render(); toast('Undone.'); } return; }
   { const a = el.dataset.id && ['move', 'cancel'].includes(el.dataset.act) ? AP.find(x => x.id === id) : null;
     if (a && a.sq) { sheet(`${top('Booked in Square', `${first(a.c)} booked this in Square, so it changes there.`)}
-      <p>Open Square to move or cancel it. The change shows up here a minute or two later. New bookings made in Sole stay in Sole.</p>`); return; } }
+      <p>Open Square to move or cancel it. The change shows up here a minute or two later. New bookings made in SolePro stay in SolePro.</p>`); return; } }
   switch (el.dataset.act) {
     case 'tab': closeSheet(); S.tab = v; if (v === 'schedule') { S.day = 0; S.week = 0; } if (v === 'money') S.money = 'home'; if (v === 'clients') { S.cl = null; S.clRec = false; } render(); window.scrollTo(0,0); break;
     case 'cl-open': closeSheet(); S.tab = 'clients'; S.clRec = false; S.cl = el.dataset.c; render(); window.scrollTo(0,0); break;
@@ -4281,11 +4281,11 @@ on('click', e => {
     case 'snap': S.money = 'home'; render(); window.scrollTo(0,0); break;
     case 'clients': closeSheet(); S.tab = 'money'; S.money = 'clients'; S.search = ''; render(); window.scrollTo(0,0); break;
     case 'formsend': msgSheet(`Text a ${W1}`, `Hi! Before your ${P.firstVisit}, please fill in this ${FORMS[+el.dataset.i].name.toLowerCase()} on your phone: ${formLinkOf(FORMS[+el.dataset.i]) || '[form link]'}`); break;
-    case 'copylink': { const u = formLinkOf(FORMS[+el.dataset.i]) || 'Sole gives every form its own link once it’s set up.'; try { navigator.clipboard.writeText(u).then(() => toast('Link copied.'), () => toast(u)); } catch (_) { toast(u); } break; }
+    case 'copylink': { const u = formLinkOf(FORMS[+el.dataset.i]) || 'SolePro gives every form its own link once it’s set up.'; try { navigator.clipboard.writeText(u).then(() => toast('Link copied.'), () => toast(u)); } catch (_) { toast(u); } break; }
     case 'addform': if (P.real) { sheet(`${top('Add a form', 'Policies, consent forms, anything you hand out or keep on file.')}
       <button class="btn primary" data-act="pp-add" data-v="" style="width:100%">${I.camera}Add a PDF or a photo of it</button>
-      <p class="small muted">It’s kept with your papers, here in Sole, and opens right here whenever you need it.</p>
-      <div class="card facts2"><p>Want ${WN} to fill one in and sign it on their phone, like your ${esc(P.intakeName)}? Ask Brooks, and it’s built into Sole for you.</p></div>`); break; }
+      <p class="small muted">It’s kept with your papers, here in SolePro, and opens right here whenever you need it.</p>
+      <div class="card facts2"><p>Want ${WN} to fill one in and sign it on their phone, like your ${esc(P.intakeName)}? Ask Brooks, and it’s built into SolePro for you.</p></div>`); break; }
       sheet(`${top('Add a form', 'Gift certificates, policies, anything you hand out or keep on file.')}
       <div class="card facts2"><p>In the real app you’d pick a PDF, a Google Doc, or take a photo of a paper form, and it shows up here ready to print or send.</p></div>`); break;
     case 'month': closeSheet(); S.tab = 'money'; S.money = 'month'; S.mo = v; S.cmp = null; render(); window.scrollTo(0, 0); break;
@@ -4389,8 +4389,8 @@ on('click', e => {
     case 'formprint': printForm(FORMS[+el.dataset.i]); break;
     case 'resp-print': { const r = RESP.find(x => x.id === v); if (r) printDoc(`${r.form} ${CL[r.client] ? CL[r.client].name : r.name || ''}`, respBlocks(r)); break; }
     case 'pdf-go': if (PDF_READY) navigator.share({files:[PDF_READY.file], title:PDF_READY.title}).then(() => { PDF_READY = null; closeSheet(); }, () => {}); break;
-    case 'trade': sheet(`<div class="sh-top"><div class="brand">${SUNMARK}<b>Sole</b></div><button class="close" data-act="close">Done</button></div>
-      <p class="muted">Sole is for the owner who does the work: a one- or two-person business of any kind. Every business gets the same tools, set up with its own words, forms, name and colors.</p>
+    case 'trade': sheet(`<div class="sh-top"><div class="brand">${SUNMARK}<b>SolePro</b></div><button class="close" data-act="close">Done</button></div>
+      <p class="muted">SolePro is for the owner who does the work: a one- or two-person business of any kind. Every business gets the same tools, set up with its own words, forms, name and colors.</p>
       <span class="label">Businesses</span>
       <div class="trades">${[...Object.keys(PROFILES), ...Object.keys(ACCOUNTS)].map(k => { const p = PROFILES[k], a = ACCOUNTS[k];
         const biz = p ? p.biz : a.biz, sub = p ? `${p.trade} · ${p.real ? 'real numbers' : 'sample business'}` : `${a.what || TRADES.find(t => t.id === a.trade).label} · set up in this browser`;
@@ -4462,15 +4462,15 @@ on('click', e => {
         isNew:true, intake:false, rows:[], note:($('#ac-note').value || '').trim(), mine:true};
       closeSheet(); render(); openClient(k); toast(`${nm} added.`); break; }
     case 'connect': { const sq = v === 'square';
-      sheet(`${top(sq ? 'Get paid with Square' : 'Bring in your calendar', sq ? 'Sign in once. Sole does the rest.' : 'Where do you book people now?')}
+      sheet(`${top(sq ? 'Get paid with Square' : 'Bring in your calendar', sq ? 'Sign in once. SolePro does the rest.' : 'Where do you book people now?')}
       ${sq ? `<div class="card facts2"><p>Payments, tips and customers from Square show up in Today and Snapshot by themselves, and “Charge” opens Square with the amount ready.</p></div>`
         : `<div class="chips">${['MassageBook','Vagaro','Booksy','Square Appointments','Google Calendar','Apple Calendar'].map(x => `<button class="chip" data-act="connect-go" data-v="cal">${x}</button>`).join('')}</div>`}
-      ${sq ? '<button class="btn primary" data-act="connect-go" data-v="square">Connect Square</button>' : `<button class="btn line" data-act="connect-go" data-v="cal">I’ll book everything in Sole</button>`}
+      ${sq ? '<button class="btn primary" data-act="connect-go" data-v="square">Connect Square</button>' : `<button class="btn line" data-act="connect-go" data-v="cal">I’ll book everything in SolePro</button>`}
       <p class="small muted">This preview marks it as connected. In the real app you sign in to ${sq ? 'Square' : 'that app'} and your ${sq ? 'payments' : 'bookings'} come in.</p>`); break; }
     case 'connect-go': DONE_STEPS[v] = true; closeSheet(); render(); toast(v === 'square' ? 'Square connected.' : 'Calendar set.'); break;
     case 'checkforms': DONE_STEPS.forms = true; if (P.real) savePrefs(); S.tab = 'forms'; render(); window.scrollTo(0,0); break;
     case 'gs-svc': DONE_STEPS.svc = true; savePrefs(); render(); sheet(servicesHTML()); break;
-    case 'addlicense': sheet(`${top('Add your license', 'Sole reminds you three months before it renews.')}
+    case 'addlicense': sheet(`${top('Add your license', 'SolePro reminds you three months before it renews.')}
       <div class="field"><span class="label">License</span><input class="text-in" id="lic-name" autocomplete="off" placeholder="State license, insurance or certification"></div>
       <div class="field"><span class="label">Renews</span><input class="text-in" id="lic-when" type="month"></div>
       <button class="btn primary" data-act="lic-save">Save</button>`); break;
@@ -4530,7 +4530,7 @@ on('click', e => {
     case 'me-thanks': PREFS.thanks = v !== 'off'; savePrefs(); $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; break;
     case 'me-face-off': try { localStorage.removeItem('sole-face'); } catch (_) {} $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; toast(`${FACE} is off on this phone. Next time, sign in with a code.`); break;
     case 'me-face-on': if (!pkOk()) { toast(`${FACE} isn’t ready on this address yet. Try again later.`); break; } el.disabled = true; pkCeremony('reg').then(() => true, err => err && (err.code === 'webauthn_credential_exists' || err.name === 'InvalidStateError'))
-      .then(ok => { if (ok) { lsSet('sole-face', '1'); toast(`${FACE} is on. Next time, Sole opens with a glance.`); } else { pkFetch('reg'); toast(`${FACE} didn’t turn on. Try again.`); } if ($('.sheet')) $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; }); break;
+      .then(ok => { if (ok) { lsSet('sole-face', '1'); toast(`${FACE} is on. Next time, SolePro opens with a glance.`); } else { pkFetch('reg'); toast(`${FACE} didn’t turn on. Try again.`); } if ($('.sheet')) $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; }); break;
     case 'me-out': (async () => { const q = await idbGet('pending'); if (q && q.length) { toast('Some changes are still waiting for signal. Sign out once they’re saved.'); return; }
       await idbSet('book', null); lsSet('sole-biz-name', ''); try { await SB.auth.signOut(); } catch (_) {} location.reload(); })(); break;
     case 'pp-add': PPF = {name:v || '', expires:'', file:null, url:null}; sheet(ppHTML()); break;
@@ -4630,18 +4630,18 @@ if (TEXT_ON === null && CLOUD_ON && SB && BIZ && P.real) { TEXT_ON = false; SB.f
 if (OPEN_MSG && INBOX.some(m => m.id === OPEN_MSG)) { const id = OPEN_MSG; OPEN_MSG = null; try { history.replaceState(history.state, '', location.pathname); } catch (_) {} inboxSheet(id); }
 if (P.real && !SQ) loadSquare(KEY);
 if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.getItem('sole-seen'); } catch (_) {}
-  if (!seen) sheet(`<div class="welcome"><div class="brand">${SUNMARK}<b>Sole</b></div>
+  if (!seen) sheet(`<div class="welcome"><div class="brand">${SUNMARK}<b>SolePro</b></div>
     <p>The app for the one-person business. Your schedule, your customers, your money and your paperwork, in one place made for yours.</p></div>
     <button class="btn primary" data-act="welcome-setup">Set up my business</button>
     <button class="btn line" data-act="welcome-look">Look around a sample business</button>`); }
 }
-/* ---------- Sole on its own website: Supabase in place of claude.ai ----------
-   On Sole's own website the app signs in with Supabase (email and a one-time code), keeps the book in its tables
+/* ---------- SolePro on its own website: Supabase in place of claude.ai ----------
+   On SolePro's own website the app signs in with Supabase (email and a one-time code), keeps the book in its tables
    and reads Square payments that the square Edge Function writes. It does this by standing in for window.claude, so
    the rest of the app is the same on both. On claude.ai nothing here runs. */
 const CLOUD_CFG = PROFILES.massage.cloud || {};   // set in the private edition only
 let FORM_LINK = null, CLIENT_NAME = () => '', TOAST = () => {}, USER_EMAIL = '', ME_DIRTY = false;
-/* ---------- texts from Sole's own number (asked for Oct 27, 2026) ----------
+/* ---------- texts from SolePro's own number (asked for Oct 27, 2026) ----------
    After booking or moving, the confirmation goes to the client by itself once the Undo window has passed (Undo stops
    it); leaving the app sends it right away. If it can't go, Messages opens with it written, as before. */
 function textLater(j){ j.snap = UNDO.snap; j.t = setTimeout(() => textNow(j), window.__SOLE_TEXT_MS != null ? window.__SOLE_TEXT_MS : 8000); TEXT_Q.push(j); }
@@ -4649,14 +4649,14 @@ async function textNow(j){
   clearTimeout(j.t); const i = TEXT_Q.indexOf(j); if (i < 0) return; TEXT_Q.splice(i, 1);
   let d; try { const r = await SB.functions.invoke('text', {body:{action:'send', business_id:BIZ, to:j.to, name:j.name, body:j.body, kind:j.kind, ref:j.ref}}); d = (r && r.data) || {error:'net'}; } catch (_) { d = {error:'net'}; }
   if (d.ok) { if (!document.hidden && j.kind !== 'reply') TOAST(`Texted ${j.who}.`); if (j.done) j.done(); return; }
-  TOAST(d.error === 'stopped' ? `${j.who} turned off texts from Sole. Send it from your own phone.` : d.error === 'phone' ? `${j.who}’s number didn’t work. Check it, or send it from your own phone.` : `The text to ${j.who} didn’t go. Send it from your own phone.`);
+  TOAST(d.error === 'stopped' ? `${j.who} turned off texts from SolePro. Send it from your own phone.` : d.error === 'phone' ? `${j.who}’s number didn’t work. Check it, or send it from your own phone.` : `The text to ${j.who} didn’t go. Send it from your own phone.`);
   if (j.back) j.back();
 }
 const textCancel = snap => { for (let i = TEXT_Q.length - 1; i >= 0; i--) if (!snap || TEXT_Q[i].snap === snap) { clearTimeout(TEXT_Q[i].t); TEXT_Q.splice(i, 1); } };
 document.addEventListener('visibilitychange', () => { if (document.hidden) [...TEXT_Q].forEach(textNow); });
 const setTheme = t => { try { if (t) localStorage.setItem('sole-theme', t); else localStorage.removeItem('sole-theme'); } catch (_) {} if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; };
 try { const t = localStorage.getItem('sole-theme'); if (t) document.documentElement.dataset.theme = t; } catch (_) {}   // the texted form being filled in (formStart); a client's name, for formLink
-// Sole's address moved (Oct 26, 2026): the old one forwards to the new, texted form links included
+// SolePro's address moved (Oct 26, 2026): the old one forwards to the new, texted form links included
 if (CLOUD_CFG.movedFrom && CLOUD_CFG.movedFrom.test(location.hostname)) location.replace(CLOUD_CFG.home + location.pathname + location.search + location.hash);
 const CLOUD_ON = !!window.__SOLE_CLOUD_CLIENT || (!!CLOUD_CFG.url && !!CLOUD_CFG.host && CLOUD_CFG.host.test(location.hostname));
 let SB = null, BIZ = null, SQ_CACHE = null;
@@ -4684,7 +4684,7 @@ async function refreshBook(){
   bookSaveSoon();
 }
 function edgeShow(dx){ const el = gestureEl('edge', '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>'); el.style.opacity = dx ? Math.min(1, dx / 70) : 0; el.style.transform = `translateX(${Math.min(dx, 90) * .4}px)`; }
-// the opening plays every time Sole opens: the book loads behind it, then the scene hands over
+// the opening plays every time SolePro opens: the book loads behind it, then the scene hands over
 const INTRO_MS = window.__SOLE_INTRO_MS != null ? window.__SOLE_INTRO_MS : matchMedia('(prefers-reduced-motion: reduce)').matches ? 1200 : 3400;
 let INTRO_AT = 0;
 function introVeil(){
@@ -4713,7 +4713,7 @@ function cloudScreen(html){
       <div class="sky" aria-hidden="true"><div class="air"><div class="stars">${stars}</div><div class="glow"></div>
         <div class="sun"><svg viewBox="-32 -32 64 64"><circle r="10" fill="#F6C46C"/><g class="rays" fill="none" stroke="#FAD889" stroke-width="2.2" stroke-linecap="round">${Array.from({length:8}, (_, i) => `<path transform="rotate(${i*45})" d="M0 -15V-23"/>`).join('')}</g></svg></div></div>
         <div class="sea"><div class="shine">${shine}</div></div></div>
-      <div class="sky-in"><div class="sky-head"><h1 class="sky-word" aria-label="Sole">${[...'Sole'].map((ch, i) => `<span aria-hidden="true" style="animation-delay:${(1 + i*.12).toFixed(2)}s">${ch}</span>`).join('')}</h1>
+      <div class="sky-in"><div class="sky-head"><h1 class="sky-word" aria-label="SolePro">${[...'SolePro'].map((ch, i) => `<span aria-hidden="true" style="animation-delay:${(1 + i*.12).toFixed(2)}s">${ch}</span>`).join('')}</h1>
         <p class="sky-tag">For the one-person business</p></div>
         <div class="sky-card" id="sky-card"></div></div></section>`;
   }
@@ -4744,7 +4744,7 @@ const lsGet = k => { try { return localStorage.getItem(k); } catch (_) { return 
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} };
 const PK = {sign:null, reg:null};   // challenges fetched ahead of the tap: {at, data}
 // PK_BAD: the sign-in service's Face ID is set up for another address (as right after a move), so the phone would refuse
-// it; Sole then doesn't offer Face ID at all and the email code carries on
+// it; SolePro then doesn't offer Face ID at all and the email code carries on
 let PK_BAD = false;
 const pkOk = () => !PK_BAD && !!(window.PublicKeyCredential && navigator.credentials && SB && SB.auth.passkey);
 const pkHere = id => !id || location.hostname === id || location.hostname.endsWith('.' + id);
@@ -4781,12 +4781,12 @@ function pkCeremony(kind){
   return (kind === 'sign' ? navigator.credentials.get({publicKey}) : navigator.credentials.create({publicKey}))
     .then(c => SB.auth.passkey[kind === 'sign' ? 'verifyAuthentication' : 'verifyRegistration']({challengeId:pre.challenge_id, credential:pkJSON(c)})).then(check);
 }
-// once signed in on a phone without Face ID for Sole: offer it (Not now waits two weeks)
+// once signed in on a phone without Face ID for SolePro: offer it (Not now waits two weeks)
 async function offerFace(done){
   const later = +lsGet('sole-face-later') || 0;
   if (!pkOk() || lsGet('sole-face') || Date.now() - later < 14 * 864e5) return done();
   if (!(await pkFetch('reg'))) return done();
-  cloudScreen(`<p class="sky-big">Skip the code next time</p><p class="muted">Turn on ${FACE} and Sole opens with a glance.</p>
+  cloudScreen(`<p class="sky-big">Skip the code next time</p><p class="muted">Turn on ${FACE} and SolePro opens with a glance.</p>
     <button class="btn primary" id="fx-on">${FACE_ICON}Turn on ${FACE}</button><button class="btn line" id="fx-no">Not now</button>
     <p class="small muted" id="si-msg"></p>`);
   $id('fx-no').onclick = () => { lsSet('sole-face-later', String(Date.now())); done(); };
@@ -4805,7 +4805,7 @@ function askSignIn(step = 'email', email = '', msg = ''){
   if (face) face.onclick = () => { face.disabled = true; say('');
     pkCeremony('sign').then(() => { lsSet('sole-face', '1'); cloudGo(); })
       .catch(err => { if (PK_BAD || (err && err.name === 'SecurityError')) { PK_BAD = true; face.remove(); say(`Sign in with your email this time. ${FACE} comes back after.`); return; }
-        face.disabled = false; pkFetch('sign'); say(`${FACE} didn’t sign you in. If it isn’t on for Sole yet, use your email once.`); });
+        face.disabled = false; pkFetch('sign'); say(`${FACE} didn’t sign you in. If it isn’t on for SolePro yet, use your email once.`); });
   };
   form.onsubmit = async e => {
     e.preventDefault(); const btn = form.querySelector('button'); btn.disabled = true;
@@ -4865,7 +4865,7 @@ function cloudDb(){
 }
 /* ---------- no signal: the phone's own copy of the book ----------
    After each load and as things change, the book (every row, the profile, card payments) is kept in this phone's
-   IndexedDB. With no signal Sole opens from it; changes made then wait in `pending` and are saved first thing once
+   IndexedDB. With no signal SolePro opens from it; changes made then wait in `pending` and are saved first thing once
    the phone is back online (each one sets or deletes a whole document, so saving them late is safe). */
 let BOOK_ROWS = {}, OFFLINE = null, BOOK_T = null, BOOK_BIZ = null;
 const online = () => !window.__SOLE_OFFLINE && navigator.onLine !== false;   // tests: __SOLE_OFFLINE
@@ -4927,15 +4927,15 @@ function liveFromCache(){
   SQ.all = [...SQ_CACHE.pays.values()];
   SQ.live = {payments:pays, from:isoDay(from), at:new Date(), sig:pays.length + ':' + pays.map(p => p.id + p.status + (p.updated_at || '')).join().length};
 }
-// signed in, but this email isn't on a business yet: with an invite code, Sole's setup screens make their own
+// signed in, but this email isn't on a business yet: with an invite code, SolePro's setup screens make their own
 async function cloudNew(){
   const { data:u } = await SB.auth.getUser(), em = (u && u.user && u.user.email) || '';
   lsSet('sole-biz-name', '');
-  cloudScreen(`<p class="sky-big">Welcome to Sole</p><p class="muted">You’re signed in as <b>${cloudEsc(em)}</b>. Set up your business in a few minutes.</p>
+  cloudScreen(`<p class="sky-big">Welcome to SolePro</p><p class="muted">You’re signed in as <b>${cloudEsc(em)}</b>. Set up your business in a few minutes.</p>
     <form id="nb-form"><input class="text-in" id="nb-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Invite code" aria-label="Invite code" required>
       <button class="btn primary" style="width:100%">Set up my business</button></form>
     <p class="small muted" id="si-msg" role="alert"></p>
-    <p class="small muted">Sole is by invitation for now. Your code came from whoever told you about it.</p>
+    <p class="small muted">SolePro is by invitation for now. Your code came from whoever told you about it.</p>
     <button class="btn line" id="nb-out" type="button">Use a different email</button>`);
   $id('nb-out').onclick = async () => { try { await SB.auth.signOut(); } catch (_) {} location.reload(); };
   $id('nb-form').onsubmit = async e => {
@@ -5003,7 +5003,7 @@ async function formLink(k){
 async function cloudStart(){
   INTRO_AT = Date.now();
   // a phone that has opened the book before says welcome back from the first moment (it changes if no one is signed in)
-  cloudScreen(lsGet('sole-biz-name') ? welcomeHTML(lsGet('sole-biz-name')) : '<p class="muted sky-wait">Opening Sole…</p>');
+  cloudScreen(lsGet('sole-biz-name') ? welcomeHTML(lsGet('sole-biz-name')) : '<p class="muted sky-wait">Opening SolePro…</p>');
   if ('serviceWorker' in navigator && !window.__SOLE_CLOUD_CLIENT) navigator.serviceWorker.register('/sw.js').catch(() => {});
   if (!online()) { const c = await idbGet('book'); if (c) return cloudOffline(c); }
   try { await sbMake(); } catch (e) { const c = await idbGet('book'); if (c) return cloudOffline(c); throw e; }

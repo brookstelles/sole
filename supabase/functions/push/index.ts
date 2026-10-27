@@ -1,6 +1,6 @@
-// Notifications for Sole (web push, RFC 8291 and 8292): a message from the business's website buzzes the owner's
-// phone like a text. The phone must have Sole on its home screen (an iPhone's rule) and notifications turned on in
-// Sole (account menu). Actions: "key" (public: the server's public key, for subscribing), "subscribe" and
+// Notifications for SolePro (web push, RFC 8291 and 8292): a message from the business's website buzzes the owner's
+// phone like a text. The phone must have SolePro on its home screen (an iPhone's rule) and notifications turned on in
+// SolePro (account menu). Actions: "key" (public: the server's public key, for subscribing), "subscribe" and
 // "unsubscribe" (a signed-in member, for this phone), and "send" (only the other Edge Functions, with the service key).
 // The signing keys are made here the first time and kept in push_keys; they never leave the database.
 // Deploy with verify_jwt off. SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.

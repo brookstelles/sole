@@ -1,6 +1,6 @@
 // The business's appointments as a calendar feed (asked for Oct 27, 2026: a backup copy in Google Calendar). Google
 // Calendar (Other calendars → From URL) or a phone's calendar subscribes to the private link and keeps its own copy;
-// it only reads, so nothing made there comes back into Sole. Appointments only: no time off, no notes, no money.
+// it only reads, so nothing made there comes back into SolePro. Appointments only: no time off, no notes, no money.
 // GET ?t=<token>: the feed (the token is the key; a new link turns the old one off).
 // POST {action:'link'|'reset', business_id}: a signed-in member gets the link, or a new one.
 // Deploy with verify_jwt off. SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.
@@ -43,7 +43,7 @@ const at = (date: string, min: number) => { const d = new Date(date + 'T12:00:00
 
 async function feed(token: string) {
   const { data: f } = await db.from('cal_feeds').select('business_id').eq('token', token).maybeSingle();
-  if (!f) return new Response('This calendar link has been turned off. Get the new one in Sole.', { status: 404 });
+  if (!f) return new Response('This calendar link has been turned off. Get the new one in SolePro.', { status: 404 });
   const { data: b, error } = await db.from('businesses').select('id,name,data').eq('id', f.business_id).maybeSingle(); if (error || !b) throw error || new Error('no business');
   const P = b.data || {}, tz = P.tz || 'America/New_York';
   const [appts, clients, prefs, { data: cards }] = await Promise.all([all('appts', b.id), all('clients', b.id), all('people', b.id),
@@ -55,8 +55,8 @@ async function feed(token: string) {
   const CL = Object.fromEntries(clients.map(r => [r.id, r.data || {}])), CARD = Object.fromEntries((cards ?? []).map((c: any) => [c.id, c.name]));
   const who = (k: string) => (CL[k] && CL[k].name ? String(CL[k].name).trim() : '') || (k.startsWith('sq:') && CARD[k.slice(3)]) || 'Client';
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z'), place = P.site && P.site.address ? String(P.site.address) : '';
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Sole//Appointments//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
-    `X-WR-CALNAME:${esc((P.biz || b.name || 'Sole') + ' appointments')}`, `X-WR-TIMEZONE:${tz}`, 'X-PUBLISHED-TTL:PT1H', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H'];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SolePro//Appointments//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    `X-WR-CALNAME:${esc((P.biz || b.name || 'SolePro') + ' appointments')}`, `X-WR-TIMEZONE:${tz}`, 'X-PUBLISHED-TTL:PT1H', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H'];
   const since = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
   for (const { data: a } of appts) {
     if (!a || !a.date || a.date < since || typeof a.start !== 'number') continue;
@@ -64,7 +64,7 @@ async function feed(token: string) {
     lines.push('BEGIN:VEVENT', `UID:${esc(a.uid || a.c + a.date + a.start)}@solepro.app`, `DTSTAMP:${stamp}`,
       `DTSTART;TZID=${tz}:${at(a.date, a.start)}`, `DTEND;TZID=${tz}:${at(a.date, a.start + min)}`,
       `SUMMARY:${esc(`${who(a.c)} · ${sv.name || 'Appointment'}, ${min} min`)}`,
-      `DESCRIPTION:${esc([phone && `Phone: ${phone}`, a.paid ? 'Paid' : '', 'From Sole (a copy: change it in Sole)'].filter(Boolean).join('\n'))}`,
+      `DESCRIPTION:${esc([phone && `Phone: ${phone}`, a.paid ? 'Paid' : '', 'From SolePro (a copy: change it in SolePro)'].filter(Boolean).join('\n'))}`,
       ...(place ? [`LOCATION:${esc(place)}`] : []), 'TRANSP:OPAQUE', 'END:VEVENT');
   }
   lines.push('END:VCALENDAR');

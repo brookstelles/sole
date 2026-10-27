@@ -1,9 +1,9 @@
-// Sole's service worker: keeps a copy of the app on the phone so it opens with no signal (the book itself is kept
+// SolePro's service worker: keeps a copy of the app on the phone so it opens with no signal (the book itself is kept
 // by the page, in IndexedDB). The page: the newest when the network answers within a second and a half, else the
 // copy on the phone straight away (the newest is still saved for next time), so a weak signal never holds up the
 // opening. Libraries and fonts: the copy, fetched once (the QR and PDF libraries are kept from the start, so the QR
 // code and printing work with no signal). Everything else (the database, Square) goes straight to the network.
-// It also shows notifications (a message from the website, sent by supabase/functions/push) and opens Sole on that
+// It also shows notifications (a message from the website, sent by supabase/functions/push) and opens SolePro on that
 // message when one is tapped.
 const V = 'sole-1';
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(V).then(c => c.addAll(['/', '/apple-touch-icon.png', '/vendor/qrcode.js', '/vendor/jspdf.umd.min.js'])).catch(() => {})); });
@@ -24,7 +24,7 @@ self.addEventListener('fetch', e => {
 });
 self.addEventListener('push', e => {
   let d = {}; try { d = e.data ? e.data.json() : {}; } catch (_) { d = {body:e.data ? e.data.text() : ''}; }
-  e.waitUntil(self.registration.showNotification(d.title || 'Sole', {body:d.body || '', tag:d.tag || undefined, data:{url:d.url || '/'}, icon:'/apple-touch-icon.png', badge:'/apple-touch-icon.png'}));
+  e.waitUntil(self.registration.showNotification(d.title || 'SolePro', {body:d.body || '', tag:d.tag || undefined, data:{url:d.url || '/'}, icon:'/apple-touch-icon.png', badge:'/apple-touch-icon.png'}));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();

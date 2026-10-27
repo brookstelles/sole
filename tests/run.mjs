@@ -169,17 +169,17 @@ console.log('ok private Square views');
   await q.close();
   console.log('ok Square bookings');
 }
-// Kelli's forms open in Sole, never in Google Drive: the intake form's every question, the trafficking procedure's
+// Kelli's forms open in SolePro, never in Google Drive: the intake form's every question, the trafficking procedure's
 // words with numbers to tap, a blank copy to print
 { const q = await open('index.html', `window.__SOLE_SQUARE = ${sq};`); await q.click('.tab[data-v=forms]');
   check(await q.locator('a[href*="drive.google"], a[href*="docs.google"]').count() === 0 && !/Google Drive/.test(await q.textContent('main')), 'forms: nothing opens Google Drive');
   await q.click('main .form:has-text("Client intake form") [data-act=formview]');
-  { const t = await q.textContent('.sheet'); check(/How much pressure do you like\?/.test(t) && /Light · Medium · Firm/.test(t) && /sign with a finger/i.test(t), 'forms: the whole intake form, in Sole'); }
+  { const t = await q.textContent('.sheet'); check(/How much pressure do you like\?/.test(t) && /Light · Medium · Firm/.test(t) && /sign with a finger/i.test(t), 'forms: the whole intake form, in SolePro'); }
   await q.evaluate(() => { window.print = () => { window.__printed = true; }; }); await q.click('.sheet [data-act=formprint]'); await q.waitForTimeout(150);
   check(await q.evaluate(() => window.__printed && /Are you pregnant\?/.test(document.getElementById('print').textContent) && document.querySelectorAll('#print .pr-blank').length > 5), 'forms: a blank copy prints');
   await q.click('.sheet .close'); await q.waitForTimeout(250);
   await q.click('main .form:has-text("Human trafficking") [data-act=formview]');
-  check(/immediately contact the National Human Trafficking Resource Center/.test(await q.textContent('.sheet')) && await q.locator('.sheet a[href="tel:8883737888"]').count() === 1, 'forms: the procedure reads in Sole, numbers tap to call');
+  check(/immediately contact the National Human Trafficking Resource Center/.test(await q.textContent('.sheet')) && await q.locator('.sheet a[href="tel:8883737888"]').count() === 1, 'forms: the procedure reads in SolePro, numbers tap to call');
   check(!(await wide(q)), 'forms: fit the phone');
   await q.click('.sheet .close'); await q.waitForTimeout(250);
   // on an iPhone or iPad: Print makes a PDF and hands it to the share sheet (Print, Save to Files)
@@ -191,15 +191,15 @@ console.log('ok private Square views');
   await q.click('main .form:has-text("Human trafficking") [data-act=formprint]'); await q.waitForTimeout(500);
   { const sh = await q.evaluate(() => window.__shared);
     check(sh.length === 2 && sh.every(x => x.type === 'application/pdf' && x.head === '%PDF-' && x.size > 1500) && sh[0].name === 'Client intake form.pdf', 'forms: on a phone, Print hands over a real PDF to print or save'); }
-  await q.close(); console.log('ok forms in Sole'); }
-// Kelli's own book: appointments, clients, payments and costs kept in Sole (made-up data, the way the page's database holds it)
+  await q.close(); console.log('ok forms in SolePro'); }
+// Kelli's own book: appointments, clients, payments and costs kept in SolePro (made-up data, the way the page's database holds it)
 {
   const today = new Date(), iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const sole = {appts:[{uid:'aT1', c:'nTEST', s:'sw60', date:iso(today), start:1380, paid:false, tip:0, w:'Kelli'}], blocks:[],
     clients:{nTEST:{name:'Casey Sample', phone:'(555) 010-0000', since:2026, visits:0, last:null, isNew:true, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}}, ledger:[]};
   const base = JSON.parse(sq);
   const q = await open('index.html', `window.__SOLE_SQUARE = ${JSON.stringify({...base, sole})};`);
-  check(/Casey Sample/.test(await q.textContent('main')), 'own book: an appointment kept in Sole shows today');
+  check(/Casey Sample/.test(await q.textContent('main')), 'own book: an appointment kept in SolePro shows today');
   await q.click('[data-act=appt] >> nth=0'); await q.click('.sheet [data-act=editnotes]');
   await q.click('.sheet [data-act=en-p][data-v="4"]'); await q.fill('#en-focus', 'Low back'); await q.fill('#en-health', 'Test allergy'); await q.click('.sheet [data-act=en-save]');
   const ap = await q.textContent('.sheet');
@@ -216,8 +216,8 @@ console.log('ok private Square views');
   check(await q.evaluate(() => SQ.sole.ledger.length) === 1, 'own book: an entry can be removed');
   await q.click('.tab[data-v=today]');
   check(/Today so far\s*\$80/.test(await q.textContent('.glance')), 'own book: Today counts the Zelle payment');
-  await q.click('.tab[data-v=schedule]'); await q.click('[data-act=day] >> nth=1');
-  for (let i = 1; i < 7 && !(await q.locator('[data-act=gap]').count()); i++) await q.click(`[data-act=day] >> nth=${i}`);
+  await q.click('.tab[data-v=schedule]'); await goDay(q, 1);
+  for (let i = 2; i < 8 && !(await q.locator('[data-act=gap]').count()); i++) await goDay(q, i);
   await q.click('[data-act=gap] >> nth=0'); await q.click('.sheet [data-act=b-c] >> nth=0'); await q.click('.sheet [data-act=b-t] >> nth=0'); await q.click('#book-go');
   check(/You’re booked/.test(await q.inputValue('#msg')), 'own book: booking offers a confirmation text');
   await q.click('.sheet .close');
@@ -300,7 +300,7 @@ console.log('ok private Square views');
   console.log('ok website page');
 }
 
-// Sole's own website: sign in with a code, the book and Square payments from Supabase (a stand-in client, made-up data)
+// SolePro's own website: sign in with a code, the book and Square payments from Supabase (a stand-in client, made-up data)
 {
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const now = new Date(), early = new Date(now); early.setHours(0, 5, 0, 0);
@@ -470,9 +470,9 @@ console.log('ok private Square views');
   check(await q.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'people' && x.id === 'prefs'); return r && r.data.thanks === false && r.data.names['test@example.com'] === 'Test Owner'; }), 'account: choices saved for the business');
   check(!(await wide(q)), 'account: the top row fits the phone');
   check(!(await wide(q)), 'website: wider than the phone');
-  // the forms' link for a client is Sole's own page for the business (fill in and sign, no sign-in)
+  // the forms' link for a client is SolePro's own page for the business (fill in and sign, no sign-in)
   { await q.click('.tab[data-v=forms]'); await q.click('main .form:has-text("Client intake form") [data-act=formsend]');
-    check(/https:\/\/sole\.test\/\?new=cloud-test/.test(await q.textContent('.sheet')), 'forms: Text a link sends Sole’s own form page');
+    check(/https:\/\/sole\.test\/\?new=cloud-test/.test(await q.textContent('.sheet')), 'forms: Text a link sends SolePro’s own form page');
     await q.click('.sheet .close'); await q.waitForTimeout(250); await q.click('.tab[data-v=today]'); }
   // a QR code for the business's website: two taps from anywhere (the initials, then Show my QR code)
   { await q.click('[data-act=me]'); await q.click('.sheet [data-act=qr]'); await q.waitForSelector('#qr-box svg');
@@ -571,8 +571,8 @@ console.log('ok private Square views');
     check(ys.length > 10 && ys.every((y, i) => !i || y <= ys[i - 1] + 0.5), 'opening: the sun rises once, without starting over');
     check([...cards].every(c => /Welcome back\s*Cloud Test Massage/.test(c)), 'opening: a returning phone says welcome back from the start');
     await o.close(); }
-  // texts from Sole's number: booking texts the client by itself once the Undo window has passed, Undo stops it, the
-  // owner can turn it off, and a reply lands in Messages and is answered from Sole
+  // texts from SolePro's number: booking texts the client by itself once the Undo window has passed, Undo stops it, the
+  // owner can turn it off, and a reply lands in Messages and is answered from SolePro
   { const t = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); t.on('pageerror', e => errs.push('texts: ' + e.message));
     const tseed = {...seed, items:[...seed.items, {business_id:'B1', col:'inbox', id:'mTXT', data:{id:'mTXT', name:'Imported Person', phone:'(555) 010-2233', message:'Can we do 3 instead?', at:new Date().toISOString(), via:'text'}}]};
     await t.addInitScript(`window.__SOLE_INTRO_MS = 0; window.__SOLE_TEXT_MS = 1500; window.__FAKE_TEXT_ON = true; localStorage.setItem('sole-face-later', String(Date.now()));\nwindow.__FAKE_DB = ${JSON.stringify(tseed)};\n${fake}`);
@@ -583,21 +583,21 @@ console.log('ok private Square views');
       for (let i = 0; i < 6 && !(await t.locator('[data-act=b-t]').count()); i++) await t.click(`[data-act=b-d] >> nth=${i + 1}`);
       await t.click('[data-act=b-t] >> nth=0'); await t.click('#book-go'); await t.waitForTimeout(150); };
     await bookIt();
-    check(/Sole will text Imported/.test(await t.textContent('.toast')) && !(await t.locator('.sheet').count()), 'texts: booking says Sole will text, and Messages doesn’t open');
+    check(/SolePro will text Imported/.test(await t.textContent('.toast')) && !(await t.locator('.sheet').count()), 'texts: booking says SolePro will text, and Messages doesn’t open');
     check(!(await sent()).length, 'texts: nothing goes during the Undo window');
     await t.waitForTimeout(1700);
     { const L = await sent(); check(L.length === 1 && L[0].kind === 'confirm' && /You’re booked for/.test(L[0].body) && L[0].to === '(555) 010-2233' && L[0].business_id === 'B1', 'texts: the confirmation goes out by itself'); }
     check(/Texted Imported/.test(await t.textContent('.toast')), 'texts: and says so');
     await bookIt(); await t.click('.toast [data-act=undo]'); await t.waitForTimeout(2000);
     check((await sent()).length === 1, 'texts: Undo stops the text');
-    await t.click('[data-act=me]'); check(/Sole sends them/.test(await t.textContent('.sheet')), 'texts: the account sheet has the choice');
+    await t.click('[data-act=me]'); check(/SolePro sends them/.test(await t.textContent('.sheet')), 'texts: the account sheet has the choice');
     await t.click('.sheet [data-act=me-autotext][data-v=off]'); await t.click('.sheet .close');
     await bookIt(); check(/You’re booked/.test(await t.inputValue('#msg')), 'texts: turned off, Messages opens with it written'); await t.click('.sheet .close');
     check(await t.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'people' && x.id === 'prefs'); return !!r && r.data.autoText === false; }), 'texts: the choice is saved with the business');
     await t.click('.tab[data-v=today]'); check(/Imported texted back/.test(await t.textContent('main')), 'texts: a reply is on Today');
-    await t.click('[data-act=inb][data-v=mTXT]'); check(/Texted back/.test(await t.textContent('.sheet')) && await t.locator('#inb-reply').count() === 1, 'texts: a reply is answered from Sole');
+    await t.click('[data-act=inb][data-v=mTXT]'); check(/Texted back/.test(await t.textContent('.sheet')) && await t.locator('#inb-reply').count() === 1, 'texts: a reply is answered from SolePro');
     await t.fill('#inb-reply', '3 works! See you then.'); await t.click('.sheet [data-act=inb-send]'); await t.waitForTimeout(300);
-    { const L = await sent(), r = L[L.length - 1] || {}; check(r.kind === 'reply' && r.body === '3 works! See you then.' && /3 works/.test(await t.textContent('.sheet .msg-mine')), 'texts: the answer goes from Sole and shows under theirs'); }
+    { const L = await sent(), r = L[L.length - 1] || {}; check(r.kind === 'reply' && r.body === '3 works! See you then.' && /3 works/.test(await t.textContent('.sheet .msg-mine')), 'texts: the answer goes from SolePro and shows under theirs'); }
     check(await t.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'inbox' && x.id === 'mTXT'); return !!(r && r.data.done && r.data.replies.length === 1); }), 'texts: answered and saved');
     check(!(await wide(t)), 'texts: the message sheet fits the phone');
     await t.close(); }
@@ -609,7 +609,7 @@ console.log('ok private Square views');
     await n.route('https://sole.test/', r => r.fulfill({contentType:'text/html', body:site})); await n.goto('https://sole.test/', {waitUntil:'networkidle'});
     await n.fill('#si-email', 'new@example.com'); await n.click('#si-form button'); await n.fill('#si-code', '123456'); await n.click('#si-form button');
     await n.waitForSelector('#nb-code');
-    check(/Welcome to Sole/.test(await n.textContent('.signin')) && /new@example\.com/.test(await n.textContent('.signin')), 'new business: a new email is asked for an invite code');
+    check(/Welcome to SolePro/.test(await n.textContent('.signin')) && /new@example\.com/.test(await n.textContent('.signin')), 'new business: a new email is asked for an invite code');
     await n.fill('#nb-code', 'NOPE'); await n.click('#nb-form button'); await n.waitForTimeout(200);
     check(/isn’t right/.test(await n.textContent('#si-msg')), 'new business: a wrong code says so');
     await n.fill('#nb-code', ' test-code-1 '); await n.click('#nb-form button'); await n.waitForSelector('.sheet.full');
@@ -648,7 +648,7 @@ console.log('ok private Square views');
       { const L = await rowsOf(), j = L.find(c => /Jamie/.test(c.name)) || {};
         check(L.length === 4 && j.phone === '(555) 201-3344' && j.email === 'jamie@example.com' && j.born === '1990-03-05' && /low fade/.test(j.note) && j.since === 2023 && j.visits === 22 && j.lastOn === '2026-10-01' && j.last == null && j.every > 30 && j.mine, 'import: saved with phone, email, birthday, notes and history');
         check(await n.evaluate(() => (window.__FAKE.batches || []).includes(4)), 'import: saved in one go, not one at a time'); }
-      await n.click('main .li.client:has-text("Jamie Rivera")'); check(/22 \w+ before Sole/.test(await n.textContent('main .cl-hero')), 'import: the visits before Sole show on the client page'); await n.click('main [data-act=cl-back]');
+      await n.click('main .li.client:has-text("Jamie Rivera")'); check(/22 \w+ before SolePro/.test(await n.textContent('main .cl-hero')), 'import: the visits before SolePro show on the client page'); await n.click('main [data-act=cl-back]');
       await n.click('.toast .undo'); await n.waitForTimeout(400);
       check((await rowsOf()).length === 0 && /No \w+ yet/.test(await n.textContent('main')), 'import: Undo takes them all out again');
       await n.click('main .im-empty [data-act=im-open]');

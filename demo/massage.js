@@ -51,5 +51,5 @@
       {name:'Cancellation policy', kind:'Template', about:'Late arrivals, late cancellations and no-shows.',
        sections:['Late arrivals','Cancelling within 24 hours','No-shows']},
     ],
-    formsNote:'These are Sole templates. Edit them to match your practice, or add your own.',
+    formsNote:'These are SolePro templates. Edit them to match your practice, or add your own.',
   },

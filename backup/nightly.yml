@@ -1,4 +1,4 @@
-# Nightly backup of the book in Sole. Lives in the private repository brookstelles/heart-and-soul-backup as
+# Nightly backup of the book in SolePro. Lives in the private repository brookstelles/heart-and-soul-backup as
 # .github/workflows/nightly.yml, with backup/write.py as write.py. No stored key: the job asks GitHub for an identity
 # token made for "sole-backup", and the backup Edge Function answers only this repository's main branch.
 name: Nightly backup
@@ -22,7 +22,7 @@ jobs:
         run: python3 write.py /tmp/book.json .
       - name: Save tonight's copy
         run: |
-          git config user.name "Sole backup"; git config user.email "backup@sole.brookstelles.com"
+          git config user.name "SolePro backup"; git config user.email "backup@sole.brookstelles.com"
           git add -A
           git diff --cached --quiet || git commit -qm "Backup $(TZ=America/New_York date '+%a %b %-d, %Y %-I:%M %p')"
           git push

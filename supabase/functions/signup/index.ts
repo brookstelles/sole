@@ -1,5 +1,5 @@
-// A new business on Sole (asked for Oct 26, 2026). Someone signed in with an email that isn't on a business yet:
-// "check" says whether their invite code is good; "create" takes the profile Sole's setup screens made and, with the
+// A new business on SolePro (asked for Oct 26, 2026). Someone signed in with an email that isn't on a business yet:
+// "check" says whether their invite code is good; "create" takes the profile SolePro's setup screens made and, with the
 // code, makes the business and its owner (public.create_business, in one step). The profile is the business's own
 // (only its members read it), but it is checked here: the right shape and size, no markup, and it is always a real,
 // brand-new book (real, fresh, no public website, no Square).

@@ -1,8 +1,8 @@
-// Square for Sole: Square calls this the moment a payment or customer changes (a webhook), the app calls it to
+// Square for SolePro: Square calls this the moment a payment or customer changes (a webhook), the app calls it to
 // pull history ("sync"), and the database calls it every 15 minutes to catch up (20261026040000_square_catchup.sql).
 // Read only on Square. Deploy with verify_jwt off: it checks Square's signature itself, a signed-in member's token
 // for sync, and the database's own token (cron_token_ok) for the catch-up.
-// Secrets: SQUARE_ACCESS_TOKEN (the Sole app's production token for the seller), SQUARE_WEBHOOK_SIGNATURE_KEY,
+// Secrets: SQUARE_ACCESS_TOKEN (the SolePro app's production token for the seller), SQUARE_WEBHOOK_SIGNATURE_KEY,
 // SQUARE_WEBHOOK_URL (this function's address exactly as entered in Square). SUPABASE_URL and
 // SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';

@@ -8,7 +8,7 @@ For each business, in a folder named after it:
   Clients.csv             everyone, with their notes
   Visits and notes.csv    every visit, newest first, with SOAP notes
   Forms.csv               filled-in forms (answers; signatures are in book.json)
-  Money.csv               payments and costs logged in Sole
+  Money.csv               payments and costs logged in SolePro
   Card payments.csv       card payments from Square
   Papers/                 license, insurance, certificates on file
   book.json               everything, exactly as stored (to rebuild from)
@@ -65,7 +65,7 @@ def business(b, out, at):
     for r in by.get('days', []):
         a = r['data'] or {}; d = r['id']
         if lo <= d <= hi: days.setdefault(d, []).append((-1, '_Closed_' if a.get('closed') else f"_Hours: {clock(a.get('open'))} to {clock(a.get('close'))}_"))
-    lines = [f"# {p.get('biz', b['name'])}: schedule", '', f"Backed up {dt.datetime.fromisoformat(at.replace('Z', '+00:00')).astimezone(ET):%A, %B %-d, %Y at %-I:%M %p}. Booked in Sole; bookings made in Square are in Square.", '']
+    lines = [f"# {p.get('biz', b['name'])}: schedule", '', f"Backed up {dt.datetime.fromisoformat(at.replace('Z', '+00:00')).astimezone(ET):%A, %B %-d, %Y at %-I:%M %p}. Booked in SolePro; bookings made in Square are in Square.", '']
     for d in sorted(days):
         day = dt.date.fromisoformat(d)
         lines += [f"## {day:%A, %B %-d}{' (today)' if day == today else ''}", ''] + [f"- {t}" for _, t in sorted(days[d])] + ['']
@@ -114,10 +114,10 @@ def business(b, out, at):
         f"- [Clients](Clients.csv): {len(cl)} people with their notes",
         f"- [Visits and notes](Visits%20and%20notes.csv): {n.get('visits', 0)} visits with SOAP notes",
         f"- [Forms](Forms.csv): {n.get('forms', 0)} filled in",
-        f"- [Money](Money.csv): {n.get('ledger', 0)} payments and costs logged in Sole",
+        f"- [Money](Money.csv): {n.get('ledger', 0)} payments and costs logged in SolePro",
         f"- [Card payments](Card%20payments.csv): {len(ps)} from Square",
         f"- [Papers](Papers): {len(papers)} on file (license, insurance, certificates)",
-        f"- [book.json](book.json): everything exactly as stored, to rebuild Sole from", '']))
+        f"- [book.json](book.json): everything exactly as stored, to rebuild SolePro from", '']))
     return p.get('biz', b['name'])
 
 
@@ -128,7 +128,7 @@ def main(src, dest):
     for b in d['businesses']:
         folder = re.sub(r'[^A-Za-z0-9 &-]+', '', (b.get('profile') or {}).get('biz') or b['name']).strip() or b['id']
         names.append((business(b, os.path.join(dest, folder), d['at']), folder))
-    open(os.path.join(dest, 'README.md'), 'w', encoding='utf-8').write('\n'.join(['# Sole backup', '', 'Private. Written every night from Sole.', ''] + [f"- [{n}]({f.replace(' ', '%20')}/README.md)" for n, f in names] + ['']))
+    open(os.path.join(dest, 'README.md'), 'w', encoding='utf-8').write('\n'.join(['# SolePro backup', '', 'Private. Written every night from SolePro.', ''] + [f"- [{n}]({f.replace(' ', '%20')}/README.md)" for n, f in names] + ['']))
 
 
 if __name__ == '__main__':

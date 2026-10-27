@@ -1,4 +1,4 @@
-// Texts to clients from Sole's own number (Twilio), asked for Oct 27, 2026: when the owner books or moves a visit,
+// Texts to clients from SolePro's own number (Twilio), asked for Oct 27, 2026: when the owner books or moves a visit,
 // the client gets the confirmation by itself, and a client's reply comes back into the book's inbox and buzzes the
 // owner's phone, like a message from the website.
 // Actions: "status" (public: is texting set up), "send" (a signed-in member of the business: one text to one client),
@@ -47,7 +47,7 @@ async function send(business_id: string, b: any) {
     const { data: same } = await db.from('texts').select('id').eq('business_id', business_id).eq('ref', ref).eq('kind', kind).eq('status', 'sent').gte('created_at', new Date(Date.now() - 15 * 6e4).toISOString()).limit(1);
     if (same && same.length) return { ok: true, again: true };
   }
-  // the first text this number gets from Sole says how to stop them (the carriers ask for it)
+  // the first text this number gets from SolePro says how to stop them (the carriers ask for it)
   const { count: before } = await db.from('texts').select('id', { count: 'exact', head: true }).eq('phone', to).eq('dir', 'out').eq('status', 'sent');
   if (!before) body += ' Reply STOP to opt out.';
   const form = new URLSearchParams({ To: to, Body: body, [FROM.startsWith('MG') ? 'MessagingServiceSid' : 'From']: FROM });
@@ -78,7 +78,7 @@ async function incoming(p: URLSearchParams) {
   if (['START', 'UNSTOP', 'YES'].includes(word)) await db.from('text_optouts').delete().eq('phone', from);
   if (['START', 'UNSTOP', 'HELP', 'INFO'].includes(word)) return;   // Twilio answers these itself
   const { data: last } = await db.from('texts').select('business_id,name').eq('phone', from).eq('dir', 'out').order('created_at', { ascending: false }).limit(1);
-  if (!last || !last.length) return;   // nobody on Sole texted this number
+  if (!last || !last.length) return;   // nobody on SolePro texted this number
   const { business_id, name } = last[0], now = new Date(), pics = +(p.get('NumMedia') ?? 0);
   const message = text || (pics ? '(sent a picture)' : ''); if (!message) return;
   await db.from('texts').insert({ business_id, dir: 'in', phone: from, name, kind: 'in', body: message, sid: p.get('MessageSid'), status: 'received' });
