@@ -128,6 +128,10 @@ Google Drive: Business / Sole (folder id `17ApCM08dXre6TGuXqkEF_zoUHscD2DzI`) is
 
 - Forms tab → Your papers (`papersSection`): license, insurance, certificates as a photo or PDF with an optional expiry date. Suggested empty slots by trade (`PAPERS_FOR`); the list is the book's `people/papers` (`{list:[{uid, name, expires, file, type, added, older}]}`), files go where receipts go (website: private `receipts` bucket under `<business id>/papers/`; artifact: assets). Replacing one keeps the earlier copy in `older`; taking one off the list leaves the file stored. A paper due within 30 days, or past due, shows on Today's To do. "Save a copy" uses the phone's share sheet (Files, Google Drive). The nightly backup writes them to `Papers/`.
 
+## Sole's own website (solepro.app)
+
+- Started Oct 27, 2026 in Lovable (workspace "Brooks's Lovable", project `6947b9e0-43f9-46f9-837f-bbaca2b82111`, "Sole: The Calm Business App"; not published yet, solepro.app not connected yet). A promotional page for Sole: what it does, made for every trade, peace of mind, coming soon (own Square, automatic texts, online booking), and "Request an invite" (saved in that project's own database, `invite_requests`; no email alert yet). Screenshots are of the public demo's made-up businesses only (Tidewater Massage, a sample barbershop), taken from `dist/demo.html`; never Heart and Soul or real data. No prices, testimonials or numbers until they're real. "Sign in" links to app.solepro.app.
+
 ## Public website (Heart and Soul)
 
 - No phone number or email on the site (asked Oct 26, 2026): a "Send a message" form instead (see Messages from the website), plus "New client? Start here". The `site` function no longer returns phone or email.
