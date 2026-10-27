@@ -42,7 +42,7 @@ async function fromWebsite(slug: unknown, action: string, answers: any, sig: unk
 const clip = (v: unknown, n: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 async function message(slug: unknown, m: any) {
   if (typeof slug !== 'string' || !slug || !m || typeof m !== 'object') return { error: 'gone' };
-  if (m.website) return { ok: true };   // the hidden box only robots fill in: thank them and keep nothing
+  if (m.website) { console.log('intake: hidden box filled, message not kept'); return { ok: true }; }   // only robots fill it in: thank them and keep nothing
   const { data: bs } = await db.from('businesses').select('id,data');
   const b = (bs ?? []).find((x: any) => x.data && x.data.site && x.data.site.slug === slug); if (!b) return { error: 'gone' };
   const name = clip(m.name, 100), phone = clip(m.phone, 30), email = clip(m.email, 200).toLowerCase(), text = String(m.message ?? '').trim().slice(0, 2000);

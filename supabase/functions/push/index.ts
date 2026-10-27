@@ -31,12 +31,13 @@ async function send(business_id: string, msg: { title: string; body: string; url
   const as = await server(), { data: subs, error } = await db.from('push_subs').select('endpoint,sub').eq('business_id', business_id); if (error) throw error;
   let sent = 0, gone = 0;
   for (const s of subs ?? []) {
-    try { await as.subscribe(s.sub).pushTextMessage(JSON.stringify(msg), { urgency: webpush.Urgency.High, ttl: 86400, topic: (msg.tag || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32) || undefined });
+    // no Topic header: Apple turned every message away with it (400, Oct 27, 2026); the notification's own tag does the same job
+    try { await as.subscribe(s.sub).pushTextMessage(JSON.stringify(msg), { urgency: webpush.Urgency.High, ttl: 86400 });
       sent++; await db.from('push_subs').update({ last_sent: new Date().toISOString() }).eq('endpoint', s.endpoint); }
     catch (e) {
       const st = e instanceof webpush.PushMessageError ? e.response.status : 0;
       if (st === 404 || st === 410) { gone++; await db.from('push_subs').delete().eq('endpoint', s.endpoint); }
-      else console.error('push:', st, String((e as Error).message ?? e));
+      else console.error('push:', st, e instanceof webpush.PushMessageError ? await e.response.text().catch(() => '') : String((e as Error).message ?? e));
     }
   }
   return { sent, gone };
