@@ -17,6 +17,9 @@ print('dist/demo.html', len(out), 'bytes')
 # reads the text with the wrong encoding (Howâ€™s for How’s) and lays the page out for a desktop.
 SITE_HEAD = ('<!doctype html>\n<html lang="en">\n<meta charset="utf-8">\n'
   '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
+  # solepro.app on its own is for people curious about SolePro: their website is getsolepro.com (Oct 27, 2026); links
+  # with anything after the address (texted forms, notifications) still go on to the app below
+  '<script>if(/^(www\\.)?solepro\\.app$/.test(location.hostname)&&location.pathname==="/"&&!location.search&&!location.hash)location.replace("https://getsolepro.com")</script>\n'
   '<style id="pre-bg">html{background:#14112E}</style>\n<script>(function(h){if(h>=11&&h<17)document.getElementById("pre-bg").textContent="html{background:#1C5AA6}"})(new Date().getHours())</script>\n<link rel="icon" href="favicon.svg" type="image/svg+xml">\n<link rel="icon" href="apple-touch-icon.png">\n<link rel="apple-touch-icon" href="apple-touch-icon.png">\n<meta name="apple-mobile-web-app-title" content="SolePro">\n<link rel="manifest" href="manifest.json">\n')
 # The website is public: it carries the made-up massage business too, plus the Supabase address (public by design).
 # The real business comes from the database after its owner signs in (supabase/profile.mjs puts it there).

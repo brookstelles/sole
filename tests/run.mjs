@@ -297,6 +297,13 @@ console.log('ok private Square views');
   check(await p.evaluate(() => document.compatMode === 'CSS1Compat' && !!document.querySelector('meta[name=viewport]')), 'site: a full page with a phone viewport');
   check(await p.evaluate(() => fetch('/apple-touch-icon.png').then(r => r.ok)), 'site: home screen icon');
   await p.close();
+  // solepro.app on its own is the curious visitor's: on to getsolepro.com; a texted link with more after it goes on to the app
+  for (const [from, to] of [['https://solepro.app/', /^https:\/\/getsolepro\.com\/?$/], ['https://www.solepro.app/', /^https:\/\/getsolepro\.com\/?$/], ['https://solepro.app/?f=abc', /^https:\/\/app\.solepro\.app\/\?f=abc$/]]) {
+    const r = await (await b.newContext()).newPage(); let went = '';
+    await r.route('**/*', x => { const u = x.request().url(); if (u.startsWith(from.split('?')[0]) && x.request().isNavigationRequest() && !went) return x.fulfill({contentType:'text/html', body:fs.readFileSync(root + 'site/index.html')});
+      if (x.request().isNavigationRequest()) { went = u; return x.fulfill({contentType:'text/html', body:'<p>elsewhere'}); } return x.abort(); });
+    await r.goto(from).catch(() => {}); await r.waitForTimeout(400);
+    check(to.test(went), `site: ${from} goes on to ${to}: went to ${went}`); await r.context().close(); }
   console.log('ok website page');
 }
 // SolePro's mark, and the weather on Today and the schedule (a made-up forecast shaped like Open-Meteo's)
