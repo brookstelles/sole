@@ -1,9 +1,10 @@
 // SolePro's plan (asked for Oct 28, 2026): $29 a month, or $290 a year (two months free), after a 14-day free trial,
-// a card up front, paid through Stripe (Sellet Solutions LLC's account). Anyone with a card can start a business; nobody has to approve them.
+// a card up front, paid through Stripe (Sellet Solutions LLC's account). Anyone with a card can start a business;
+// nobody has to approve them.
 // Actions (POST JSON with the signed-in person's token):
 //   "status" (public): {on}: is Stripe set up
-//   "start" {yearly}: someone signed in whose email isn't on a business: Stripe's checkout page for the trial, or their code
-//            straight away if they already paid and closed the page before setting up
+//   "start" {yearly}: someone signed in whose email isn't on a business: Stripe's checkout page for the trial, or
+//            their code straight away if they already paid and closed the page before setting up
 //   "claim" {session}: back from checkout: the one-time code that lets this email set up one business
 //   "portal": a member: Stripe's own page to change the card, see receipts or cancel
 //   "restart" {yearly}: a member whose plan has ended: checkout again (no second trial) for the same business

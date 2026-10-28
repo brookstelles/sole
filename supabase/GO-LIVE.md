@@ -63,3 +63,30 @@ SolePro is ready; it stays on "Messages opens for Kelli to send" until these are
 6. **Check:** open SolePro again (it asks once per opening whether texting is on). Book yourself with your own phone
    number: the text arrives about 8 seconds later; answer it and your reply shows on Today. Sent and received texts
    are in the `texts` table; numbers that answered STOP are in `text_optouts`.
+
+## Paid plans (Stripe), to let anyone with a card start a business
+
+SolePro is $29 a month or $290 a year after a 14-day free trial, through Stripe in Sellet Solutions LLC's name. Until
+the two secrets below are set, the billing function says it's off and the welcome screen only takes invite codes.
+Do it in Stripe's test mode first (test keys, card 4242 4242 4242 4242), then again with the live keys.
+
+1. **dashboard.stripe.com → create the account** for Sellet Solutions LLC (its tax ID and business address; payouts
+   to the LLC's Bank of America checking). Website: https://getsolepro.com. What you sell: "Monthly and yearly
+   subscriptions to SolePro, an app for self-employed people to run their bookings, clients and money." Statement
+   descriptor: SOLEPRO.
+2. **Settings → Billing → Customer portal:** turn it on. Allow: update payment method, see invoices, cancel (at the end
+   of the period), and switch between SolePro's monthly and yearly prices (they appear after the first checkout).
+   Terms https://getsolepro.com/terms, privacy https://getsolepro.com/privacy. Save.
+3. **Settings → Billing → Subscriptions and emails:** Smart Retries on; if all retries fail, cancel the subscription.
+   Turn on: the reminder 7 days before a free trial ends, emails when a card payment fails, and upcoming renewal
+   emails (for yearly). **Settings → Customer emails:** successful payments on (receipts).
+4. **Developers → API keys:** copy the secret key (sk_...) into **Supabase → Edge Functions → Secrets** as
+   `STRIPE_SECRET_KEY`. Never in chat.
+5. **Developers → Webhooks (Event destinations) → Add:** URL
+   `https://<project ref>.supabase.co/functions/v1/billing`, events `checkout.session.completed`,
+   `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`,
+   `customer.subscription.paused`, `customer.subscription.resumed`. Copy its signing secret (whsec_...) into the same
+   Secrets page as `STRIPE_WEBHOOK_SECRET`.
+
+The first checkout makes the SolePro product and both prices by itself (lookup keys `solepro_monthly`,
+`solepro_yearly`). Check a business's plan: `select name, plan, plan_status, plan_until from businesses`.
