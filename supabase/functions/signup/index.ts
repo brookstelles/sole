@@ -28,9 +28,11 @@ function profileOk(p: any) {
   const svc = Object.values(p.services ?? {}) as any[];
   return svc.length > 0 && svc.length <= 60 && svc.every(s => s && typeof s.name === 'string' && s.name.trim() && Number.isInteger(s.min) && s.min >= 5 && s.min <= 720 && typeof s.price === 'number' && s.price >= 0 && s.price <= 100000);
 }
-async function codeOk(c: string) {
-  const { data, error } = await db.from('invite_codes').select('uses,max_uses,expires_at').eq('code', c).maybeSingle(); if (error) throw error;
-  return !!data && data.uses < data.max_uses && (!data.expires_at || new Date(data.expires_at) > new Date());
+// a code bought with a card (the billing function) is for the email that paid, and only while its plan is on
+async function codeOk(c: string, email: string) {
+  const { data, error } = await db.from('invite_codes').select('uses,max_uses,expires_at,email,plan_status').eq('code', c).maybeSingle(); if (error) throw error;
+  return !!data && data.uses < data.max_uses && (!data.expires_at || new Date(data.expires_at) > new Date()) && (!data.email || data.email === email)
+    && !['canceled', 'unpaid', 'incomplete_expired', 'paused'].includes(data.plan_status ?? '');
 }
 
 Deno.serve(async (req) => {
@@ -45,7 +47,7 @@ Deno.serve(async (req) => {
     const { data: on, error: me } = await db.from('members').select('business_id').eq('email', email).limit(1); if (me) throw me;
     if (on && on.length) return reply({ error: 'already' });
     const c = code(raw);
-    if (action === 'check') return reply(c && await codeOk(c) ? { ok: true } : { error: 'bad code' });
+    if (action === 'check') return reply(c && await codeOk(c, email) ? { ok: true } : { error: 'bad code' });
     if (action === 'create') {
       if (!TRADES.includes(trade) || !profileOk(profile)) return reply({ error: 'bad profile' });
       // a real, brand-new book, whatever the page sent

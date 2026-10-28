@@ -642,6 +642,48 @@ console.log('ok private Square views');
     check(await t.evaluate(() => { const r = window.__FAKE.T.items.find(x => x.col === 'inbox' && x.id === 'mTXT'); return !!(r && r.data.done && r.data.replies.length === 1); }), 'texts: answered and saved');
     check(!(await wide(t)), 'texts: the message sheet fits the phone');
     await t.close(); }
+  // paid sign-up (Stripe, asked for Oct 28, 2026): getsolepro.com's Start button, a 14-day trial with a card, monthly
+  // or yearly, then setup; a plan that has ended keeps the book to see and print but saves nothing
+  { const n = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); n.on('pageerror', e => errs.push('paid sign-up: ' + e.message));
+    const pseed = {businesses:[seed.businesses[0]], members:[{business_id:'B1', email:'owner@example.com', role:'owner'}], invite_codes:[], items:[], payments:[], customers:[]};
+    await n.addInitScript(`window.__SOLE_INTRO_MS = 0; window.__FAKE_KEEP = true; window.__FAKE_BILLING = true; localStorage.setItem('sole-face-later', String(Date.now()));\nwindow.__FAKE_DB = ${JSON.stringify(pseed)};\n${fake}`);
+    let went = '';
+    await n.route('https://sole.test/**', r => r.fulfill({contentType:'text/html', body:site}));
+    await n.route('https://checkout.stripe.test/**', r => { went = r.request().url(); return r.fulfill({contentType:'text/html', body:'<p>Stripe checkout'}); });
+    await n.route('https://billing.stripe.test/**', r => { went = r.request().url(); return r.fulfill({contentType:'text/html', body:'<p>Stripe portal'}); });
+    await n.goto('https://sole.test/?start', {waitUntil:'networkidle'});
+    check(/Start your free trial/.test(await n.textContent('.signin')), 'paid sign-up: getsolepro.com’s Start button asks for an email first');
+    await n.fill('#si-email', 'paid@example.com'); await n.click('#si-form button'); await n.fill('#si-code', '123456'); await n.click('#si-form button');
+    await n.waitForSelector('#nb-trial');
+    check(/\$29 a month/.test(await n.textContent('#nb-terms')) && /invite code/.test(await n.textContent('.signin')) && !(await wide(n)), 'paid sign-up: the trial, what it costs after, and an invite code still works');
+    await n.click('.nb-plan [data-plan=y]'); check(/\$290 a year/.test(await n.textContent('#nb-terms')), 'paid sign-up: or yearly');
+    await n.click('#nb-trial'); await n.waitForTimeout(600);
+    check(/cs_test_yearly/.test(went), 'paid sign-up: on to Stripe’s checkout: ' + went);
+    await n.goto('https://sole.test/?paid=cs_test_ok_123', {waitUntil:'networkidle'}); await n.waitForSelector('.sheet.full');
+    check(/What does your business do\?/.test(await n.textContent('.sheet')) && await n.evaluate(() => location.search === ''), 'paid sign-up: back from checkout, straight into setup');
+    await n.click('.sheet [data-act=ob-trade][data-v=landscape]'); await n.click('.sheet [data-act=ob-next]');
+    await n.fill('#ob-biz', 'Paid Lawn Co'); await n.fill('#ob-owner', 'Pat'); await n.click('.sheet [data-act=ob-next]');
+    await n.click('.sheet [data-act=ob-next]'); await n.fill('.sheet [id^=ob-price-] >> nth=0', '50');
+    await n.click('.sheet [data-act=ob-done]'); await n.waitForSelector('.biz-name', {timeout:8000});
+    const pb = await n.evaluate(() => window.__FAKE.T.businesses.find(x => x.name === 'Paid Lawn Co'));
+    check(pb && pb.plan === 'monthly' && pb.plan_status === 'trialing' && pb.stripe_sub === 'sub_test_1', 'paid sign-up: the business carries its plan');
+    check(!/plan has ended|didn’t go through/.test(await n.textContent('main')), 'paid sign-up: nothing about the plan on Today during the trial');
+    await n.click('[data-act=me]');
+    { const t = await n.textContent('.sheet'); check(/Your plan/.test(t) && /Free trial: 14 days left\. Then \$29 a month/.test(t), 'paid sign-up: the account shows the trial'); }
+    await n.click('.sheet [data-act=plan]'); await n.waitForTimeout(600);
+    check(/billing\.stripe\.test/.test(went), 'paid sign-up: card, receipts or cancel open Stripe’s page');
+    // the plan ends: the book is there to see, Today says how to start again, and nothing is saved
+    await n.goto('https://sole.test/', {waitUntil:'networkidle'}); await n.waitForSelector('.biz-name');
+    await n.evaluate(id => { const b = window.__FAKE.T.businesses.find(x => x.id === id); b.plan_status = 'canceled'; }, pb && pb.id);
+    await n.reload({waitUntil:'networkidle'}); await n.waitForSelector('.biz-name');
+    check(/Your SolePro plan has ended/.test(await n.textContent('main')) && await n.locator('main [data-act=plan-restart]').count() === 1, 'plan ended: Today says so, with a way back');
+    const before = await n.evaluate(() => window.__FAKE.T.items.length);
+    await n.click('.tab[data-v=clients]'); await n.click('[data-act=addc] >> nth=0'); await n.fill('#ac-name', 'Should Not Save'); await n.click('[data-act=ac-save]'); await n.waitForTimeout(500);
+    check(await n.evaluate(() => window.__FAKE.T.items.length) === before && /plan has ended/.test(await n.textContent('body')), 'plan ended: a change isn’t saved, and it says why');
+    await n.click('.sheet .close'); await n.click('.tab[data-v=today]'); await n.click('main [data-act=plan-restart]'); await n.waitForTimeout(600);
+    check(/cs_test_restart/.test(went), 'plan ended: Start my plan again opens checkout');
+    // Heart and Soul (the house account) never sees any of this
+    await n.close(); }
   // a new business: someone signs in with an email that isn't on one, gives an invite code, goes through setup, and
   // opens their own empty book; nobody else's business shows
   { const n = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); n.on('pageerror', e => errs.push('new business: ' + e.message));

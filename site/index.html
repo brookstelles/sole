@@ -630,6 +630,8 @@ body.offline .app{padding-top:34px}
 .form .btns3 .btn.primary{grid-column:1 / -1}
 a.btn{text-decoration:none}
 .callout{background:var(--sunk);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;font-size:15px}
+.plan-note{margin-top:12px;gap:6px}.plan-note .btn{align-self:flex-start;margin-top:4px}.plan-soon{margin-top:8px}
+.nb-plan{margin-bottom:12px}.nb-plan button{display:flex;flex-direction:column;align-items:center;gap:1px}.nb-plan small{font-size:12px;font-weight:500;opacity:.8}
 .callout b{font-weight:600}
 
 /* year (her records) */
@@ -1551,6 +1553,7 @@ let SQ = null;    // Square payments and card customers, written into this page'
 let KEEP = null;   // the tab to return to when the page rebuilds itself
 let SHEETS = [], SHEET_GEN = 0, BOOT_GEN = 0;   // the sheets under the open one (back returns to them); a rebuild forgets them
 let REOPEN = null;   // a sheet to put back after the page rebuilds itself ('services', 'setup')
+const URLQ = new URLSearchParams(location.search), START_TRIAL = URLQ.has('start'), PAID_SESSION = URLQ.get('paid');   // getsolepro.com's Start button; back from Stripe's checkout
 let NEW_CODE = null;   // website: the invite code of someone setting up a new business (the setup screens cover the page)
 let TOAST_T = null; const UNDO = {arm:null, snap:null};
 let WX = null, WX_BUSY = false, WX_REDRAW = null;   // the weather where the business is (Open-Meteo, free, no account), kept on the phone for half an hour
@@ -1582,6 +1585,8 @@ function persistReal(st){
     many(sets, 200, 'setMany', (c, [id, d]) => c.doc(id).set(d));
     many(dels, 100, 'delMany', (c, id) => c.doc(id).delete());
   });
+  // a plan that has ended: the database takes no changes, so put the book back as it is there
+  if (jobs.length && planEnded()) { TOAST('Your plan has ended, so changes aren’t saved. Start it again from your account.'); refreshBook().catch(() => {}); return; }
   if (jobs.length) SOLE_Q = SOLE_Q.then(async () => { const db = await dbOf(); if (!db) return;
     for (const j of jobs) { try { await j(db); } catch (_) { const t = document.querySelector('.toast'); if (!t) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = 'Saved on this phone. It couldn’t reach your account just now.'; document.body.appendChild(el); setTimeout(() => el.remove(), 3600); } } } });
 }
@@ -2208,7 +2213,7 @@ function viewToday(){
   const wk = sumOf('week'), td = sumOf('today');
   return `
   ${P.fresh ? setupCard() : ''}${(() => { const o = [0,1,2,3,4,5,6,7].find(d => familyOn(d).length); if (o == null) return ''; const f = familyOn(o)[0];
-    return `<button class="heads" data-act="sday" data-v="${o}">${esc(f.what)}${f.who ? ` for ${esc(f.who)}` : ''} ${o === 0 ? 'today' : o === 1 ? 'tomorrow' : DOW[dateOf(o).getDay()]} · ${esc(f.why)}</button>`; })()}<div class="dash"><div class="dash-a"><section class="sec"><p class="lede">${ap.length ? `<b>${ap.length} ${ap.length === 1 ? W1 : WN} today.</b> ${left ? `${left} still to come. Your last one ends at ${clock(end)}.` : 'All done for the day.'}` : `<b>Nothing booked today.</b> ${Object.keys(CL).length ? 'Book someone, or block time for yourself.' : `Add your first ${W1} to get going.`}`}</p>${wxLine()}</section>
+    return `<button class="heads" data-act="sday" data-v="${o}">${esc(f.what)}${f.who ? ` for ${esc(f.who)}` : ''} ${o === 0 ? 'today' : o === 1 ? 'tomorrow' : DOW[dateOf(o).getDay()]} · ${esc(f.why)}</button>`; })()}<div class="dash"><div class="dash-a"><section class="sec"><p class="lede">${ap.length ? `<b>${ap.length} ${ap.length === 1 ? W1 : WN} today.</b> ${left ? `${left} still to come. Your last one ends at ${clock(end)}.` : 'All done for the day.'}` : `<b>Nothing booked today.</b> ${Object.keys(CL).length ? 'Book someone, or block time for yourself.' : `Add your first ${W1} to get going.`}`}</p>${wxLine()}${planNote()}</section>
   ${next ? `<section class="next" aria-label="Next ${W1}">${MOTIF}
     <p class="eyebrow">Next · ${clock(next.start)} · in ${dur(mins)}</p>
     <h2>${c.name}</h2>
@@ -2688,6 +2693,7 @@ function meHTML(){
   return `${top('Your account', esc(P.biz))}
     <div class="me-who"><span class="me big">${esc(MY_INITIALS)}</span><div><b>${esc(MY_NAME || (USER_EMAIL ? 'Add your name' : P.owner))}</b><span class="small muted">${esc(USER_EMAIL || `Owner of ${P.biz}`)}</span></div></div>
     ${P.site && P.site.url ? `<div class="field"><span class="label">Share your business</span><button class="btn primary" data-act="qr">${I.qr}Show my QR code</button><span class="small muted">Someone points their phone’s camera at it and your website opens.</span></div>` : ''}
+    ${planField()}
     ${USER_EMAIL ? `<div class="field"><span class="label">Your name</span><input class="text-in" id="me-name" value="${esc(MY_NAME)}" placeholder="First and last" autocomplete="name"></div>` : ''}
     <div class="field"><span class="label">Light or dark</span>${seg('me-theme', th, [['', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']])}<span class="small muted">Automatic follows your phone’s setting. Just on this phone.</span></div>
     ${face ? `<div class="field"><span class="label">${FACE}</span>${lsGet('sole-face') ? `<p class="small muted">On. SolePro opens with a glance.</p><button class="btn line" data-act="me-face-off">Turn off ${FACE} on this phone</button>` : `<button class="btn line" data-act="me-face-on">${FACE_ICON}Turn on ${FACE}</button>`}</div>` : ''}
@@ -4366,6 +4372,7 @@ function bookPut(c){
 on('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const v = el.dataset.v, id = +el.dataset.id;
+  if (planEnded() && UNDOABLE.includes(el.dataset.act)) { TOAST('Your plan has ended, so this can’t be saved. Start it again from your account.'); return; }
   if (UNDOABLE.includes(el.dataset.act)) UNDO.arm = {snap:bookCopy(), at:Date.now()};
   if (el.dataset.act === 'undo') { if (UNDO.snap) { textCancel(UNDO.snap); bookPut(UNDO.snap); UNDO.snap = null; closeSheet(); render(); toast('Undone.'); } return; }
   { const a = el.dataset.id && ['move', 'cancel'].includes(el.dataset.act) ? AP.find(x => x.id === id) : null;
@@ -4619,6 +4626,8 @@ on('click', e => {
     case 'sv-list': sheet(servicesHTML()); break;
     case 'qr': qrSheet(); break;
     case 'qr-share': navigator.share({title:P.biz, url:P.site.url}).catch(() => {}); break;
+    case 'plan': planGo('portal'); break;
+    case 'plan-restart': planGo('restart'); break;
     case 'gcal': GCAL = null; sheet(gcalHTML()); $('#layer .sheet').dataset.gcal = '1'; gcalLink('link'); break;
     case 'gc-copy': { const u = GCAL && GCAL.url; if (!u) break; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast('Link copied. Paste it into Google Calendar.'), () => { const i = $('#gc-url'); if (i) { i.focus(); i.select(); } toast('Copy the link from the box.'); }); break; }
     case 'gc-reset': if (!GCAL || !GCAL.url) break; if (!GCAL.sure) { GCAL.sure = true; rerenderGcal(); break; }
@@ -4768,6 +4777,41 @@ function wxLoad(geo){
     .catch(() => { WX_BUSY = false; });
 }
 
+/* ---------- SolePro's plan (asked for Oct 28, 2026): $29 a month or $290 a year, after a 14-day free trial, through Stripe ----------
+   The billing Edge Function keeps each business's plan as Stripe tells it. A plan that has ended leaves the book to
+   see and print, and the database takes no changes (private.book_open). The house account (plan house), and a
+   business made with a hand-made invite code has no plan: neither ever sees any of this. */
+const PLAN_ENDED = ['canceled', 'unpaid', 'incomplete_expired', 'paused'];
+const planOf = () => CLOUD_ON && BOOK_BIZ && ['monthly', 'yearly'].includes(BOOK_BIZ.plan) ? BOOK_BIZ : null;
+const planPrice = p => p.plan === 'yearly' ? '$290 a year' : '$29 a month';
+const planEnded = () => { const p = planOf(); return !!p && PLAN_ENDED.includes(p.plan_status); };
+const planDays = p => p.plan_until ? Math.max(0, Math.ceil((new Date(p.plan_until) - Date.now()) / 864e5)) : null;
+const planDay = t => new Date(t).toLocaleDateString('en-US', {month:'long', day:'numeric'});
+function planField(){
+  const p = planOf(); if (!p) return '';
+  const d = planDays(p), manage = `<button class="btn line" data-act="plan">Card, receipts or cancel</button>`;
+  const [btn, say] = planEnded() ? [`<button class="btn primary" data-act="plan-restart">Start my plan again</button>`, 'Your plan has ended. Everything is still here to see and print. Start it again to make changes.']
+    : p.plan_status === 'past_due' ? [`<button class="btn primary" data-act="plan">Update my card</button>`, 'Your last payment didn’t go through. Update your card so nothing stops.']
+    : p.plan_cancel_at ? [`<button class="btn line" data-act="plan">Keep my plan</button>`, `Canceled. Everything works until ${planDay(p.plan_cancel_at)}, then your book stays here to see and print.`]
+    : p.plan_status === 'trialing' ? [manage, `Free trial: ${d === 1 ? '1 day' : `${d} days`} left. Then ${planPrice(p)}${p.plan_until ? `, from ${planDay(p.plan_until)}` : ''}.`]
+    : [manage, `${planPrice(p)}.${p.plan_until ? ` Next payment ${planDay(p.plan_until)}.` : ''}`];
+  return `<div class="field"><span class="label">Your plan</span>${btn}<span class="small muted">${say}</span></div>`;
+}
+// Today: only when something needs doing (or the trial is about to end)
+function planNote(){
+  const p = planOf(); if (!p) return '';
+  if (planEnded()) return `<div class="callout plan-note"><b>Your SolePro plan has ended.</b><span>Everything is here to see and print, but changes aren’t saved.</span><button class="btn primary" data-act="plan-restart">Start my plan again</button></div>`;
+  if (p.plan_status === 'past_due') return `<div class="callout plan-note"><b>Your last SolePro payment didn’t go through.</b><span>Update your card so nothing stops.</span><button class="btn primary" data-act="plan">Update my card</button></div>`;
+  const d = planDays(p);
+  return p.plan_status === 'trialing' && !p.plan_cancel_at && d != null && d <= 3 ? `<p class="small muted plan-soon">Your free trial ends ${d === 0 ? 'today' : d === 1 ? 'tomorrow' : `in ${d} days`}. Then ${planPrice(p)}.</p>` : '';
+}
+// Stripe's own pages: the card, receipts and canceling ("portal"), or checkout again for a plan that ended
+async function planGo(action){
+  TOAST(action === 'restart' ? 'Opening checkout…' : 'Opening your plan…');
+  try { const p = planOf(), r = await SB.functions.invoke('billing', {body:{action, yearly:!!p && p.plan === 'yearly'}}), d = (r && r.data) || {}; if (d.url) { location.href = d.url; return; } } catch (_) {}
+  TOAST('That didn’t open. Check your signal and try again.');
+}
+
 /* ---------- texts from SolePro's own number (asked for Oct 27, 2026) ----------
    After booking or moving, the confirmation goes to the client by itself once the Undo window has passed (Undo stops
    it); leaving the app sends it right away. If it can't go, Messages opens with it written, as before. */
@@ -4802,7 +4846,8 @@ function pullGo(){
 async function refreshBook(){
   if (!SB || !BIZ || OFFLINE) { location.reload(); return; }
   const keep = CUR_S ? {...CUR_S} : null, key = CUR_KEY;
-  const { data:b, error } = await SB.from('businesses').select('id,name,profile,data').eq('id', BIZ).maybeSingle(); if (error) throw error;
+  const { data:b, error } = await SB.from('businesses').select(BIZ_COLS).eq('id', BIZ).maybeSingle(); if (error) throw error;
+  if (b && BOOK_BIZ) Object.assign(BOOK_BIZ, b);
   if (b && b.data) PROFILES[b.profile || 'massage'] = {...b.data, cloud:CLOUD_CFG};
   await SB.functions.invoke('square', {body:{business_id:BIZ, full:false}}).catch(() => {});
   await loadSquareTables();
@@ -4855,7 +4900,7 @@ const cloudEsc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;
 function signInHTML(step, email, msg){
   const face = step === 'email' && PK.sign, mine = face && lsGet('sole-face');
   const faceBtn = face ? `<button class="btn ${mine ? 'primary' : 'line'}" id="si-face" type="button">${FACE_ICON}Sign in with ${FACE}</button>` : '';
-  return `${step === 'email' ? `${mine ? `${faceBtn}<p class="sky-or">or get a code by email</p>` : '<p>Sign in with your email. We’ll send you a code.</p>'}
+  return `${step === 'email' ? `${mine ? `${faceBtn}<p class="sky-or">or get a code by email</p>` : START_TRIAL ? '<p class="sky-big">Start your free trial</p><p>First, your email. We’ll send you a code.</p>' : '<p>Sign in with your email. We’ll send you a code.</p>'}
       <form id="si-form"><input class="text-in" id="si-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" value="${cloudEsc(email || '')}" required>
       <button class="btn ${mine ? 'line' : 'primary'}" style="width:100%">Send me a code</button></form>
       ${face && !mine ? `<p class="sky-or">or</p>${faceBtn}` : ''}`
@@ -5062,27 +5107,61 @@ function liveFromCache(){
 async function cloudNew(){
   const { data:u } = await SB.auth.getUser(), em = (u && u.user && u.user.email) || '';
   lsSet('sole-biz-name', '');
+  const setUp = c => { NEW_CODE = c; REOPEN = 'setup'; boot('massage'); };   // the setup screens cover the made-up business under them
+  let said = '';
+  // back from Stripe's checkout: the payment earns a one-time code for this email, and setup starts
+  if (PAID_SESSION) {
+    cloudScreen('<p class="muted sky-wait">Starting your free trial…</p>');
+    try { const r = await SB.functions.invoke('billing', {body:{action:'claim', session:PAID_SESSION}}), d = (r && r.data) || {};
+      history.replaceState(null, '', '/');
+      if (d.code) return setUp(d.code);
+      if (d.error === 'already') { location.reload(); return; }
+    } catch (_) {}
+    said = 'Your trial is still being set up. Try again in a minute: you won’t be charged twice.';
+  }
+  if (START_TRIAL) history.replaceState(null, '', '/');
+  // anyone with a card can start (asked for Oct 28, 2026); an invite code still works, for a business Brooks gives free
+  let paid = false; try { const r = await SB.functions.invoke('billing', {body:{action:'status'}}); paid = !!(r && r.data && r.data.on); } catch (_) {}
+  const terms = y => `Nothing is charged today. After 14 days it’s ${y ? '$290 a year' : '$29 a month'}. Cancel anytime from your account.`;
   cloudScreen(`<p class="sky-big">Welcome to SolePro</p><p class="muted">You’re signed in as <b>${cloudEsc(em)}</b>. Set up your business in a few minutes.</p>
+    ${paid ? `<div class="seg nb-plan" role="group" aria-label="How you’d like to pay"><button type="button" data-plan="m" aria-pressed="true">$29 a month</button><button type="button" data-plan="y" aria-pressed="false">$290 a year<small>2 months free</small></button></div>
+      <button class="btn primary" id="nb-trial" type="button" style="width:100%">Start my 14-day free trial</button>
+      <p class="small muted" id="nb-terms">${terms(false)}</p>
+      <p class="sky-or">or, with an invite code</p>` : ''}
     <form id="nb-form"><input class="text-in" id="nb-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Invite code" aria-label="Invite code" required>
-      <button class="btn primary" style="width:100%">Set up my business</button></form>
-    <p class="small muted" id="si-msg" role="alert"></p>
-    <p class="small muted">SolePro is by invitation for now. Your code came from whoever told you about it.</p>
+      <button class="btn ${paid ? 'line' : 'primary'}" style="width:100%">Set up my business</button></form>
+    <p class="small muted" id="si-msg" role="alert">${cloudEsc(said)}</p>
+    ${paid ? '' : '<p class="small muted">SolePro is by invitation for now. Your code came from whoever told you about it.</p>'}
     <button class="btn line" id="nb-out" type="button">Use a different email</button>`);
   $id('nb-out').onclick = async () => { try { await SB.auth.signOut(); } catch (_) {} location.reload(); };
+  let yearly = false;
+  document.querySelectorAll('.nb-plan button').forEach(bt => bt.onclick = () => { yearly = bt.dataset.plan === 'y';
+    document.querySelectorAll('.nb-plan button').forEach(x => x.setAttribute('aria-pressed', String(x === bt))); $id('nb-terms').textContent = terms(yearly); });
+  const trial = $id('nb-trial');
+  if (trial) trial.onclick = async () => {
+    trial.disabled = true; $id('si-msg').textContent = '';
+    try { const r = await SB.functions.invoke('billing', {body:{action:'start', yearly}}), d = (r && r.data) || {};
+      if (d.code) return setUp(d.code);   // paid already, then left before setting up
+      if (d.url) { location.href = d.url; return; }   // Stripe's checkout, then back here with ?paid=
+      if (d.error === 'already') { location.reload(); return; }
+    } catch (_) {}
+    $id('si-msg').textContent = 'That didn’t go through. Check your signal and try again.'; trial.disabled = false;
+  };
   $id('nb-form').onsubmit = async e => {
     e.preventDefault(); const c = $id('nb-code').value.trim(), btn = e.target.querySelector('button'); if (!c) return;
     btn.disabled = true; $id('si-msg').textContent = '';
     try { const r = await SB.functions.invoke('signup', {body:{action:'check', code:c}}), d = (r && r.data) || {};
-      if (d.ok) { NEW_CODE = c; REOPEN = 'setup'; boot('massage'); return; }   // the setup screens cover the made-up business under them
+      if (d.ok) return setUp(c);
       if (d.error === 'already') { location.reload(); return; }
       $id('si-msg').textContent = 'That code isn’t right, or it has been used. Check it and try again.';
     } catch (_) { $id('si-msg').textContent = 'That didn’t go through. Check your signal and try again.'; }
     btn.disabled = false;
   };
 }
+const BIZ_COLS = 'id,name,profile,data,plan,plan_status,plan_until,plan_cancel_at';
 async function cloudGo(){
   if (!lsGet('sole-biz-name')) cloudScreen('<p class="muted sky-wait">Opening your book…</p>');
-  let biz = null; try { const r = await SB.from('businesses').select('id,name,profile,data').limit(1); if (r.error) throw r.error; biz = r.data; }
+  let biz = null; try { const r = await SB.from('businesses').select(BIZ_COLS).limit(1); if (r.error) throw r.error; biz = r.data; }
   catch (_) { const c = await idbGet('book'); if (c) return cloudOffline(c); }
   if (!biz || !biz.length) return cloudNew();
   BIZ = biz[0].id; BOOK_BIZ = biz[0]; BOOK_ROWS = {};
@@ -5104,6 +5183,8 @@ async function cloudGo(){
     if (!ev.new || !ev.new.data) return; SQ_CACHE.pays.set(ev.new.data.id, ev.new.data);
     const sh = squareShape([...SQ_CACHE.pays.values()], SQ_CACHE.names); SQ.summary = sh.summary; SQ.customers = sh.customers; liveFromCache(); SOLE_VER++; redrawLive();
   }).subscribe();
+  // back from starting a plan again: Stripe tells the server a moment later
+  if (URLQ.has('restarted')) { history.replaceState(null, '', '/'); let n = 0; const t = setInterval(() => { if (!planEnded() || ++n > 10) { clearInterval(t); return; } refreshBook().catch(() => {}); }, 3000); }
   // catch up on anything Square sent while no one was looking (the first time, everything since 2022)
   SB.functions.invoke('square', {body:{business_id:BIZ, full:!SQ_CACHE.pays.size}}).then(async r => {
     if (r && r.data && r.data.payments) { await loadSquareTables(); bookSaveSoon(); const sh = squareShape([...SQ_CACHE.pays.values()], SQ_CACHE.names); if (sh.customers.length || SQ_CACHE.pays.size) { SQ.summary = sh.summary; SQ.customers = sh.customers; liveFromCache(); SOLE_VER++; redrawLive(); } }

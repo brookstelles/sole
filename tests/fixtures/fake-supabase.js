@@ -15,6 +15,10 @@ window.__SOLE_CLOUD_CLIENT = (() => {
       let L = T[table].filter(r => filters.every(f => f(r)));
       // members only see their own business (row level security), when the test says who the members are
       if (table === 'businesses' && T.members) L = L.filter(b => session && T.members.some(m => m.business_id === b.id && m.email === session.user.email));
+      // a book whose paid plan has ended takes no changes (private.book_open in the real database)
+      if (table === 'items' && mode !== 'select') { const ids = mode === 'delete' ? L.map(r => r.business_id) : (Array.isArray(rows) ? rows : [rows]).map(r => r.business_id);
+        if (ids.some(id => { const b = T.businesses.find(x => x.id === id); return b && ['monthly', 'yearly'].includes(b.plan) && ['canceled', 'unpaid', 'incomplete_expired', 'paused'].includes(b.plan_status); }))
+          return {data:null, error:{message:'new row violates row-level security policy for table "items"'}}; }
       if (mode === 'insert') { (Array.isArray(rows) ? rows : [rows]).forEach(row => T[table].push(JSON.parse(JSON.stringify(row)))); return {data:null, error:null}; }
       if (mode === 'upsert') { (Array.isArray(rows) ? rows : [rows]).forEach(row => { const k = KEYS[table], i = T[table].findIndex(r => k.every(x => r[x] === row[x])); if (i >= 0) T[table][i] = {...T[table][i], ...row}; else T[table].push(row); }); return {data:null, error:null}; }
       if (mode === 'delete') { T[table] = T[table].filter(r => !filters.every(f => f(r))); return {data:null, error:null}; }
@@ -35,13 +39,31 @@ window.__SOLE_CLOUD_CLIENT = (() => {
   const signup = ({action, code, profile, trade}) => {
     const em = session && session.user.email; if (!em) return {data:{error:'sign in first'}};
     if ((T.members || []).some(m => m.email === em)) return {data:{error:'already'}};
-    const inv = T.invite_codes.find(x => x.code === String(code || '').trim().toUpperCase() && x.uses < x.max_uses);
+    const inv = T.invite_codes.find(x => x.code === String(code || '').trim().toUpperCase() && x.uses < x.max_uses && (!x.email || x.email === em));
     if (action === 'check') return {data:inv ? {ok:true} : {error:'bad code'}};
     if (!inv || !profile || !profile.biz || JSON.stringify(profile).includes('<')) return {data:{error:inv ? 'bad profile' : 'bad code'}};
     inv.uses++; const id = 'B' + (T.businesses.length + 1);
-    T.businesses.push({id, name:profile.biz, profile:trade, data:{...profile, real:true, fresh:true, custom:true}});
+    T.businesses.push({id, name:profile.biz, profile:trade, data:{...profile, real:true, fresh:true, custom:true},
+      ...(inv.stripe_sub ? {plan:inv.plan || 'monthly', plan_status:inv.plan_status, plan_until:inv.plan_until, stripe_customer:inv.stripe_customer, stripe_sub:inv.stripe_sub} : {})});
     (T.members = T.members || []).push({business_id:id, email:em, role:'owner'});
     return {data:{ok:true, business_id:id}};
+  };
+  // the billing Edge Function (see supabase/functions/billing): on when the test says Stripe is set up (__FAKE_BILLING);
+  // checkout is a made-up Stripe page, and coming back with session cs_test_ok... earns a one-time code for this email
+  const billing = ({action, session:cs, yearly}) => {
+    if (action === 'status') return {data:{on:!!window.__FAKE_BILLING}};
+    if (!window.__FAKE_BILLING) return {data:{error:'off'}};
+    const em = session && session.user.email; if (!em) return {data:{error:'sign in first'}};
+    const m = (T.members || []).find(x => x.email === em), biz = m && T.businesses.find(b => b.id === m.business_id);
+    if (action === 'start') return {data:biz ? {error:'already'} : {url:'https://checkout.stripe.test/c/pay/cs_test_' + (yearly ? 'yearly' : 'monthly')}};
+    if (action === 'claim') { if (biz) return {data:{error:'already'}}; if (!/^cs_test_ok/.test(cs || '')) return {data:{error:'gone'}};
+      let inv = T.invite_codes.find(x => x.stripe_sub === 'sub_test_1');
+      if (!inv) T.invite_codes.push(inv = {code:'PAID-TEST0000000001', uses:0, max_uses:1, email:em, stripe_customer:'cus_test_1', stripe_sub:'sub_test_1', plan:'monthly', plan_status:'trialing', plan_until:new Date(Date.now() + 14 * 864e5).toISOString()});
+      return {data:{code:inv.code}}; }
+    if (!biz) return {data:{error:'not on a business'}};
+    if (action === 'portal') return {data:{url:'https://billing.stripe.test/p/session/test'}};
+    if (action === 'restart') return {data:{url:'https://checkout.stripe.test/c/pay/cs_test_restart'}};
+    return {data:{error:'unknown action'}};
   };
   // the intake Edge Function: a client filling in a texted form (see supabase/functions/intake)
   const intake = ({token, action, answers, sig, biz}) => {
@@ -74,6 +96,6 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     from:query,
     channel:() => { const ch = {on:(type, opts, cb) => { subs.push({table:opts.table, cb}); return ch; }, subscribe:() => ch}; return ch; },
     storage:{from:() => ({upload:async () => ({error:null}), createSignedUrl:async () => ({data:{signedUrl:'data:,'}})})},
-    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'intake' ? intake(o.body) : name === 'signup' ? signup(o.body) : name === 'text' ? text(o.body) : name === 'calendar' ? {data:{url:'https://example.test/functions/v1/calendar?t=' + (o.body.action === 'reset' ? 'b' : 'a').repeat(48)}} : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
+    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'intake' ? intake(o.body) : name === 'signup' ? signup(o.body) : name === 'billing' ? billing(o.body) : name === 'text' ? text(o.body) : name === 'calendar' ? {data:{url:'https://example.test/functions/v1/calendar?t=' + (o.body.action === 'reset' ? 'b' : 'a').repeat(48)}} : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
   };
 })();
