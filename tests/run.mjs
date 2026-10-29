@@ -646,7 +646,7 @@ console.log('ok private Square views');
   // or yearly, then setup; a plan that has ended keeps the book to see and print but saves nothing
   { const n = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); n.on('pageerror', e => errs.push('paid sign-up: ' + e.message));
     const pseed = {businesses:[seed.businesses[0]], members:[{business_id:'B1', email:'owner@example.com', role:'owner'}], invite_codes:[], items:[], payments:[], customers:[]};
-    await n.addInitScript(`window.__SOLE_INTRO_MS = 0; window.__FAKE_KEEP = true; window.__FAKE_BILLING = true; localStorage.setItem('sole-face-later', String(Date.now()));\nwindow.__FAKE_DB = ${JSON.stringify(pseed)};\n${fake}`);
+    await n.addInitScript(`window.__SOLE_INTRO_MS = 0; window.__FAKE_KEEP = true; window.__FAKE_BILLING = true; window.__FAKE_OWNER = 'paid@example.com'; localStorage.setItem('sole-face-later', String(Date.now()));\nwindow.__FAKE_DB = ${JSON.stringify(pseed)};\n${fake}`);
     let went = '';
     await n.route('https://sole.test/**', r => r.fulfill({contentType:'text/html', body:site}));
     await n.route('https://checkout.stripe.test/**', r => { went = r.request().url(); return r.fulfill({contentType:'text/html', body:'<p>Stripe checkout'}); });
@@ -670,6 +670,12 @@ console.log('ok private Square views');
     check(!/plan has ended|didn’t go through/.test(await n.textContent('main')), 'paid sign-up: nothing about the plan on Today during the trial');
     await n.click('[data-act=me]');
     { const t = await n.textContent('.sheet'); check(/Your plan/.test(t) && /Free trial: 14 days left\. Then \$29 a month/.test(t), 'paid sign-up: the account shows the trial'); }
+    // the owner view (Brooks's): every business with its plan and how much it's used, never their clients
+    await n.click('.sheet [data-act=owner]'); await n.waitForSelector('.own-row');
+    { const t = await n.textContent('.sheet'); check(/Every business on SolePro/.test(t) && /Paid Lawn Co/.test(t) && /Trial · 14 days left/.test(t) && /1\s*on a free trial/.test(t) && /practice mode/.test(t), 'owner view: every business, its plan and the totals'); }
+    check(!(await wide(n)), 'owner view: fits the phone');
+    await n.click('.sheet [data-act=own-f][data-v=paying]'); check(/Nobody here/.test(await n.textContent('.own-list')), 'owner view: filters');
+    await n.click('.sheet .close'); await n.click('[data-act=me]');
     await n.click('.sheet [data-act=plan]'); await n.waitForTimeout(600);
     check(/billing\.stripe\.test/.test(went), 'paid sign-up: card, receipts or cancel open Stripe’s page');
     // the plan ends: the book is there to see, Today says how to start again, and nothing is saved
@@ -708,6 +714,7 @@ console.log('ok private Square views');
     check(await n.evaluate(id => window.__FAKE.T.members.some(m => m.business_id === id && m.email === 'new@example.com') && window.__FAKE.T.invite_codes[0].uses === 1, nb && nb.id), 'new business: its owner is the new email, and the code is used');
     { const t = await n.evaluate(() => ['#hdr', '#main', '#tabs', '#layer'].map(q => document.querySelector(q).textContent).join(' ')); check(/Fade Street Barbers/.test(await n.textContent('.biz-name')) && /Get set up/.test(t) && !/sample data|Tidewater|Cloud Test Massage|Cloud Sample/.test(t), 'new business: opens its own empty book, nobody else’s'); }
     await n.click('main [data-act=gs-svc]'); check(/\$42/.test(await n.textContent('.sheet')), 'new business: its prices from setup');
+    check(await n.evaluate(() => !document.querySelector('[data-act=owner]') && !OWNER), 'owner view: nobody else sees it');
     check(await n.evaluate(id => { const r = window.__FAKE.T.items.find(x => x.business_id === id && x.col === 'people' && x.id === 'prefs'); return !!(r && r.data.steps && r.data.steps.svc); }, nb && nb.id), 'new business: setup steps are saved with the business');
     // bringing in clients from the app used before: a file, a typed list and phone contacts; anyone already here is left out
     await n.click('.sheet .close');

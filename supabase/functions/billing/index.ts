@@ -59,15 +59,27 @@ const iso = (t: unknown) => typeof t === 'number' ? new Date(t * 1000).toISOStri
 // a subscription as Stripe has it now: its status, when the trial or the month paid for ends, and a cancel date
 const planOf = (s: any) => ({ plan: s.items?.data?.[0]?.price?.recurring?.interval === 'year' ? 'yearly' : 'monthly', plan_status: String(s.status), plan_cancel_at: iso(s.cancel_at),
   plan_until: iso(s.status === 'trialing' ? s.trial_end : (s.current_period_end ?? s.items?.data?.[0]?.current_period_end)) });
+// SolePro's owners' phones buzz when a plan turns: first payment, a failed card, a cancel, an end
+const owners = (title: string, body: string, tag: string) => fetch(env('SUPABASE_URL') + '/functions/v1/push', { method: 'POST',
+  headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env('SUPABASE_SERVICE_ROLE_KEY') },
+  body: JSON.stringify({ action: 'owners', msg: { title, body, url: '/', tag } }) }).catch(e => console.error('billing: push', String(e)));
+const day = (t: string) => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 // onto its business (or the code still waiting to make one); a restarted plan names its business
 async function record(subId: string) {
   const s = await stripe('GET', 'subscriptions/' + subId);   // always the latest: webhooks can arrive out of order
   if (s.metadata?.app !== 'solepro') return;
   const row = planOf(s), biz = s.metadata?.business_id;
+  const { data: was } = await (biz ? db.from('businesses').select('name,data,plan_status,plan_cancel_at').eq('id', biz) : db.from('businesses').select('name,data,plan_status,plan_cancel_at').eq('stripe_sub', s.id)).maybeSingle();
   const q = biz ? db.from('businesses').update({ ...row, stripe_customer: s.customer, stripe_sub: s.id }).eq('id', biz)
     : db.from('businesses').update(row).eq('stripe_sub', s.id);
   const { error } = await q; if (error) throw error;
   if (!biz) { const { error: e2 } = await db.from('invite_codes').update(row).eq('stripe_sub', s.id); if (e2) throw e2; }
+  if (!was) return;
+  const name = was.data?.biz || was.name, price = row.plan === 'yearly' ? '$290 a year' : '$29 a month';
+  if (row.plan_status === 'active' && was.plan_status !== 'active' && was.plan_status !== 'past_due') await owners('A new paying business', `${name} is paying now: ${price}.`, 'pay-' + s.id);
+  else if (row.plan_status === 'past_due' && was.plan_status !== 'past_due') await owners("A card didn't go through", `${name}'s payment failed. Stripe is retrying and has emailed them.`, 'due-' + s.id);
+  else if (ENDED.includes(row.plan_status) && !ENDED.includes(was.plan_status ?? '')) await owners('A plan ended', `${name}'s plan has ended. Their book stays readable.`, 'end-' + s.id);
+  else if (row.plan_cancel_at && !was.plan_cancel_at) await owners('A business canceled', `${name} canceled. It keeps working until ${day(row.plan_cancel_at)}.`, 'cancel-' + s.id);
 }
 // the one-time code a finished checkout earns: one business, for the email that signed in and paid
 async function codeFor(sess: any) {

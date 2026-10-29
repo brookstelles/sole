@@ -65,6 +65,17 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     if (action === 'restart') return {data:{url:'https://checkout.stripe.test/c/pay/cs_test_restart'}};
     return {data:{error:'unknown action'}};
   };
+  // the admin Edge Function (see supabase/functions/admin): the owner view, for the email the test names (__FAKE_OWNER)
+  const admin = ({action}) => {
+    const ok = !!session && !!window.__FAKE_OWNER && session.user.email === window.__FAKE_OWNER;
+    if (action === 'check') return {data:{ok}}; if (!ok) return {data:{error:'not an owner'}};
+    const of = (id, col) => T.items.filter(i => i.business_id === id && i.col === col).length;
+    const L = T.businesses.map(b => ({id:b.id, name:(b.data && b.data.biz) || b.name, trade:b.profile, owner:b.data && b.data.owner, created_at:b.created_at || new Date().toISOString(),
+      plan:b.plan || null, plan_status:b.plan_status || null, plan_until:b.plan_until || null, plan_cancel_at:b.plan_cancel_at || null, stripe_customer:b.stripe_customer || null,
+      members:(T.members || []).filter(m => m.business_id === b.id).map(m => m.email), last_sign_in:new Date().toISOString(), last_change:null,
+      clients:of(b.id, 'clients'), appts:of(b.id, 'appts'), visits_30:0, upcoming:0, forms:of(b.id, 'forms'), messages:of(b.id, 'inbox'), phones:0, square:false, texts_30:0}));
+    return {data:{businesses:L, totals:{paying:0, trials:L.filter(b => b.plan_status === 'trialing').length, mrr:0, ending7:0, new7:L.length}, test:true, stripe:'https://dashboard.stripe.test/customers/'}};
+  };
   // the intake Edge Function: a client filling in a texted form (see supabase/functions/intake)
   const intake = ({token, action, answers, sig, biz}) => {
     if (action === 'open-new' || action === 'submit-new') {   // a new client from the business's website
@@ -96,6 +107,6 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     from:query,
     channel:() => { const ch = {on:(type, opts, cb) => { subs.push({table:opts.table, cb}); return ch; }, subscribe:() => ch}; return ch; },
     storage:{from:() => ({upload:async () => ({error:null}), createSignedUrl:async () => ({data:{signedUrl:'data:,'}})})},
-    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'intake' ? intake(o.body) : name === 'signup' ? signup(o.body) : name === 'billing' ? billing(o.body) : name === 'text' ? text(o.body) : name === 'calendar' ? {data:{url:'https://example.test/functions/v1/calendar?t=' + (o.body.action === 'reset' ? 'b' : 'a').repeat(48)}} : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
+    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'intake' ? intake(o.body) : name === 'signup' ? signup(o.body) : name === 'billing' ? billing(o.body) : name === 'admin' ? admin(o.body) : name === 'text' ? text(o.body) : name === 'calendar' ? {data:{url:'https://example.test/functions/v1/calendar?t=' + (o.body.action === 'reset' ? 'b' : 'a').repeat(48)}} : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
   };
 })();

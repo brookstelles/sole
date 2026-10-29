@@ -1,7 +1,8 @@
 // Notifications for SolePro (web push, RFC 8291 and 8292): a message from the business's website buzzes the owner's
 // phone like a text. The phone must have SolePro on its home screen (an iPhone's rule) and notifications turned on in
 // SolePro (account menu). Actions: "key" (public: the server's public key, for subscribing), "subscribe" and
-// "unsubscribe" (a signed-in member, for this phone), and "send" (only the other Edge Functions, with the service key).
+// "unsubscribe" (a signed-in member, for this phone), "send" (only the other Edge Functions, with the service key), and
+// "owners" (the same, to SolePro's own owners' phones: a new business, a first payment, a failed card, a cancel).
 // The signing keys are made here the first time and kept in push_keys; they never leave the database.
 // Deploy with verify_jwt off. SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
@@ -12,6 +13,7 @@ const db = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), {
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
+const OWNERS = ['brookstelles@gmail.com'];   // SolePro's own owners (the admin function has the same list)
 let SERVER: webpush.ApplicationServer | null = null, PUBLIC = '';
 async function server() {
   if (SERVER) return SERVER;
@@ -26,9 +28,10 @@ async function server() {
   SERVER = await webpush.ApplicationServer.new({ contactInformation: 'https://app.solepro.app', vapidKeys });
   return SERVER;
 }
-// send to every phone of a business; a phone that's gone (uninstalled, turned off) is forgotten
-async function send(business_id: string, msg: { title: string; body: string; url?: string; tag?: string }) {
-  const as = await server(), { data: subs, error } = await db.from('push_subs').select('endpoint,sub').eq('business_id', business_id); if (error) throw error;
+// send to every phone of a business (or of SolePro's owners); a phone that's gone (uninstalled, turned off) is forgotten
+async function send(business_id: string | null, msg: { title: string; body: string; url?: string; tag?: string }) {
+  const q = db.from('push_subs').select('endpoint,sub'), as = await server();
+  const { data: subs, error } = await (business_id ? q.eq('business_id', business_id) : q.in('email', OWNERS)); if (error) throw error;
   let sent = 0, gone = 0;
   for (const s of subs ?? []) {
     // no Topic header: Apple turned every message away with it (400, Oct 27, 2026); the notification's own tag does the same job
@@ -58,10 +61,10 @@ Deno.serve(async (req) => {
     const body = await req.text(); if (body.length > 20_000) return reply({ error: 'too big' }, 413);
     const { action, business_id, sub, endpoint, msg } = JSON.parse(body || '{}');
     if (action === 'key') { await server(); return reply({ key: PUBLIC }); }
-    if (action === 'send') {   // the other Edge Functions only
+    if (action === 'send' || action === 'owners') {   // the other Edge Functions only
       if ((req.headers.get('authorization') ?? '') !== 'Bearer ' + env('SUPABASE_SERVICE_ROLE_KEY')) return reply({ error: 'not allowed' }, 403);
-      if (typeof business_id !== 'string' || !msg || typeof msg.title !== 'string') return reply({ error: 'nothing to send' }, 400);
-      return reply(await send(business_id, { title: String(msg.title).slice(0, 120), body: String(msg.body || '').slice(0, 300), url: typeof msg.url === 'string' ? msg.url.slice(0, 200) : '/', tag: typeof msg.tag === 'string' ? msg.tag : undefined }));
+      if ((action === 'send' && typeof business_id !== 'string') || !msg || typeof msg.title !== 'string') return reply({ error: 'nothing to send' }, 400);
+      return reply(await send(action === 'send' ? business_id : null, { title: String(msg.title).slice(0, 120), body: String(msg.body || '').slice(0, 300), url: typeof msg.url === 'string' ? msg.url.slice(0, 200) : '/', tag: typeof msg.tag === 'string' ? msg.tag : undefined }));
     }
     const email = await member(req, business_id);
     if (!email) return reply({ error: 'not a member of this business' }, 403);

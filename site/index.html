@@ -630,6 +630,12 @@ body.offline .app{padding-top:34px}
 .form .btns3 .btn.primary{grid-column:1 / -1}
 a.btn{text-decoration:none}
 .callout{background:var(--sunk);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;font-size:15px}
+.own{max-width:920px;margin-inline:auto;width:100%;padding-bottom:40px}.own-tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:6px 0 14px}
+.own-tile{background:var(--sunk);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}.own-tile b{font-size:24px;font-variant-numeric:tabular-nums}.own-tile span{font-size:13px;color:var(--muted)}
+@media (min-width:700px){.own-tiles{grid-template-columns:repeat(3,1fr)}}
+.own-list{margin-top:6px}.own-row{border-top:1px solid var(--line);padding:14px 2px;display:flex;flex-direction:column;gap:4px}.own-row p{margin:0}
+.own-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.own-h b{font-size:17px}
+.own-pill{font-size:13px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;background:var(--sunk)}.own-pill.paid{background:var(--accent);color:var(--accent-ink)}.own-chips .chip span{opacity:.6;margin-left:6px;font-variant-numeric:tabular-nums}.own-note{margin:0 0 10px}.own-pill.trial{background:var(--warm-soft)}.own-pill.bad,.own-pill.warn{background:var(--bad-soft);color:var(--bad)}
 .plan-note{margin-top:12px;gap:6px}.plan-note .btn{align-self:flex-start;margin-top:4px}.plan-soon{margin-top:8px}
 .nb-plan{margin-bottom:12px}.nb-plan button{display:flex;flex-direction:column;align-items:center;gap:1px}.nb-plan small{font-size:12px;font-weight:500;opacity:.8}
 .callout b{font-weight:600}
@@ -2694,6 +2700,7 @@ function meHTML(){
     <div class="me-who"><span class="me big">${esc(MY_INITIALS)}</span><div><b>${esc(MY_NAME || (USER_EMAIL ? 'Add your name' : P.owner))}</b><span class="small muted">${esc(USER_EMAIL || `Owner of ${P.biz}`)}</span></div></div>
     ${P.site && P.site.url ? `<div class="field"><span class="label">Share your business</span><button class="btn primary" data-act="qr">${I.qr}Show my QR code</button><span class="small muted">Someone points their phone’s camera at it and your website opens.</span></div>` : ''}
     ${planField()}
+    ${OWNER ? `<div class="field"><span class="label">SolePro, the business</span><button class="btn primary" data-act="owner">${I.clients}Every business on SolePro</button><span class="small muted">Who's signed up, their plans, and how much they use it.</span></div>` : ''}
     ${USER_EMAIL ? `<div class="field"><span class="label">Your name</span><input class="text-in" id="me-name" value="${esc(MY_NAME)}" placeholder="First and last" autocomplete="name"></div>` : ''}
     <div class="field"><span class="label">Light or dark</span>${seg('me-theme', th, [['', 'Automatic'], ['light', 'Light'], ['dark', 'Dark']])}<span class="small muted">Automatic follows your phone’s setting. Just on this phone.</span></div>
     ${face ? `<div class="field"><span class="label">${FACE}</span>${lsGet('sole-face') ? `<p class="small muted">On. SolePro opens with a glance.</p><button class="btn line" data-act="me-face-off">Turn off ${FACE} on this phone</button>` : `<button class="btn line" data-act="me-face-on">${FACE_ICON}Turn on ${FACE}</button>`}</div>` : ''}
@@ -2706,6 +2713,51 @@ function meHTML(){
     ${CLOUD_ON && P.real && BIZ ? `<div class="field"><span class="label">Backup in Google Calendar</span><button class="btn line" data-act="gcal">${I.schedule}Copy my ${P.unit} to Google Calendar</button><span class="small muted">Every ${P.unitOne}, kept up to date by itself.</span></div>` : ''}
     ${CLOUD_ON && USER_EMAIL ? `<button class="btn line danger-line" data-act="me-out" style="width:100%;margin-top:8px">Sign out</button>` : ''}`;
 }
+/* ---------- the owner view (asked for Oct 29, 2026): every business on SolePro, for SolePro's own owners ----------
+   Counts and dates from the admin function (public.admin_overview): plan, joined, last in, last change, how much
+   they use it. Never a business's clients, notes or money. Nobody needs approving: this is only for keeping an eye. */
+const OWN_ENDED = ['canceled', 'unpaid', 'incomplete_expired', 'paused'];
+function ownAgo(t){
+  if (!t) return 'never'; const d = Math.floor((Date.now() - new Date(t)) / 864e5);
+  return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? `${d} days ago` : new Date(t).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+}
+function ownPlan(b){
+  const days = b.plan_until ? Math.max(0, Math.ceil((new Date(b.plan_until) - Date.now()) / 864e5)) : null, until = b.plan_cancel_at && new Date(b.plan_cancel_at).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+  if (b.plan === 'house') return ['Free (house)', 'free'];
+  if (!b.plan) return ['Free (invite)', 'free'];
+  if (OWN_ENDED.includes(b.plan_status)) return ['Ended', 'bad'];
+  if (b.plan_status === 'past_due') return ['Card failed', 'bad'];
+  if (b.plan_status === 'trialing') return [`Trial · ${days === 1 ? '1 day' : `${days} days`} left${until ? ', canceled' : ''}`, until ? 'warn' : 'trial'];
+  return [`${b.plan === 'yearly' ? '$290 a year' : '$29 a month'}${until ? ` · ends ${until}` : ''}`, until ? 'warn' : 'paid'];
+}
+const ownNeeds = b => ['bad', 'warn'].includes(ownPlan(b)[1]) || (b.plan_status === 'trialing' && b.plan_until && new Date(b.plan_until) - Date.now() < 3 * 864e5)
+  || (['monthly', 'yearly'].includes(b.plan) && !OWN_ENDED.includes(b.plan_status) && (!b.last_change || Date.now() - new Date(b.last_change) > 7 * 864e5));
+const OWN_FILTERS = [['all', 'All', () => true], ['trial', 'On a trial', b => b.plan_status === 'trialing'], ['paying', 'Paying', b => b.plan_status === 'active' || b.plan_status === 'past_due'],
+  ['needs', 'Needs a look', ownNeeds], ['free', 'Free', b => !b.plan || b.plan === 'house']];
+function ownerHTML(){
+  const d = OWNER_DATA, head = top('Every business on SolePro', 'Counts and dates only. Their clients, notes and money stay private.');
+  if (!d) return `<div class="own">${head}<p class="muted">Loading…</p></div>`;
+  if (d.error) return `<div class="own">${head}<p>That didn't load. Check your signal and try again.</p><button class="btn line" data-act="owner">Try again</button></div>`;
+  const L = d.businesses || [], t = d.totals || {}, f = OWN_FILTERS.find(x => x[0] === OWNER_F) || OWN_FILTERS[0], shown = L.filter(f[2]);
+  const tile = (n, l) => `<div class="own-tile"><b>${n}</b><span>${l}</span></div>`;
+  return `<div class="own">${head}
+    <div class="own-tiles">${tile(L.length, L.length === 1 ? 'business' : 'businesses')}${tile(t.paying || 0, 'paying')}${tile(t.trials || 0, 'on a free trial')}
+      ${tile(money(t.mrr || 0), 'a month, paying now')}${tile(t.ending7 || 0, 'trials ending this week')}${tile(t.new7 || 0, 'new this week')}</div>
+    ${d.test ? `<p class="small muted own-note">Stripe is in practice mode: these plans aren't real money yet.</p>` : ''}
+    <div class="chips own-chips">${OWN_FILTERS.map(([x, l, fn]) => `<button class="chip" data-act="own-f" data-v="${x}" aria-pressed="${OWNER_F === x}">${l}<span>${L.filter(fn).length}</span></button>`).join('')}</div>
+    <div class="own-list">${shown.length ? shown.map(b => { const [pl, kind] = ownPlan(b);
+      return `<div class="own-row"><div class="own-h"><b>${esc(b.name)}</b><span class="own-pill ${kind}">${pl}</span></div>
+        <p class="small muted">${esc(cap(b.trade || ''))}${b.owner ? ` · ${esc(b.owner)}` : ''} · ${(b.members || []).map(esc).join(', ')}</p>
+        <p class="small">Joined ${ownAgo(b.created_at)} · last in ${ownAgo(b.last_sign_in)} · last change ${ownAgo(b.last_change)}</p>
+        <p class="small muted">${b.clients || 0} ${b.clients === 1 ? 'client' : 'clients'} · ${b.visits_30 || 0} visits in the last 30 days · ${b.upcoming || 0} booked ahead · ${b.forms || 0} forms${b.messages ? ` · ${b.messages} website messages` : ''}${b.phones ? ' · notifications on' : ''}${b.square ? ' · Square connected' : ''}${b.texts_30 ? ` · ${b.texts_30} texts sent` : ''}</p>
+        ${b.stripe_customer && d.stripe ? `<a class="small" href="${d.stripe}${encodeURIComponent(b.stripe_customer)}" target="_blank" rel="noopener">Open in Stripe</a>` : ''}</div>`; }).join('') : '<p class="muted">Nobody here.</p>'}</div></div>`;
+}
+async function ownerLoad(){
+  OWNER_DATA = null; const draw = () => { const sh = $('.sheet.own-sheet'); if (sh) sh.innerHTML = `<div class="grab"></div>${ownerHTML()}`; };
+  try { const r = await SB.functions.invoke('admin', {body:{action:'overview'}}); OWNER_DATA = (r && r.data && r.data.businesses) ? r.data : {error:true}; } catch (_) { OWNER_DATA = {error:true}; }
+  draw();
+}
+
 /* ---------- a QR code for the business's website (asked for Oct 26, 2026): her initials, then Show my QR code, and
    someone scans it from her phone. Black on white whatever the theme, so every camera reads it. The library
    (qrcode-generator 1.4.4, MIT, Kazuhiko Arase) is site/vendor/qrcode.js: loaded the first time, then kept on the phone. */
@@ -4627,6 +4679,8 @@ on('click', e => {
     case 'qr': qrSheet(); break;
     case 'qr-share': navigator.share({title:P.biz, url:P.site.url}).catch(() => {}); break;
     case 'plan': planGo('portal'); break;
+    case 'owner': if (!OWNER) break; OWNER_DATA = null; sheet(ownerHTML(), 'full own-sheet'); ownerLoad(); break;
+    case 'own-f': OWNER_F = v; { const sh = $('.sheet.own-sheet'); if (sh) sh.innerHTML = `<div class="grab"></div>${ownerHTML()}`; } break;
     case 'plan-restart': planGo('restart'); break;
     case 'gcal': GCAL = null; sheet(gcalHTML()); $('#layer .sheet').dataset.gcal = '1'; gcalLink('link'); break;
     case 'gc-copy': { const u = GCAL && GCAL.url; if (!u) break; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast('Link copied. Paste it into Google Calendar.'), () => { const i = $('#gc-url'); if (i) { i.focus(); i.select(); } toast('Copy the link from the box.'); }); break; }
@@ -4760,6 +4814,7 @@ if (EDITION === 'demo' && !OB) { let seen = false; try { seen = !!localStorage.g
    the rest of the app is the same on both. On claude.ai nothing here runs. */
 const CLOUD_CFG = PROFILES.massage.cloud || {};   // set in the private edition only
 let FORM_LINK = null, CLIENT_NAME = () => '', TOAST = () => {}, USER_EMAIL = '', ME_DIRTY = false;
+let OWNER = false, OWNER_DATA = null, OWNER_F = 'all';   // SolePro's own owners (the admin function says who): the owner view
 /* ---------- the weather (asked for Oct 27, 2026): one quiet line on Today and on each day of the schedule ----------
    From Open-Meteo for the business's spot (P.geo, or PREFS.geo when the owner shared this phone's location). Tests
    pass made-up weather in __SOLE_WX; a browser driven by a test fetches nothing. */
@@ -5166,6 +5221,7 @@ async function cloudGo(){
   if (!biz || !biz.length) return cloudNew();
   BIZ = biz[0].id; BOOK_BIZ = biz[0]; BOOK_ROWS = {};
   try { const { data:ss } = await SB.auth.getSession(); USER_EMAIL = ((ss && ss.session && ss.session.user && ss.session.user.email) || '').toLowerCase(); } catch (_) {}
+  SB.functions.invoke('admin', {body:{action:'check'}}).then(r => { OWNER = !!(r && r.data && r.data.ok); }).catch(() => {});
   try { await savePending(); } catch (_) { const c = await idbGet('book'); if (c && c.biz.id === BIZ) return cloudOffline(c); }
   // the website carries a made-up business; the real one (its numbers, services, forms) is read here, members only
   if (biz[0].data) PROFILES[biz[0].profile || 'massage'] = {...biz[0].data, cloud:CLOUD_CFG};

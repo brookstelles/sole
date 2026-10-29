@@ -55,6 +55,11 @@ Deno.serve(async (req) => {
       const data = { ...rest, biz: String(profile.biz).trim(), owner: String(profile.owner).trim(), real: true, fresh: true, custom: true };
       const { data: id, error } = await db.rpc('create_business', { p_email: email, p_name: data.biz, p_profile: trade, p_data: data, p_code: c });
       if (error) return reply({ error: /bad code/.test(error.message) ? 'bad code' : /already/.test(error.message) ? 'already' : 'failed' }, /bad code|already/.test(error.message) ? 200 : 500);
+      // SolePro's owners hear about every new business (nobody approves them, but Brooks likes to know)
+      try {
+        await fetch(env('SUPABASE_URL') + '/functions/v1/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env('SUPABASE_SERVICE_ROLE_KEY') },
+          body: JSON.stringify({ action: 'owners', msg: { title: 'New on SolePro', body: `${data.biz} (${trade}) ${c.startsWith('PAID-') ? 'started a free trial' : 'joined with an invite code'}.`, url: '/', tag: 'new-' + id } }) });
+      } catch (e) { console.error('signup: push', String(e)); }
       return reply({ ok: true, business_id: id });
     }
     return reply({ error: 'what?' });
