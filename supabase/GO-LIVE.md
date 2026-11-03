@@ -94,7 +94,9 @@ The first checkout makes the SolePro product and both prices by itself (lookup k
 ## Delete my account (needed before the phone apps go to Apple and Google)
 
 Asked for Nov 3, 2026: Apple and Google require account deletion inside the app. The app has it (account sheet →
-Delete my account; "Delete this sign-in" for an email with no business); the server side needs, once:
+Delete my account; "Delete this sign-in" for an email with no business). Steps 1 and 2 were done Nov 3, 2026 (the
+migration applied and `account` deployed through the Supabase connector; a call without a sign-in answers 401); step 3
+is still to do once the app version is live:
 
 1. **SQL editor:** run `migrations/20261103000000_close_account.sql` (`public.close_account`, service role only).
 2. **Edge Functions → Deploy** `functions/account` with **verify_jwt off** (it checks the signed-in person's token
