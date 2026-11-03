@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SolePro</string>
+    <string name="title_activity_main">SolePro</string>
+    <string name="package_name">com.brookstelles.solepro</string>
+    <string name="custom_url_scheme">com.brookstelles.solepro</string>
+</resources>

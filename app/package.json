@@ -1,0 +1,31 @@
+{
+  "name": "sole-app",
+  "private": true,
+  "version": "1.0.0",
+  "description": "SolePro's iPhone and Android apps (Capacitor): the same page as app.solepro.app, bundled. See app/README.md.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "cd .. && python3 build_demo.py && cd app && node scripts/build_web.mjs",
+    "build:native": "npm run build && cap sync",
+    "icons": "node scripts/build_native_icons.mjs",
+    "store:check": "node scripts/check_store.mjs",
+    "store:shots": "node scripts/build_store_shots.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/app-launcher": "8.0.1",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/share": "8.0.3",
+    "@supabase/supabase-js": "2.115.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3",
+    "esbuild": "0.28.2"
+  }
+}

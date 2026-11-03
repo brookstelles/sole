@@ -1,0 +1,9 @@
+{
+  "appId": "com.brookstelles.solepro",
+  "appName": "SolePro",
+  "webDir": "www",
+  "backgroundColor": "#14112E",
+  "ios": { "contentInset": "never", "limitsNavigationsToAppBoundDomains": false },
+  "android": { "allowMixedContent": false },
+  "plugins": { "SystemBars": { "insetsHandling": "native", "initialViewportFitValueHint": "cover" } }
+}

@@ -1,0 +1,76 @@
+# SolePro's iPhone and Android apps (Capacitor: app/capacitor.config.json, app/ios, app/android). Builds the page the
+# website serves (build_demo.py, then app/scripts/build_web.mjs) into both apps and checks they compile. Signing and
+# uploading to the App Store and Google Play come once Brooks's developer accounts exist (app/README.md).
+#   Android: on every change to the apps or the page they carry, and by hand. Linux runner. The debug APK is kept 14 days
+#            (Actions > Phone apps > a run > Artifacts) to install on an Android phone.
+#   iPhone: by hand only (Actions > Phone apps > Run workflow, tick "Also build the iPhone app"): macOS runners use more
+#           of the free minutes. Compiled for the simulator, unsigned.
+# Nothing secret is needed: the Supabase address and publishable key are already public in the page.
+name: Phone apps
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths: ["app/**", "index.html", "build_demo.py", "demo/**", "site/**", ".github/workflows/native.yml"]
+  workflow_dispatch:
+    inputs:
+      ios:
+        description: "Also build the iPhone app (macOS runner)"
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Check the store listings
+        run: node scripts/check_store.mjs
+      - name: Build the page and copy it into the Android project
+        run: npm run build:native
+      - name: Compile (debug build)
+        working-directory: app/android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solepro-android-debug
+          path: app/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+  ios:
+    if: github.event_name == 'workflow_dispatch' && inputs.ios
+    runs-on: macos-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Build the page and copy it into the iPhone project
+        run: npm run build:native
+      - name: Compile for the simulator (unsigned)
+        working-directory: app/ios/App
+        shell: bash
+        run: set -o pipefail; xcodebuild -project App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -40
