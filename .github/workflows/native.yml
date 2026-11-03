@@ -17,6 +17,11 @@ on:
         description: "Also build the iPhone app (macOS runner)"
         type: boolean
         default: false
+      mac:
+        description: "Mac to build on (try another if GitHub can't find one: Apple-silicon Macs are sometimes short)"
+        type: choice
+        options: [macos-latest, macos-26, macos-15, macos-15-intel]
+        default: macos-latest
 permissions:
   contents: read
 concurrency:
@@ -55,13 +60,17 @@ jobs:
           retention-days: 14
   ios:
     if: github.event_name == 'workflow_dispatch' && inputs.ios
-    runs-on: macos-latest
+    runs-on: ${{ inputs.mac || 'macos-latest' }}
     timeout-minutes: 40
     defaults:
       run:
         working-directory: app
     steps:
       - uses: actions/checkout@v5
+      # Capacitor 8 and the App Store need a current Xcode, whichever Mac image GitHub gives.
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
       - uses: actions/setup-node@v5
         with:
           node-version: 22
