@@ -173,6 +173,8 @@ main{display:flex;flex-direction:column;gap:22px}
 .sky-card #si-code{font-size:26px;letter-spacing:.3em;font-variant-numeric:tabular-nums}
 .sky-card .btn.primary{background:#F1B75A;color:#2B1F08;min-height:54px;font-size:17px}
 .sky-card .btn.line{border-color:rgba(255,255,255,.35);color:#fff}
+.sky-card .legal{font-size:13px!important;line-height:1.5;text-align:center;color:rgba(255,255,255,.62)}
+.sky-card .legal a,.sky-card .legal .linkish{color:rgba(255,255,255,.85);font-weight:400;text-decoration:underline;text-underline-offset:2px}
 .sky-card :focus-visible{outline-color:#FAD889}
 .sky-card .sky-big{font-family:var(--display);font-size:26px;line-height:1.2;color:#fff}
 .sky-or{display:flex;align-items:center;gap:10px;font-size:14px!important;color:rgba(255,255,255,.65)}
@@ -667,6 +669,10 @@ a.btn{text-decoration:none}
 .li.rm .who{border:0;background:transparent;text-align:left;padding:0;color:var(--ink);display:flex;flex-direction:column}
 .btn.sm.primary{min-height:40px;padding:6px 16px}
 .linkish{border:0;background:none;padding:0;color:var(--accent);font:inherit;font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.me-legal{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 8px;margin-top:14px;text-align:center}
+.me-legal a,.me-legal .linkish{color:inherit;font-weight:400;text-decoration:underline;text-underline-offset:2px}
+.del-list{margin:0;padding-left:20px;display:grid;gap:6px}
+.btn.del-go{background:var(--bad);border-color:var(--bad);color:var(--bg)}
 /* Clients tab */
 .cl-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .cl-stats button{border:0;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:12px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;color:var(--ink)}
@@ -1546,9 +1552,22 @@ let SQ = null;    // Square payments and card customers, written into this page'
 let KEEP = null;   // the tab to return to when the page rebuilds itself
 let SHEETS = [], SHEET_GEN = 0, BOOT_GEN = 0;   // the sheets under the open one (back returns to them); a rebuild forgets them
 let REOPEN = null;   // a sheet to put back after the page rebuilds itself ('services', 'setup')
-const URLQ = new URLSearchParams(location.search), START_TRIAL = URLQ.has('start'), PAID_SESSION = URLQ.get('paid');   // getsolepro.com's Start button; back from Stripe's checkout
+/* ---------- the iPhone and Android apps (app/, Capacitor; asked for Nov 3, 2026) ----------
+   NATIVE: this page is running inside SolePro's App Store or Google Play app, which carries this same page (tests:
+   __SOLE_NATIVE). There it always runs on SolePro's servers, with no service worker, no web push and no Face ID by
+   passkey (the app's own address can't use solepro.app's passkeys).
+   SELLS_HERE is the one switch for buying: false hides every price, trial, plan button and Stripe link, because Apple
+   and Google want their own in-app purchase for a subscription bought inside an app (Apple 3.1.1, 3.1.3(f)). People
+   already on a business, or with an invite code, sign in as usual; someone new is told plainly that businesses start
+   at getsolepro.com, with no link or button. The website keeps selling (app/README.md). */
+const NATIVE = !!window.__SOLE_NATIVE || !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const SELLS_HERE = !NATIVE;
+// SolePro's terms and privacy policy, on getsolepro.com (they open in the phone's browser inside the apps)
+const LEGAL = {terms:'https://getsolepro.com/terms', privacy:'https://getsolepro.com/privacy'};
+const URLQ = new URLSearchParams(location.search), START_TRIAL = SELLS_HERE && URLQ.has('start'), PAID_SESSION = SELLS_HERE ? URLQ.get('paid') : null;   // getsolepro.com's Start button; back from Stripe's checkout
 let NEW_CODE = null;   // website: the invite code of someone setting up a new business (the setup screens cover the page)
 let TOAST_T = null; const UNDO = {arm:null, snap:null};
+let PLAN_BACK = 0;   // when an ended plan last put the book back as the database has it (persistReal)
 let WX = null, WX_BUSY = false, WX_REDRAW = null;   // the weather where the business is (Open-Meteo, free, no account), kept on the phone for half an hour
 let TEXT_ON = null; const TEXT_Q = [];   // website: SolePro texts clients from its own number (the text Edge Function); texts waiting out the Undo window
 let OPEN_MSG = new URLSearchParams(location.search).get('msg');   // a tapped notification opens SolePro on that message   // the message on screen and what Undo puts back: both outlive a rebuild
@@ -1579,7 +1598,8 @@ function persistReal(st){
     many(dels, 100, 'delMany', (c, id) => c.doc(id).delete());
   });
   // a plan that has ended: the database takes no changes, so put the book back as it is there
-  if (jobs.length && planEnded()) { TOAST('Your plan has ended, so changes aren’t saved. Start it again from your account.'); refreshBook().catch(() => {}); return; }
+  // (once in a while: a book that tidies itself as it loads would otherwise put itself back over and over, Nov 3, 2026)
+  if (jobs.length && planEnded()) { if (Date.now() - PLAN_BACK > 15e3) { PLAN_BACK = Date.now(); TOAST(SELLS_HERE ? 'Your plan has ended, so changes aren’t saved. Start it again from your account.' : 'Your plan has ended, so changes aren’t saved.'); refreshBook().catch(() => {}); } return; }
   if (jobs.length) SOLE_Q = SOLE_Q.then(async () => { const db = await dbOf(); if (!db) return;
     for (const j of jobs) { try { await j(db); } catch (_) { const t = document.querySelector('.toast'); if (!t) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = 'Saved on this phone. It couldn’t reach your account just now.'; document.body.appendChild(el); setTimeout(() => el.remove(), 3600); } } } });
 }
@@ -2680,6 +2700,26 @@ function thanksTodo(){
     <p class="small muted">${P.reviewUrl ? 'A thank-you with your review link.' : 'A short thank-you.'} Tap Text, hit send. <button class="linkish" data-act="ty-skip" data-v="${o}">Skip these</button></p>`};
 }
 // the account: who's signed in, light or dark on this phone, Face ID, the business's texts, sign out
+// Delete my account (see delGo, beside the other sign-in code): what goes with it, then DELETE typed to be sure
+async function delOpen(){
+  sheet(`${top('Delete my account', esc(USER_EMAIL))}<p class="muted">Checking what goes with it…</p>`);
+  let d; try { const r = await SB.functions.invoke('account', {body:{action:'check'}}); d = (r && r.data) || {error:'net'}; } catch (_) { d = {error:'net'}; }
+  const sh = $('.sheet'); if (sh && /Delete my account/.test(sh.textContent)) sh.innerHTML = `<div class="grab"></div>${delHTML(d)}`;
+}
+function delHTML(d){
+  const head = top('Delete my account', esc(USER_EMAIL)), biz = esc(d.biz || P.biz);
+  if (d.error || !('role' in d)) return `${head}<p class="muted">That didn’t load. Check your signal and try again.</p>`;
+  if (d.house) return `${head}<p>${biz} is closed by SolePro itself, so nothing is lost by mistake. Write to help@getsolepro.com from this email and we’ll take care of it.</p>`;
+  const what = d.role === 'owner' ? `<p>This deletes, for good:</p><ul class="del-list"><li>${biz} and everything in it: ${WN}, ${P.unit}, notes, forms, papers, receipts and money records</li><li>Your sign-in, ${esc(USER_EMAIL)}</li>
+      ${d.others ? `<li>${d.others === 1 ? 'The other person' : `The ${d.others} other people`} on ${biz} lose${d.others === 1 ? 's' : ''} it too</li>` : ''}</ul>
+      ${d.paid ? '<p>Your SolePro plan stops today. Nothing more is charged.</p>' : ''}
+      <p class="small muted">If your license asks you to keep ${W1} records, print or save them first.</p><button class="btn line" data-act="del-rec">Print or save my records</button>`
+    : d.role === 'staff' ? `<p>This deletes your sign-in, ${esc(USER_EMAIL)}. ${biz} and its book stay with its owner.</p>`
+    : `<p>This deletes your sign-in, ${esc(USER_EMAIL)}.</p>`;
+  return `${head}${what}<p class="small muted">It can’t be undone.</p>
+    <div class="field"><label class="label" for="del-word">Type DELETE to be sure</label><input class="text-in" id="del-word" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
+    <button class="btn primary del-go" data-act="del-go" style="width:100%">Delete my account for good</button>`;
+}
 function meHTML(){
   const th = (() => { try { return localStorage.getItem('sole-theme') || ''; } catch (_) { return ''; } })(), face = CLOUD_ON && typeof pkOk === 'function' && pkOk();
   const seg = (act, cur, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
@@ -2698,7 +2738,8 @@ function meHTML(){
       : `<button class="btn line" data-act="me-wx-here">${I.today}Show the weather here</button><span class="small muted">Uses this phone’s location once, to know your area.</span>`}</div>
     <div class="field"><span class="label">Thank-you texts the day after</span>${seg('me-thanks', PREFS.thanks === false ? 'off' : 'on', [['on', 'On'], ['off', 'Off']])}<span class="small muted">For everyone on ${esc(P.biz)}.</span></div>
     ${CLOUD_ON && P.real && BIZ ? `<div class="field"><span class="label">Backup in Google Calendar</span><button class="btn line" data-act="gcal">${I.schedule}Copy my ${P.unit} to Google Calendar</button><span class="small muted">Every ${P.unitOne}, kept up to date by itself.</span></div>` : ''}
-    ${CLOUD_ON && USER_EMAIL ? `<button class="btn line danger-line" data-act="me-out" style="width:100%;margin-top:8px">Sign out</button>` : ''}`;
+    ${CLOUD_ON && USER_EMAIL ? `<button class="btn line danger-line" data-act="me-out" style="width:100%;margin-top:8px">Sign out</button>` : ''}
+    ${CLOUD_ON ? `<p class="small muted me-legal">${legalA('terms', 'Terms')}<span aria-hidden="true">·</span>${legalA('privacy', 'Privacy')}${USER_EMAIL ? `<span aria-hidden="true">·</span><button class="linkish" data-act="me-del">Delete my account</button>` : ''}</p>` : ''}`;
 }
 /* ---------- the owner view (asked for Oct 29, 2026): every business on SolePro, for SolePro's own owners ----------
    Counts and dates from the admin function (public.admin_overview): plan, joined, last in, last change, how much
@@ -2866,7 +2907,7 @@ let PUSH_KEY = null;
 const b64u = v => { const b = atob((v + '='.repeat((4 - v.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
 function pushFetchKey(){ if (!PUSH_KEY && CLOUD_ON && SB) SB.functions.invoke('push', {body:{action:'key'}}).then(r => { if (r && r.data && r.data.key) PUSH_KEY = r.data.key; }).catch(() => {}); }
 function pushHTML(){
-  if (!CLOUD_ON) return '';
+  if (!CLOUD_ON || NATIVE) return '';   // the apps: web push doesn't reach them (their own notifications come later)
   if (IOS && !STANDALONE) return `<div class="field"><span class="label">Notifications</span><p class="small muted">To get a buzz on this ${/iPad/.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && !/iPhone/.test(navigator.userAgent) ? 'iPad' : 'iPhone'} when someone writes from your website: tap Share, then Add to Home Screen, and open SolePro from there.</p></div>`;
   if (!pushOk()) return '';
   const on = lsGet('sole-push') && Notification.permission === 'granted';
@@ -3220,7 +3261,7 @@ function clientsCard(){
 }
 /* ---------- Forms ---------- */
 const FORMS = P.forms;
-const formLinkOf = f => f.intake && CLOUD_ON && P.site && P.site.slug ? `${location.origin}/?new=${encodeURIComponent(P.site.slug)}` : f.url || '';
+const formLinkOf = f => f.intake && CLOUD_ON && P.site && P.site.slug ? `${WEB_HOME()}/?new=${encodeURIComponent(P.site.slug)}` : f.url || '';
 const INTAKE_URL = formLinkOf(FORMS.find(f => f.intake) || {}) || '[form link]';
 function viewForms(){
   if (pdfMode()) pdfLib().catch(() => {});
@@ -3334,7 +3375,7 @@ function pdfOf(B){
 }
 let PDF_LIB = null, PDF_READY = null;   // PDF_READY: a PDF made after a wait, handed over on the next tap (the share sheet needs a fresh one)
 const pdfLib = () => window.jspdf ? Promise.resolve() : PDF_LIB || (PDF_LIB = new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'vendor/jspdf.umd.min.js'; sc.onload = ok; sc.onerror = () => { PDF_LIB = null; no(); }; document.head.appendChild(sc); }));
-const pdfMode = () => !!window.__SOLE_PDF || (IOS && !!navigator.canShare);   // tests: __SOLE_PDF
+const pdfMode = () => !!window.__SOLE_PDF || ((IOS || NATIVE) && !!navigator.canShare);   // the apps: their share sheet (app/web/native.js)   // tests: __SOLE_PDF
 async function printDoc(title, B){
   if (!pdfMode()) return printOut(blocksHTML(B));
   const had = !!window.jspdf;
@@ -4411,7 +4452,7 @@ function bookPut(c){
 on('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const v = el.dataset.v, id = +el.dataset.id;
-  if (planEnded() && UNDOABLE.includes(el.dataset.act)) { TOAST('Your plan has ended, so this can’t be saved. Start it again from your account.'); return; }
+  if (planEnded() && UNDOABLE.includes(el.dataset.act)) { TOAST(SELLS_HERE ? 'Your plan has ended, so this can’t be saved. Start it again from your account.' : 'Your plan has ended, so this can’t be saved.'); return; }
   if (UNDOABLE.includes(el.dataset.act)) UNDO.arm = {snap:bookCopy(), at:Date.now()};
   if (el.dataset.act === 'undo') { if (UNDO.snap) { textCancel(UNDO.snap); bookPut(UNDO.snap); UNDO.snap = null; closeSheet(); render(); toast('Undone.'); } return; }
   { const a = el.dataset.id && ['move', 'cancel'].includes(el.dataset.act) ? AP.find(x => x.id === id) : null;
@@ -4689,6 +4730,10 @@ on('click', e => {
     case 'me-face-off': try { localStorage.removeItem('sole-face'); } catch (_) {} $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; toast(`${FACE} is off on this phone. Next time, sign in with a code.`); break;
     case 'me-face-on': if (!pkOk()) { toast(`${FACE} isn’t ready on this address yet. Try again later.`); break; } el.disabled = true; pkCeremony('reg').then(() => true, err => err && (err.code === 'webauthn_credential_exists' || err.name === 'InvalidStateError'))
       .then(ok => { if (ok) { lsSet('sole-face', '1'); toast(`${FACE} is on. Next time, SolePro opens with a glance.`); } else { pkFetch('reg'); toast(`${FACE} didn’t turn on. Try again.`); } if ($('.sheet')) $('.sheet').innerHTML = `<div class="grab"></div>${meHTML()}`; }); break;
+    case 'me-del': delOpen(); break;
+    case 'del-rec': closeSheet(); S.tab = 'clients'; S.cl = null; S.clRec = true; render(); window.scrollTo(0,0); break;
+    case 'del-go': { const w = ($('#del-word') || {}).value || ''; if (w.trim().toUpperCase() !== 'DELETE') { toast('Type DELETE first, to be sure.'); break; }
+      el.disabled = true; delGo('DELETE').then(m => { if (m) { el.disabled = false; toast(m); } }); break; }
     case 'me-out': (async () => { const q = await idbGet('pending'); if (q && q.length) { toast('Some changes are still waiting for signal. Sign out once they’re saved.'); return; }
       await idbSet('book', null); lsSet('sole-biz-name', ''); try { await SB.auth.signOut(); } catch (_) {} location.reload(); })(); break;
     case 'pp-add': PPF = {name:v || '', expires:'', file:null, url:null}; sheet(ppHTML()); break;
@@ -4766,7 +4811,7 @@ window.addEventListener('popstate', e => {
   const nav = e.state && e.state.nav; if (!nav) return;
   S.tab = nav.tab || 'today'; S.money = nav.money || 'home'; S.cl = nav.cl || null; S.clRec = !!nav.rec; if (nav.view) S.view = nav.view; if (e.state.mo) S.mo = e.state.mo; NAV_POP = true; render(); window.scrollTo(0, 0);
 }, {signal:CTL.signal});
-if (CLOUD_ON && STANDALONE) {
+if (CLOUD_ON && (STANDALONE || NATIVE)) {
   let sw = null; const opt = {signal:CTL.signal, passive:true};
   document.addEventListener('touchstart', e => { if (e.touches.length !== 1) { sw = null; return; } const t = e.touches[0];
     sw = {x:t.clientX, y:t.clientY, edge:t.clientX < 28, top:window.scrollY <= 0 && !$('#layer .sheet') && !(e.target.closest && e.target.closest('.sheet'))}; }, opt);
@@ -4831,6 +4876,7 @@ const planDays = p => p.plan_until ? Math.max(0, Math.ceil((new Date(p.plan_unti
 const planDay = t => new Date(t).toLocaleDateString('en-US', {month:'long', day:'numeric'});
 function planField(){
   const p = planOf(); if (!p) return '';
+  if (!SELLS_HERE) return `<div class="field"><span class="label">Your plan</span><span class="small muted">${planWord(p)}</span></div>`;   // the apps: what it is, nothing to buy
   const d = planDays(p), manage = `<button class="btn line" data-act="plan">Card, receipts or cancel</button>`;
   const [btn, say] = planEnded() ? [`<button class="btn primary" data-act="plan-restart">Start my plan again</button>`, 'Your plan has ended. Everything is still here to see and print. Start it again to make changes.']
     : p.plan_status === 'past_due' ? [`<button class="btn primary" data-act="plan">Update my card</button>`, 'Your last payment didn’t go through. Update your card so nothing stops.']
@@ -4839,9 +4885,20 @@ function planField(){
     : [manage, `${planPrice(p)}.${p.plan_until ? ` Next payment ${planDay(p.plan_until)}.` : ''}`];
   return `<div class="field"><span class="label">Your plan</span>${btn}<span class="small muted">${say}</span></div>`;
 }
+// the apps (SELLS_HERE false): the plan as it stands, with no price and no button
+function planWord(p){
+  const d = planDays(p);
+  return planEnded() ? 'Your plan has ended. Everything is still here to see and print.'
+    : p.plan_status === 'past_due' ? 'Your last payment didn’t go through.'
+    : p.plan_cancel_at ? `Canceled. Everything works until ${planDay(p.plan_cancel_at)}, then your book stays here to see and print.`
+    : p.plan_status === 'trialing' ? `Free trial: ${d === 1 ? '1 day' : `${d} days`} left.`
+    : `${p.plan === 'yearly' ? 'Yearly' : 'Monthly'}.${p.plan_until ? ` Renews ${planDay(p.plan_until)}.` : ''}`;
+}
 // Today: only when something needs doing (or the trial is about to end)
 function planNote(){
   const p = planOf(); if (!p) return '';
+  if (!SELLS_HERE) return planEnded() ? '<div class="callout plan-note"><b>Your SolePro plan has ended.</b><span>Everything is here to see and print, but changes aren’t saved.</span></div>'
+    : p.plan_status === 'past_due' ? '<div class="callout plan-note"><b>Your last SolePro payment didn’t go through.</b></div>' : '';
   if (planEnded()) return `<div class="callout plan-note"><b>Your SolePro plan has ended.</b><span>Everything is here to see and print, but changes aren’t saved.</span><button class="btn primary" data-act="plan-restart">Start my plan again</button></div>`;
   if (p.plan_status === 'past_due') return `<div class="callout plan-note"><b>Your last SolePro payment didn’t go through.</b><span>Update your card so nothing stops.</span><button class="btn primary" data-act="plan">Update my card</button></div>`;
   const d = planDays(p);
@@ -4849,9 +4906,27 @@ function planNote(){
 }
 // Stripe's own pages: the card, receipts and canceling ("portal"), or checkout again for a plan that ended
 async function planGo(action){
+  if (!SELLS_HERE) return;   // never in the apps
   TOAST(action === 'restart' ? 'Opening checkout…' : 'Opening your plan…');
   try { const p = planOf(), r = await SB.functions.invoke('billing', {body:{action, yearly:!!p && p.plan === 'yearly'}}), d = (r && r.data) || {}; if (d.url) { location.href = d.url; return; } } catch (_) {}
   TOAST('That didn’t open. Check your signal and try again.');
+}
+
+/* ---------- deleting your own account (asked for Nov 3, 2026: Apple and Google require it inside the app) ----------
+   Account sheet → Delete my account. The account Edge Function first says what goes with it (check), then deletes it
+   (delete, with DELETE typed): for an owner, the business and its whole book (clients, visits, notes, forms, papers,
+   receipts, card payments, texts, links), its plan stopped at Stripe first; for someone working for a business, only
+   their place on it; then the sign-in itself. The house account is closed by SolePro by hand. */
+// asks the account function to delete it; then this phone forgets the book and the sign-in
+async function delGo(word){
+  let d; try { const r = await SB.functions.invoke('account', {body:{action:'delete', confirm:word}}); d = (r && r.data) || {error:'net'}; } catch (_) { d = {error:'net'}; }
+  if (!d.ok) return d.error === 'billing' ? 'Your plan couldn’t be stopped just now, so nothing was deleted. Try again in a few minutes.'
+    : d.error === 'house' ? 'This one is closed by SolePro itself. Write to help@getsolepro.com.' : 'That didn’t go through, so nothing was deleted. Check your signal and try again.';
+  await idbSet('book', null); await idbSet('pending', []); lsSet('sole-biz-name', ''); lsSet('sole-face', ''); lsSet('sole-been', '');
+  try { await SB.auth.signOut(); } catch (_) {}
+  SHEETS.length = 0; $id('layer').innerHTML = ''; document.body.classList.remove('offline');
+  cloudScreen(`<p class="sky-big">Your account is deleted</p><p class="muted">Everything that was in it is gone. Thank you for trying SolePro.</p><button class="btn line" type="button" onclick="location.reload()">Done</button>`);
+  return '';
 }
 
 /* ---------- texts from SolePro's own number (asked for Oct 27, 2026) ----------
@@ -4871,7 +4946,9 @@ const setTheme = t => { try { if (t) localStorage.setItem('sole-theme', t); else
 try { const t = localStorage.getItem('sole-theme'); if (t) document.documentElement.dataset.theme = t; } catch (_) {}   // the texted form being filled in (formStart); a client's name, for formLink
 // SolePro's address moved (Oct 26, 2026): the old one forwards to the new, texted form links included
 if (CLOUD_CFG.movedFrom && CLOUD_CFG.movedFrom.test(location.hostname)) location.replace(CLOUD_CFG.home + location.pathname + location.search + location.hash);
-const CLOUD_ON = !!window.__SOLE_CLOUD_CLIENT || (!!CLOUD_CFG.url && !!CLOUD_CFG.host && CLOUD_CFG.host.test(location.hostname));
+const CLOUD_ON = !!window.__SOLE_CLOUD_CLIENT || (!!CLOUD_CFG.url && (NATIVE || (!!CLOUD_CFG.host && CLOUD_CFG.host.test(location.hostname))));
+// SolePro's web address: a link sent to a client (a form) always opens the website, also when made in the phone apps
+const WEB_HOME = () => NATIVE ? (CLOUD_CFG.home || 'https://app.solepro.app') : location.origin;
 let SB = null, BIZ = null, SQ_CACHE = null;
 let NAV_KEY = '', NAV_POP = false;   // the page the browser's history is on (see navNote)
 const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;   // opened from the home screen
@@ -4939,6 +5016,9 @@ function cloudScreen(html){
 }
 const $id = id => document.getElementById(id);
 const cloudEsc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// SolePro's terms and privacy policy (getsolepro.com): on the sign-in and welcome screens and in the account sheet
+function legalA(k, t){ return `<a href="${LEGAL[k]}" target="_blank" rel="noopener">${t}</a>`; }
+function legalHTML(agree){ return `<p class="small muted legal">${agree ? `By continuing you agree to SolePro’s ${legalA('terms', 'Terms')} and ${legalA('privacy', 'Privacy Policy')}.` : `${legalA('terms', 'Terms')}<span aria-hidden="true"> · </span>${legalA('privacy', 'Privacy')}`}</p>`; }
 function signInHTML(step, email, msg){
   const face = step === 'email' && PK.sign, mine = face && lsGet('sole-face');
   const faceBtn = face ? `<button class="btn ${mine ? 'primary' : 'line'}" id="si-face" type="button">${FACE_ICON}Sign in with ${FACE}</button>` : '';
@@ -4951,7 +5031,8 @@ function signInHTML(step, email, msg){
       <form id="si-form"><input class="text-in" id="si-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="10" required>
       <button class="btn primary" style="width:100%">Sign in</button></form>
       <button class="btn line" style="width:100%;margin-top:10px" id="si-back">Use a different email</button>`}
-    <p class="small muted" id="si-msg">${cloudEsc(msg || '')}</p>`;
+    <p class="small muted" id="si-msg">${cloudEsc(msg || '')}</p>
+    ${legalHTML(true)}`;
 }
 // Face ID (a passkey) after the first sign-in: the challenge is fetched before the tap, so the tap opens Face ID at
 // once (iPhones refuse a Face ID prompt that waits on the network). The email code stays as the way in on a new phone.
@@ -4964,7 +5045,7 @@ const PK = {sign:null, reg:null};   // challenges fetched ahead of the tap: {at,
 // PK_BAD: the sign-in service's Face ID is set up for another address (as right after a move), so the phone would refuse
 // it; SolePro then doesn't offer Face ID at all and the email code carries on
 let PK_BAD = false;
-const pkOk = () => !PK_BAD && !!(window.PublicKeyCredential && navigator.credentials && SB && SB.auth.passkey);
+const pkOk = () => !NATIVE && !PK_BAD && !!(window.PublicKeyCredential && navigator.credentials && SB && SB.auth.passkey);
 const pkHere = id => !id || location.hostname === id || location.hostname.endsWith('.' + id);
 const pkFresh = kind => !!PK[kind] && Date.now() - PK[kind].at < 4 * 60e3;
 async function pkFetch(kind){
@@ -5030,7 +5111,11 @@ function askSignIn(step = 'email', email = '', msg = ''){
     try {
       if (step === 'email') { const em = $id('si-email').value.trim().toLowerCase();
         const { error } = await SB.auth.signInWithOtp({email:em, options:{shouldCreateUser:true}}); if (error) throw error; askSignIn('code', em); }
-      else { const { error } = await SB.auth.verifyOtp({email, token:$id('si-code').value.trim(), type:'email'}); if (error) throw error; offerFace(cloudGo); }
+      else { const token = $id('si-code').value.trim(); let { error } = await SB.auth.verifyOtp({email, token, type:'email'});
+        // App Review can't read a code sent by email: its one account has a password set in Supabase, typed in this same
+        // box (app/store/README.md). Nobody else has a password, so for everyone else this just fails like a wrong code.
+        if (error && SB.auth.signInWithPassword) ({ error } = await SB.auth.signInWithPassword({email, password:token}));
+        if (error) throw error; offerFace(cloudGo); }
     } catch (err) { btn.disabled = false; say(step === 'email' ? 'That didn’t send. Check the email and try again.' : 'That code didn’t work. Check it, or send a new one.'); }
   };
 }
@@ -5163,7 +5248,7 @@ async function cloudNew(){
   }
   if (START_TRIAL) history.replaceState(null, '', '/');
   // anyone with a card can start (asked for Oct 28, 2026); an invite code still works, for a business Brooks gives free
-  let paid = false; try { const r = await SB.functions.invoke('billing', {body:{action:'status'}}); paid = !!(r && r.data && r.data.on); } catch (_) {}
+  let paid = false; if (SELLS_HERE) try { const r = await SB.functions.invoke('billing', {body:{action:'status'}}); paid = !!(r && r.data && r.data.on); } catch (_) {}
   const terms = y => `Nothing is charged today. After 14 days it’s ${y ? '$290 a year' : '$29 a month'}. Cancel anytime from your account.`;
   cloudScreen(`<p class="sky-big">Welcome to SolePro</p><p class="muted">You’re signed in as <b>${cloudEsc(em)}</b>. Set up your business in a few minutes.</p>
     ${paid ? `<div class="seg nb-plan" role="group" aria-label="How you’d like to pay"><button type="button" data-plan="m" aria-pressed="true">$29 a month</button><button type="button" data-plan="y" aria-pressed="false">$290 a year<small>2 months free</small></button></div>
@@ -5173,8 +5258,16 @@ async function cloudNew(){
     <form id="nb-form"><input class="text-in" id="nb-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Invite code" aria-label="Invite code" required>
       <button class="btn ${paid ? 'line' : 'primary'}" style="width:100%">Set up my business</button></form>
     <p class="small muted" id="si-msg" role="alert">${cloudEsc(said)}</p>
-    ${paid ? '' : '<p class="small muted">SolePro is by invitation for now. Your code came from whoever told you about it.</p>'}
-    <button class="btn line" id="nb-out" type="button">Use a different email</button>`);
+    ${!SELLS_HERE ? '<p class="small muted nb-web">No business on SolePro yet? New businesses start at getsolepro.com. Then sign in here with the same email.</p>'
+      : paid ? '' : '<p class="small muted">SolePro is by invitation for now. Your code came from whoever told you about it.</p>'}
+    <button class="btn line" id="nb-out" type="button">Use a different email</button>
+    <p class="small muted legal">${legalA('terms', 'Terms')}<span aria-hidden="true"> · </span>${legalA('privacy', 'Privacy')}<span aria-hidden="true"> · </span><button class="linkish" id="nb-del" type="button">Delete this sign-in</button></p>`);
+  $id('nb-del').onclick = () => {
+    cloudScreen(`<p class="sky-big">Delete this sign-in?</p><p class="muted"><b>${cloudEsc(em)}</b> has no business on SolePro. Deleting it can’t be undone.</p>
+      <button class="btn primary" id="nb-del-go" type="button">Delete it</button><button class="btn line" id="nb-del-no" type="button">Keep it</button><p class="small muted" id="si-msg" role="alert"></p>`);
+    $id('nb-del-no').onclick = () => cloudNew();
+    $id('nb-del-go').onclick = async e => { const bt = e.currentTarget; bt.disabled = true; const m = await delGo('DELETE'); if (m) { $id('si-msg').textContent = m; bt.disabled = false; } };
+  };
   $id('nb-out').onclick = async () => { try { await SB.auth.signOut(); } catch (_) {} location.reload(); };
   let yearly = false;
   document.querySelectorAll('.nb-plan button').forEach(bt => bt.onclick = () => { yearly = bt.dataset.plan === 'y';
@@ -5233,9 +5326,10 @@ async function cloudGo(){
     if (r && r.data && r.data.payments) { await loadSquareTables(); bookSaveSoon(); const sh = squareShape([...SQ_CACHE.pays.values()], SQ_CACHE.names); if (sh.customers.length || SQ_CACHE.pays.size) { SQ.summary = sh.summary; SQ.customers = sh.customers; liveFromCache(); SOLE_VER++; redrawLive(); } }
   }).catch(() => {});
 }
+// the apps carry the same version of the library in vendor/ (app/scripts/build_web.mjs), so nothing runs from another site
 async function sbMake(){
   if (window.__SOLE_CLOUD_CLIENT) { SB = window.__SOLE_CLOUD_CLIENT; return; }   // tests: a stand-in for Supabase
-  await new Promise((ok, fail) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/dist/umd/supabase.min.js'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc); });
+  await new Promise((ok, fail) => { const sc = document.createElement('script'); sc.src = NATIVE ? 'vendor/supabase.min.js' : 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/dist/umd/supabase.min.js'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc); });
   SB = window.supabase.createClient(CLOUD_CFG.url, CLOUD_CFG.key, {auth:{persistSession:true, autoRefreshToken:true, experimental:{passkey:true}}});
 }
 // a client opening a form texted to them (?f=<token>), or a new client from the business's website (?new=<site slug>):
@@ -5253,13 +5347,13 @@ async function formLink(k){
   const t = [...crypto.getRandomValues(new Uint8Array(20))].map(b => b.toString(16).padStart(2, '0')).join(''), f = (PROFILES.massage.forms || []).find(x => x.intake);
   const { error } = await SB.from('form_links').insert({token:t, business_id:BIZ, client:k, name:k && CLIENT_NAME(k), form:f ? f.name : 'Client intake form'});
   if (error) throw error;
-  return `${location.origin}/?f=${t}`;
+  return `${WEB_HOME()}/?f=${t}`;
 }
 async function cloudStart(){
   INTRO_AT = Date.now();
   // a phone that has opened the book before says welcome back from the first moment (it changes if no one is signed in)
   cloudScreen(lsGet('sole-biz-name') ? welcomeHTML(lsGet('sole-biz-name')) : '<p class="muted sky-wait">Opening SolePro…</p>');
-  if ('serviceWorker' in navigator && !window.__SOLE_CLOUD_CLIENT) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && !window.__SOLE_CLOUD_CLIENT && !NATIVE) navigator.serviceWorker.register('/sw.js').catch(() => {});
   if (!online()) { const c = await idbGet('book'); if (c) return cloudOffline(c); }
   try { await sbMake(); } catch (e) { const c = await idbGet('book'); if (c) return cloudOffline(c); throw e; }
   const { data } = await SB.auth.getSession();

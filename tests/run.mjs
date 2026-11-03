@@ -755,6 +755,79 @@ console.log('ok private Square views');
       await n.click('main .li.client:has-text("Kim Nguyen")'); check(/July 4/.test(await n.textContent('main')) && !/1604/.test(await n.textContent('main')), 'import: the birthday shows without a made-up year');
     }
     await n.close(); }
+  // terms and privacy (asked for Nov 3, 2026): a quiet line on sign-in, and in the account sheet with Delete my account
+  { const w = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); w.on('pageerror', e => errs.push('legal (website): ' + e.message));
+    const wseed = {businesses:[seed.businesses[0]], members:[{business_id:'B1', email:'owner@example.com', role:'owner'}, {business_id:'B1', email:'helper@example.com', role:'staff'}], invite_codes:[], items:[], payments:[], customers:[]};
+    await w.addInitScript(`window.__SOLE_INTRO_MS = 0; window.__FAKE_BILLING = true; localStorage.setItem('sole-face-later', String(Date.now()));\nwindow.__FAKE_DB = ${JSON.stringify(wseed)};\n${fake}`);
+    await w.route('https://sole.test/', r => r.fulfill({contentType:'text/html', body:site})); await w.goto('https://sole.test/', {waitUntil:'networkidle'});
+    await w.waitForSelector('#si-email');
+    check(/By continuing you agree to SolePro’s Terms and Privacy Policy/.test(await w.textContent('.sky-card .legal')) && await w.locator('.sky-card .legal a[href="https://getsolepro.com/terms"]').count() === 1 && await w.locator('.sky-card .legal a[href="https://getsolepro.com/privacy"]').count() === 1, 'legal: sign-in links the terms and the privacy policy');
+    await w.fill('#si-email', 'helper@example.com'); await w.click('#si-form button'); await w.fill('#si-code', '123456'); await w.click('#si-form button'); await w.waitForSelector('.biz-name');
+    await w.click('[data-act=me]');
+    check(await w.locator('.sheet .me-legal a[href="https://getsolepro.com/terms"]').count() === 1 && await w.locator('.sheet .me-legal a[href="https://getsolepro.com/privacy"]').count() === 1 && await w.locator('.sheet [data-act=me-del]').count() === 1, 'legal: the account sheet has Terms, Privacy and Delete my account');
+    check(!(await wide(w)), 'legal: the account sheet fits the phone');
+    // someone working for a business deletes their own sign-in; the business stays with its owner
+    await w.click('.sheet [data-act=me-del]'); await w.waitForSelector('#del-word');
+    check(/stay with its owner/.test(await w.textContent('.sheet')), 'delete: staff are told the business stays');
+    await w.click('.sheet [data-act=del-go]'); await w.waitForTimeout(200);
+    check(!(await w.evaluate(() => (window.__FAKE.deleted || []).length)) && /Type DELETE/.test(await w.textContent('.toast')), 'delete: nothing goes without typing DELETE');
+    await w.fill('#del-word', 'delete'); await w.click('.sheet [data-act=del-go]'); await w.waitForSelector('.sky-card .sky-big');
+    check(/Your account is deleted/.test(await w.textContent('.sky-card')) && await w.evaluate(() => window.__FAKE.T.businesses.some(b => b.id === 'B1') && !window.__FAKE.T.members.some(m => m.email === 'helper@example.com') && window.__FAKE.T.members.some(m => m.email === 'owner@example.com')), 'delete: staff lose only their place on the business');
+    await w.close(); }
+  // the iPhone and Android apps (app/, NATIVE): the same page, but nothing to buy, no Face ID by passkey, no web push,
+  // and texted links still point at the website
+  { const pseed = {businesses:[{...seed.businesses[0], plan:'monthly', plan_status:'trialing', plan_until:new Date(Date.now() + 5 * 864e5).toISOString(), stripe_sub:'sub_app_1'}],
+      members:[{business_id:'B1', email:'owner@example.com', role:'owner'}], invite_codes:[{code:'APP-CODE-1', uses:0, max_uses:1}], items:seed.items, payments:[], customers:[]};
+    const app = async (extra = '') => { const x = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); x.on('pageerror', e => errs.push('phone app: ' + e.message));
+      await x.addInitScript(`window.__SOLE_NATIVE = true; window.__SOLE_INTRO_MS = 0; window.__FAKE_BILLING = true; ${extra}\nnavigator.credentials.get = navigator.credentials.create = async () => ({id:'fake-pk', toJSON(){ return {id:'fake-pk'}; }});\nwindow.__FAKE_DB = ${JSON.stringify(pseed)};\n${fake}`);
+      await x.route('https://sole.test/**', r => r.fulfill({contentType:'text/html', body:site})); await x.goto('https://sole.test/?start', {waitUntil:'networkidle'}); return x; };
+    const x = await app(); await x.waitForSelector('#si-email');
+    check(!/free trial|\$/i.test(await x.textContent('.signin')) && await x.locator('#si-face').count() === 0 && await x.locator('.sky-card .legal a').count() === 2, 'phone app: sign-in has no trial, no Face ID by passkey, and the terms');
+    // someone new: told plainly where businesses start, with no price, button or link to buy; an invite code still works
+    await x.fill('#si-email', 'new@example.com'); await x.click('#si-form button'); await x.fill('#si-code', '123456'); await x.click('#si-form button'); await x.waitForSelector('#nb-code');
+    { const t = await x.textContent('.signin'), links = await x.$$eval('.signin a', L => L.map(a => a.getAttribute('href')));
+      check(/New businesses start at getsolepro\.com/.test(t) && !/\$|trial|month|year/i.test(t) && !(await x.locator('#nb-trial, .nb-plan').count()) && links.every(h => /getsolepro\.com\/(terms|privacy)$/.test(h)), 'phone app: someone new is told where businesses start, with nothing to buy: ' + JSON.stringify(links)); }
+    check(!(await x.evaluate(() => window.__FAKE.invoked.some(o => o.action === 'status' && !o.business_id && !o.to))), 'phone app: Stripe isn’t even asked about');
+    check(!(await wide(x)), 'phone app: the welcome fits the phone');
+    await x.fill('#nb-code', 'app-code-1'); await x.click('#nb-form button'); await x.waitForSelector('.sheet.full');
+    check(/What does your business do\?/.test(await x.textContent('.sheet')), 'phone app: an invite code sets up a business');
+    await x.close();
+    // an owner on a paid plan: the plan as it stands, no price and no button; nothing about notifications; links for clients go to the website
+    const o = await app(); await o.fill('#si-email', 'owner@example.com'); await o.click('#si-form button'); await o.fill('#si-code', '123456'); await o.click('#si-form button'); await o.waitForSelector('.biz-name');
+    await o.click('[data-act=me]');
+    { const t = await o.textContent('.sheet'); const pf = await o.textContent('.sheet .field:has(.label:text-is("Your plan"))'); check(/Free trial: 5 days left\./.test(pf) && !/\$|month|year|card/i.test(pf) && !(await o.locator('.sheet [data-act=plan], .sheet [data-act=plan-restart]').count()), 'phone app: the plan shows with no price and no button');
+      check(!/Notifications/.test(t) && !/Face ID/.test(t), 'phone app: no web push or passkey rows'); }
+    check(/^https:\/\/app\.solepro\.app\/\?f=[0-9a-f]{40}$/.test(await o.evaluate(() => formLink('nC'))), 'phone app: a texted form link opens the website');
+    for (const th of ['light', 'dark']) { await o.evaluate(t => setTheme(t), th); await o.screenshot({path:root + `shots/app-account-${th}.png`}); }
+    await o.evaluate(() => setTheme(''));
+    // deleting an owner's account: the plan stops, the business and its book go, and the phone forgets it
+    await o.click('.sheet [data-act=me-del]'); await o.waitForSelector('#del-word');
+    check(/Cloud Test Massage and everything in it/.test(await o.textContent('.sheet')) && /plan stops today/.test(await o.textContent('.sheet')) && await o.locator('.sheet [data-act=del-rec]').count() === 1, 'delete: an owner is told the business, its book and the plan go');
+    check(!(await wide(o)), 'delete: the sheet fits the phone');
+    await o.fill('#del-word', 'DELETE'); await o.click('.sheet [data-act=del-go]'); await o.waitForSelector('.sky-card .sky-big');
+    check(await o.evaluate(() => !window.__FAKE.T.businesses.length && !window.__FAKE.T.items.length && (window.__FAKE.deleted || [])[0].canceled === 'sub_app_1'), 'delete: the business, its book and its plan are gone');
+    await o.close();
+    // the plan has ended: Today says so, without a way to buy
+    pseed.businesses[0].plan_status = 'canceled'; const e2 = await app(); await e2.fill('#si-email', 'owner@example.com'); await e2.click('#si-form button'); await e2.fill('#si-code', '123456'); await e2.click('#si-form button'); await e2.waitForSelector('.biz-name');
+    check(/Your SolePro plan has ended/.test(await e2.textContent('main')) && !(await e2.locator('[data-act=plan-restart], [data-act=plan]').count()), 'phone app: an ended plan says so, with nothing to buy');
+    await e2.close(); }
+  // App Review's account: a password set in Supabase, typed where the code goes; a wrong one is refused like a wrong code
+  { const r = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); r.on('pageerror', er => errs.push('review sign-in: ' + er.message));
+    await r.addInitScript(`window.__SOLE_NATIVE = true; window.__SOLE_INTRO_MS = 0; window.__FAKE_PASSWORDS = {'review@example.com':'8642097531'};\nwindow.__FAKE_DB = ${JSON.stringify({businesses:[seed.businesses[0]], members:[{business_id:'B1', email:'review@example.com', role:'owner'}], invite_codes:[], items:[], payments:[], customers:[]})};\n${fake}`);
+    await r.route('https://sole.test/', x => x.fulfill({contentType:'text/html', body:site})); await r.goto('https://sole.test/', {waitUntil:'networkidle'});
+    await r.fill('#si-email', 'review@example.com'); await r.click('#si-form button'); await r.fill('#si-code', '1111111111'); await r.click('#si-form button'); await r.waitForTimeout(300);
+    check(/didn’t work/.test(await r.textContent('#si-msg')), 'review sign-in: a wrong password is refused');
+    await r.fill('#si-code', '8642097531'); await r.click('#si-form button'); await r.waitForSelector('.biz-name');
+    check(/Cloud Test Massage/.test(await r.textContent('.biz-name')), 'review sign-in: the password opens the book');
+    await r.close(); }
+  // a sign-in with no business can be deleted from the welcome screen
+  { const d = await (await b.newContext({viewport:{width:390, height:844}})).newPage(); d.on('pageerror', er => errs.push('delete sign-in: ' + er.message));
+    await d.addInitScript(`window.__SOLE_INTRO_MS = 0; localStorage.setItem('sole-face-later', String(Date.now()));\nwindow.__FAKE_DB = ${JSON.stringify({businesses:[seed.businesses[0]], members:[{business_id:'B1', email:'owner@example.com', role:'owner'}], invite_codes:[], items:[], payments:[], customers:[]})};\n${fake}`);
+    await d.route('https://sole.test/', r => r.fulfill({contentType:'text/html', body:site})); await d.goto('https://sole.test/', {waitUntil:'networkidle'});
+    await d.fill('#si-email', 'nobody@example.com'); await d.click('#si-form button'); await d.fill('#si-code', '123456'); await d.click('#si-form button'); await d.waitForSelector('#nb-del');
+    await d.click('#nb-del'); await d.click('#nb-del-go'); await d.waitForSelector('.sky-card .sky-big:has-text("deleted")');
+    check(await d.evaluate(() => (window.__FAKE.deleted || []).some(x => x.email === 'nobody@example.com')), 'delete: a sign-in with no business can be deleted');
+    await d.close(); }
   console.log('ok website');
 }
 // the family's days and holidays show on the schedule
@@ -816,6 +889,7 @@ await tour(p, 'demo');
   await p.click('[data-act=snav][data-v="1"]'); check(await p.locator('[data-act=snav][data-v="0"]').count() === 1, 'schedule: next week, with a way back to today');
   await p.click('[data-act=sview][data-v=month]');
   check(await p.locator('.mo-c').count() >= 28, 'schedule: the month as a calendar');
+  if (!(await p.locator('[data-act=snav][data-v="0"]').count())) await p.click('[data-act=snav][data-v="1"]');   // next week can still be this month
   await p.click('[data-act=snav][data-v="0"]'); await p.click('.mo-c.now');
   check(await p.locator('[data-act=sview][data-v=day][aria-pressed=true]').count() === 1 && /Today/.test(await p.textContent('.snav')), 'schedule: a day in the month opens that day');
   // a closed day: open it with its own hours

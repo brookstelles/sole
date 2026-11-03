@@ -76,6 +76,21 @@ window.__SOLE_CLOUD_CLIENT = (() => {
       clients:of(b.id, 'clients'), appts:of(b.id, 'appts'), visits_30:0, upcoming:0, forms:of(b.id, 'forms'), messages:of(b.id, 'inbox'), phones:0, square:false, texts_30:0}));
     return {data:{businesses:L, totals:{paying:0, trials:L.filter(b => b.plan_status === 'trialing').length, mrr:0, ending7:0, new7:L.length}, test:true, stripe:'https://dashboard.stripe.test/customers/'}};
   };
+  // the account Edge Function (see supabase/functions/account): what deleting this account takes with it, then deleting it
+  const account = ({action, confirm}) => {
+    const em = session && session.user.email; if (!em) return {data:{error:'sign in first'}};
+    const m = (T.members || []).find(x => x.email === em), biz = m && T.businesses.find(b => b.id === m.business_id);
+    if (biz && biz.plan === 'house') return {data:{error:'house', house:true, role:m.role, biz:(biz.data && biz.data.biz) || biz.name}};
+    const others = m ? (T.members || []).filter(x => x.business_id === m.business_id && x.email !== em).length : 0;
+    const paid = !!(biz && m.role === 'owner' && biz.stripe_sub && !['canceled', 'unpaid', 'incomplete_expired', 'paused'].includes(biz.plan_status));
+    if (action === 'check') return {data:{role:m ? m.role : null, biz:biz ? (biz.data && biz.data.biz) || biz.name : null, others, paid}};
+    if (action !== 'delete' || confirm !== 'DELETE') return {data:{error:'confirm'}};
+    if (m && m.role === 'owner') { for (const t of ['items', 'square_payments', 'square_customers', 'form_links']) T[t] = T[t].filter(r => r.business_id !== biz.id);
+      T.businesses = T.businesses.filter(b => b.id !== biz.id); T.members = T.members.filter(x => x.business_id !== biz.id); }
+    if (T.members) T.members = T.members.filter(x => x.email !== em);
+    (window.__FAKE.deleted = window.__FAKE.deleted || []).push({email:em, canceled:paid ? biz.stripe_sub : null}); session = null;
+    return {data:{ok:true}};
+  };
   // the intake Edge Function: a client filling in a texted form (see supabase/functions/intake)
   const intake = ({token, action, answers, sig, biz}) => {
     if (action === 'open-new' || action === 'submit-new') {   // a new client from the business's website
@@ -94,8 +109,10 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     link.used_at = new Date().toISOString(); T.items.push(row); window.__FAKE.sent = row; return {data:{ok:true}};
   };
   return {
-    auth:{getSession:async () => ({data:{session}}), getUser:async () => ({data:{user:session && session.user}}),
+    auth:{getSession:async () => ({data:{session}}), signOut:async () => { session = null; return {error:null}; }, getUser:async () => ({data:{user:session && session.user}}),
       signInWithOtp:async ({email}) => { window.__FAKE.email = email; return {error:null}; },
+      // a password set in Supabase for one account (App Review's): __FAKE_PASSWORDS {email: password}
+      signInWithPassword:async ({email, password}) => (window.__FAKE_PASSWORDS || {})[email] === password ? (session = {user:{email}}, {data:{session}, error:null}) : {data:null, error:{message:'Invalid login credentials'}},
       verifyOtp:async ({email, token}) => token === '123456' ? (session = {user:{email}}, {error:null}) : {error:{message:'bad code'}},
       // passkeys (Face ID): the registered one is remembered in this browser across reloads, as the real server would
       passkey:{
@@ -107,6 +124,6 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     from:query,
     channel:() => { const ch = {on:(type, opts, cb) => { subs.push({table:opts.table, cb}); return ch; }, subscribe:() => ch}; return ch; },
     storage:{from:() => ({upload:async () => ({error:null}), createSignedUrl:async () => ({data:{signedUrl:'data:,'}})})},
-    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'intake' ? intake(o.body) : name === 'signup' ? signup(o.body) : name === 'billing' ? billing(o.body) : name === 'admin' ? admin(o.body) : name === 'text' ? text(o.body) : name === 'calendar' ? {data:{url:'https://example.test/functions/v1/calendar?t=' + (o.body.action === 'reset' ? 'b' : 'a').repeat(48)}} : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
+    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'intake' ? intake(o.body) : name === 'signup' ? signup(o.body) : name === 'billing' ? billing(o.body) : name === 'admin' ? admin(o.body) : name === 'account' ? account(o.body) : name === 'text' ? text(o.body) : name === 'calendar' ? {data:{url:'https://example.test/functions/v1/calendar?t=' + (o.body.action === 'reset' ? 'b' : 'a').repeat(48)}} : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
   };
 })();
