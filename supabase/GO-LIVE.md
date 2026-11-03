@@ -90,3 +90,15 @@ Do it in Stripe's test mode first (test keys, card 4242 4242 4242 4242), then ag
 
 The first checkout makes the SolePro product and both prices by itself (lookup keys `solepro_monthly`,
 `solepro_yearly`). Check a business's plan: `select name, plan, plan_status, plan_until from businesses`.
+
+## Delete my account (needed before the phone apps go to Apple and Google)
+
+Asked for Nov 3, 2026: Apple and Google require account deletion inside the app. The app has it (account sheet →
+Delete my account; "Delete this sign-in" for an email with no business); the server side needs, once:
+
+1. **SQL editor:** run `migrations/20261103000000_close_account.sql` (`public.close_account`, service role only).
+2. **Edge Functions → Deploy** `functions/account` with **verify_jwt off** (it checks the signed-in person's token
+   itself). It uses the billing function's `STRIPE_SECRET_KEY` to stop a running plan before deleting anything.
+3. **Check** with a throwaway email: sign in, set up a business with an invite code, Delete my account, then
+   `select * from businesses where name = '<that name>'` returns nothing and the email is gone from
+   Authentication → Users.
