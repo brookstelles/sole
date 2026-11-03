@@ -7,8 +7,9 @@ android {
         applicationId "com.brookstelles.solepro"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // The release workflow (.github/workflows/release.yml) sets these per upload; local builds stay 1 / 1.0.
+        versionCode((System.getenv("RELEASE_VERSION_CODE") ?: "1").toInteger())
+        versionName(System.getenv("RELEASE_VERSION_NAME") ?: "1.0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +17,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // The upload key signs the release bundle (Google re-signs it with the app signing key it keeps). The release
+    // workflow writes the keystore from the repository secret and passes its password through these variables.
+    signingConfigs {
+        release {
+            if (System.getenv("RELEASE_KEYSTORE")) {
+                storeFile file(System.getenv("RELEASE_KEYSTORE"))
+                storePassword System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("RELEASE_KEY_ALIAS") ?: "upload"
+                keyPassword System.getenv("RELEASE_KEY_PASSWORD") ?: System.getenv("RELEASE_KEYSTORE_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (System.getenv("RELEASE_KEYSTORE")) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

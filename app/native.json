@@ -1,0 +1,5 @@
+{
+  "_about": "Public store identifiers. appleTeamId: Apple Developer > Membership details > Team ID (not a secret). The release workflow (.github/workflows/release.yml) signs the iPhone app for this team.",
+  "appId": "com.brookstelles.solepro",
+  "appleTeamId": ""
+}

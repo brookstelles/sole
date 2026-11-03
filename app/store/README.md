@@ -152,3 +152,35 @@ does (`askSignIn`; everyone else signs in with codes). What it needs:
 - **The weather line**: Open-Meteo's free API is for non-commercial use and asks for credit ("Weather data by
   Open-Meteo.com"). For a paid product: take their commercial plan (an API key) or switch provider, and show the credit.
 - **Apple's decision on 3.1.3(f)** is App Review's to make; if they ask for in-app purchase, see `app/README.md`.
+
+## Release: signing and upload (built Nov 3, 2026)
+
+`.github/workflows/release.yml` (Actions > Release to the stores > Run workflow) signs both apps and sends them to the
+stores' testing tracks: the iPhone app to TestFlight, the Android app to Google Play internal testing. With "Also upload
+the store listings" it sends this folder's text and screenshots too (fastlane deliver and supply, laid out by
+`scripts/stage_store.mjs`). It never submits for review or publishes. Each run's number is the build number; the
+version people see is an input (1.0). Same design as Pasalo's (its `app/store/README.md`, "Release", has the longer
+walk-through).
+
+One-time setup, once the developer accounts for Sellet Solutions LLC exist:
+
+1. **Apple**
+   - `app/native.json` > `appleTeamId`: the Team ID (Apple Developer > Membership details). Not a secret; commit it.
+   - Certificates, Identifiers & Profiles > Identifiers > +: App ID `com.brookstelles.solepro`.
+   - App Store Connect > Apps > + > New App: iOS, SolePro, English (U.S.), bundle ID `com.brookstelles.solepro`.
+   - Repository secrets `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY`: an App Store Connect API key with the Admin role
+     (Users and Access > Integrations > App Store Connect API). The same key as Pasalo's works for every app.
+2. **Google**
+   - Play Console > Create app: SolePro, app, free; then the Dashboard tasks (answers above).
+   - An upload key (keep the file and password in a password manager, never in the repo):
+     `keytool -genkeypair -v -keystore sole-upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000`
+     Repository secrets `ANDROID_UPLOAD_KEYSTORE` (`base64 -i sole-upload.jks`) and `ANDROID_UPLOAD_KEYSTORE_PASSWORD`.
+   - Run the release once for Android and upload the `.aab` from the run's artifacts by hand in Play Console > Test
+     and release > Internal testing (Google requires the first one by hand).
+   - Repository secret `PLAY_SERVICE_ACCOUNT`: a service account's JSON key with release access to SolePro (the same
+     one as Pasalo's works). From then on the workflow uploads by itself (status "draft" until first published).
+3. **Run it**: Actions > Release to the stores > Run workflow. If the iPhone job fails with "not acquired by Runner",
+   run it again with another Mac (macos-15-intel has worked when Apple-silicon Macs were short).
+
+Checked Nov 3, 2026: a release bundle built with a throwaway upload key through these Gradle settings verified as signed.
+
