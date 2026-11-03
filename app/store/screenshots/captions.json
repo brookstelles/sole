@@ -1,0 +1,12 @@
+{
+  "_note": "One caption per screen in scripts/build_store_shots.mjs (SHOTS, same order), and the Google Play feature graphic's line. No prices or plans: the apps sell nothing.",
+  "shots": [
+    "Who's next, and what to know",
+    "Your schedule, your hours",
+    "Every client, every visit",
+    "Notes in seconds",
+    "Forms they sign on a phone",
+    "Your year at a glance"
+  ],
+  "feature": "Your schedule, clients, forms and money. For people who work for themselves."
+}
