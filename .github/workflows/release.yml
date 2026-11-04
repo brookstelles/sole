@@ -77,13 +77,18 @@ jobs:
           mkdir -p "$RUNNER_TEMP/keys"
           printf '%s' "$ASC_KEY" > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
           echo "AUTH=-allowProvisioningUpdates -authenticationKeyPath $RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8 -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID" >> "$GITHUB_ENV"
-      - name: Archive (signed)
+      # Archived with a local ad-hoc signature (it keeps the app's entitlements) instead of a development certificate:
+      # GitHub's Macs are fresh each run, so a development certificate made on one can't be used on the next. The
+      # export below signs for the App Store with Apple's cloud-managed distribution certificate (the Admin API key
+      # lets Xcode use it). Same fix as Pasalo's, whose first TestFlight upload went through with it (Nov 4, 2026).
+      - name: Archive
         working-directory: app/ios/App
         run: |
           set -o pipefail
           xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/SolePro.xcarchive" archive $AUTH \
-            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
+            -archivePath "$RUNNER_TEMP/SolePro.xcarchive" archive \
+            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            PROVISIONING_PROFILE_SPECIFIER= PROVISIONING_PROFILE= \
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" | tail -60
       - name: Send to App Store Connect (TestFlight)
         working-directory: app/ios/App
