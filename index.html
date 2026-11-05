@@ -45,7 +45,7 @@ p{margin:0}
 
 .app{max-width:480px;margin:0 auto;min-height:100%;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
-  padding-block:0 calc(96px + env(safe-area-inset-bottom,0px))}
+  padding-block:env(safe-area-inset-top,0px) calc(96px + env(safe-area-inset-bottom,0px))}   /* top: the phone apps run under the status bar; the header sticks there too */
 .hdr{overflow:hidden;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);
   display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding-block:18px 12px}
 .hdr > div{flex:1;min-width:0}
@@ -717,7 +717,7 @@ a.btn{text-decoration:none}
   background:color-mix(in srgb,var(--surface) 85%,transparent);border-radius:12px;padding:4px 0;box-shadow:var(--shadow)}
 .az button{border:0;background:transparent;color:var(--accent);font-size:11px;font-weight:700;width:22px;height:max(14px,min(19px,calc((100vh - 280px) / 27)));padding:0;line-height:1}
 .az ~ #clt-list{padding-right:20px}
-.cl-group{scroll-margin-top:calc(var(--hdr-h,120px) + 8px)}
+.cl-group{scroll-margin-top:calc(var(--hdr-h,120px) + env(safe-area-inset-top,0px) + 8px)}
 .cl-letter{font-family:var(--display);font-size:20px;color:var(--gold);padding-left:6px}
 .av.t1{background:var(--warm-soft);color:var(--warm)}
 .av.t2{background:var(--sunk);color:var(--ink)}
@@ -854,7 +854,7 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
    the week is a calendar, each client opens beside the list, and sheets slide in from the right. */
 @media (min-width:700px) and (min-height:500px){
   body{font-size:16px}
-  .app{max-width:none;margin:0 0 0 256px;padding:0 48px 64px}
+  .app{max-width:none;margin:0 0 0 256px;padding:env(safe-area-inset-top,0px) 48px 64px}
   .hdr,main{max-width:1240px;margin-inline:auto}
   .hdr{padding-block:30px 22px;overflow:visible}
   .hdr > div{display:flex;flex-direction:row-reverse;justify-content:space-between;align-items:center;gap:24px}
@@ -872,7 +872,7 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
   body.form-only .app{margin:0 auto;max-width:680px;padding-inline:24px}
 
   /* sidebar */
-  .tabbar{top:0;right:auto;width:256px;border-top:0;border-right:1px solid var(--line);padding:26px 18px 22px;overflow-y:auto}
+  .tabbar{top:0;right:auto;width:256px;border-top:0;border-right:1px solid var(--line);padding:calc(26px + env(safe-area-inset-top,0px)) 18px 22px;overflow-y:auto}
   .tabbar nav{max-width:none;margin:0;display:flex;flex-direction:column;gap:4px;min-height:100%}
   .side-biz{padding:0 6px 22px;margin-bottom:14px;border-bottom:1px solid var(--line)}
   .side-biz .biz{max-width:none;width:100%;gap:12px;align-items:center}
@@ -975,7 +975,7 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
 
   /* Clients: the list on the left, the person beside it */
   .split{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:30px;align-items:start}
-  .split-l{position:sticky;top:var(--hdr-h,116px);max-height:calc(100vh - var(--hdr-h,116px) - 16px);overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:2px 8px 18px 2px;scrollbar-width:thin}
+  .split-l{position:sticky;top:calc(var(--hdr-h,116px) + env(safe-area-inset-top,0px));max-height:calc(100vh - var(--hdr-h,116px) - env(safe-area-inset-top,0px) - 16px);overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:2px 8px 18px 2px;scrollbar-width:thin}
   .split-r{display:flex;flex-direction:column;gap:22px;min-width:0}
   .split .cl-back{display:none}
   .az{position:static;transform:none;flex-direction:row;flex-wrap:wrap;gap:2px;padding:2px 0;background:transparent;box-shadow:none}
@@ -1015,7 +1015,7 @@ textarea.text-in{min-height:140px;resize:vertical;line-height:1.45}
 }
 /* an upright iPad: the sidebar slims to a rail of icons so the pages get the room */
 @media (min-width:700px) and (max-width:1023px) and (min-height:500px){
-  .tabbar{width:92px;padding:18px 8px}
+  .tabbar{width:92px;padding:calc(18px + env(safe-area-inset-top,0px)) 8px 18px}
   .app{margin-left:92px;padding-inline:24px}
   .side-biz{padding:0 0 14px;margin-bottom:10px}
   .side-biz .biz{justify-content:center}
