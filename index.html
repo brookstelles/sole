@@ -132,6 +132,13 @@ main{display:flex;flex-direction:column;gap:22px;padding-top:10px}   /* room und
 .chip.sm{min-height:30px;padding:3px 11px;font-size:13px;letter-spacing:0;text-transform:none}
 .lbl-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .stat3.two{grid-template-columns:repeat(2,1fr)}
+.li.ah{grid-template-columns:1fr auto;min-height:60px}
+.li.ah .who span{display:block;font-size:14px;color:var(--muted);white-space:normal}
+.ah-v{text-align:right;display:flex;flex-direction:column;align-items:flex-end}
+.ah-v b{font-family:var(--display);font-size:24px;font-weight:400;font-variant-numeric:tabular-nums;line-height:1.1;white-space:nowrap}
+.ah-v small{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.ah-year .who b{font-weight:700}
+.money-rows{margin-top:6px}.money-rows .li.ah svg{width:18px;height:18px;color:var(--muted)}
 .two-in{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .two-in:has(> [hidden]){grid-template-columns:1fr}
 .two-in > *{min-width:0}
@@ -2101,15 +2108,9 @@ const sum = a => a.reduce((x,y) => x + y, 0);
 const FULL = YEARS.filter(y => y < CUR).slice(-3);
 const fullAvg = m => sum(FULL.map(y => HIST[y][m])) / FULL.length;
 const PACE = sum(HIST[CUR]) / sum(HIST[CUR-1].slice(0, DONE));        // this year vs the same months last year
-const REST = Array.from({length:12-DONE}, (_,i) => i + DONE);
-const SO_FAR = sum(HIST[CUR]);
-const PROJ_LO = SO_FAR + sum(REST.map(m => Math.round(fullAvg(m))));          // rest of year like a usual year
-const PROJ_HI = SO_FAR + sum(REST.map(m => Math.round(fullAvg(m) * PACE)));   // rest of year at this year's pace
-const PROJ = Math.round((PROJ_LO + PROJ_HI) / 2 / 5) * 5;
-const yearTotal = y => y === CUR ? SO_FAR : sum(HIST[y]);
+const yearTotal = y => y === CUR ? liveYear().soFar : sum(HIST[y]);
 const BEST_PAST = Math.max(...YEARS.filter(y => y < CUR).map(yearTotal));
 const BEST_PAST_Y = YEARS.find(y => y < CUR && yearTotal(y) === BEST_PAST);
-const RECORD = PROJ > BEST_PAST;
 const seasonAvg = m => { const v = YEARS.slice(1).map(y => HIST[y][m]).filter(x => x != null); return sum(v) / v.length; };
 const BYMONTH = Array.from({length:12}, (_,m) => ({m, v:seasonAvg(m)})).sort((a,b) => a.v - b.v);
 const SLOW = BYMONTH.slice(0,3).map(x => x.m).sort((a,b) => a - b), BUSY = BYMONTH.slice(-3).map(x => x.m).sort((a,b) => a - b);
@@ -2305,8 +2306,8 @@ const TD_SHOW = 4;   // To do shows the four that matter most; the rest open wit
 function monthsCard(){
   const y = T0.getFullYear(), nowM = T0.getMonth(), past = HIST[y - 1] || [];
   const whole = (yy, m) => P.real && HIST[yy] && HIST[yy][m] != null ? HIST[yy][m] : monthStats(yy, m).n;
-  const vals = Array.from({length:12}, (_, m) => m < nowM ? whole(y, m) : m === nowM ? monthStats(y, m, T0.getDate()).n : monthAhead(y, m).n);
-  const before = Array.from({length:12}, (_, m) => P.real ? past[m] : whole(y - 1, m)), mx = Math.max(1, ...vals, ...before.filter(v => v != null));
+  const vals = y === CUR ? liveYear().counts : Array.from({length:12}, (_, m) => m < nowM ? whole(y, m) : m === nowM ? monthStats(y, m, T0.getDate()).n : monthAhead(y, m).n);
+  const before = Array.from({length:12}, (_, m) => P.real || past[m] != null ? past[m] : whole(y - 1, m)), mx = Math.max(1, ...vals, ...before.filter(v => v != null));
   return `<section class="card sec months"><div class="sec-h"><h2>Your months</h2><span class="aside">${y} · ${y - 1} behind it</span></div>
     <div class="mbar">${vals.map((v, m) => `<button data-act="month" data-v="${y}-${pad2(m + 1)}" class="${m === nowM ? 'now' : m > nowM ? 'ahead' : ''}" aria-label="${MON[m]}: ${v} ${m > nowM ? 'booked' : P.unit}${before[m] != null ? `, ${before[m]} in ${y - 1}` : ''}"><span class="mbar-t"><u style="height:${(before[m] || 0) / mx * 100}%"></u><i style="height:${v / mx * 100}%"></i></span><span class="mbar-l">${MON[m][0]}</span></button>`).join('')}</div>
     <p class="small muted">Tap a month: what’s done, what’s left, and the same month last year.</p></section>`;
@@ -2526,7 +2527,7 @@ function viewMoney(){
    logged in SolePro; visits from the book and the old booking app; whole past months from the business's own counts (HIST). */
 const pad2 = n => String(n).padStart(2, '0');
 const offOfDate = d => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - T0) / 864e5);
-let PAY_DAYS = null, HIST_DAYS = null;
+let PAY_DAYS = null, HIST_DAYS = null, LIVE_Y = null;
 function payDays(){
   if (PAY_DAYS) return PAY_DAYS; PAY_DAYS = {};
   const c = x => ((x || {}).amount || 0) / 100;
@@ -2564,6 +2565,50 @@ function monthAhead(y, m){
   for (let d = 1; d <= last; d++) { const o = offOfDate(new Date(y, m, d)); if (o >= 0 && o <= 400) offs.push(o); }
   const L = AP.filter(a => offs.includes(a.off) && (a.off > 0 || a.start >= NOW) && !noShow(a) && SV[a.s]);
   return {n:L.length, $:L.reduce((t, a) => t + prOf(a), 0), open:offs.reduce((t, o) => t + openMin(o, S.who), 0), days:offs.filter(o => !isOff(o)).length};
+}
+/* ---------- the year so far, and what's expected ----------
+   So far: the business's own counts for the months its records cover (HIST), then the book and the old booking app
+   through today. Sales so far are what came in (card payments plus payments logged in SolePro), or the count at the
+   usual rate where there are no payments to read (the sample businesses). Expected, month by month to December: what's
+   done and booked, or what that month usually brings at this year's pace if that's more (the average of the last three
+   whole years, halfway to this year's pace); the visits not booked yet at the average booked price. */
+function liveYear(){
+  if (LIVE_Y) return LIVE_Y;
+  const y = CUR, nowM = T0.getFullYear() === y ? T0.getMonth() : 11, day = T0.getFullYear() === y ? T0.getDate() : 31;
+  const usual = m => FULL.length ? Math.round(fullAvg(m) * (1 + (isFinite(PACE) ? PACE : 1)) / 2) : 0;
+  // a sample business's made-up schedule is far busier than its made-up history: past its history, it keeps to its usual pace
+  const sample = !P.real, dim = new Date(y, nowM + 1, 0).getDate();
+  const whole = m => m < DONE ? HIST[y][m] || 0 : sample ? usual(m) : monthStats(y, m).n || 0;
+  const soon = AP.filter(a => a.off >= 0 && a.off <= 90 && !noShow(a) && SV[a.s]), per = soon.length >= 5 ? sum(soon.map(prOf)) / soon.length : RATE;
+  let soFar = 0; for (let m = 0; m < Math.min(nowM, 12); m++) soFar += whole(m);
+  const st = nowM < DONE ? {n:HIST[y][nowM] || 0, net:null} : sample ? {n:Math.round(usual(nowM) * day / dim), net:null} : monthStats(y, nowM, day);
+  soFar += st.n;
+  const sy = SQX && SQX.years && SQX.years[String(y)], logged = sum(LEDGER.filter(x => x.kind === 'pay' && x.date.startsWith(String(y))).map(x => x.amount));
+  const est = !sy, sales = sy ? sy.net + logged : soFar * RATE;
+  const months = [];
+  for (let m = nowM; m < 12; m++) {
+    const now = m === nowM, done = now ? st.n : 0, doneNet = now ? (st.net != null && !est ? st.net : done * RATE) : 0, ah = monthAhead(y, m);
+    const bookN = sample ? Math.min(ah.n, Math.max(0, usual(m) - done)) : ah.n, book$ = ah.n ? ah.$ * bookN / ah.n : 0;
+    const expN = Math.max(done + bookN, usual(m)), extra = expN - done - bookN;
+    months.push({m, now, done, doneNet, bookN, book$, expN, exp$:doneNet + book$ + extra * per, last:HIST[y - 1] ? HIST[y - 1][m] : null});
+  }
+  const projN = soFar + sum(months.map(x => x.expN - x.done)), proj$ = sales + sum(months.map(x => x.exp$ - x.doneNet));
+  const last = HIST[y - 1] || [];
+  const lastSame = sum(last.slice(0, nowM)) + Math.round((last[nowM] || 0) * day / dim);
+  const dayOfYear = Math.round((T0 - new Date(y, 0, 1)) / 864e5) + 1;
+  const counts = Array.from({length:12}, (_, m) => m < nowM ? whole(m) : m === nowM ? st.n : months.find(x => x.m === m).bookN);   // the months chart: done, then booked
+  return LIVE_Y = {soFar, sales, est, per, months, counts, projN, proj$, lastSame, nowM, day, record:projN > BEST_PAST, perWeek:soFar / Math.max(1, dayOfYear / 7),
+    pace:lastSame ? soFar / lastSame : 1, lastMonth:nowM > 0 ? {m:nowM - 1, n:whole(nowM - 1), was:last[nowM - 1]} : null};
+}
+const about$ = v => money(Math.round(v / 100) * 100);
+function aheadCard(){
+  const L = liveYear(), u = n => n === 1 ? P.unitOne : P.unit, rows = L.months.slice(0, 2).map(x => {
+    const bits = [x.now ? `${x.done} done` : '', `${x.bookN} booked`, `about ${x.expN} in all`].filter(Boolean).join(' · ');
+    return `<button class="li ah" data-act="month" data-v="${CUR}-${pad2(x.m + 1)}"><span class="who"><b>${MON[x.m]}</b><span>${bits}</span></span><span class="ah-v"><b>${about$(x.exp$)}</b>${x.last != null ? `<small>${x.last} last ${MON[x.m].slice(0, 3)}</small>` : ''}</span></button>`; }).join('');
+  return `<section class="card sec" id="s-ahead"><div class="sec-h"><h2>Looking ahead</h2><span class="aside">expected</span></div>
+    <div class="list flat">${rows}
+      <button class="li ah ah-year" data-act="money" data-v="year"><span class="who"><b>All of ${CUR}</b><span>about ${L.projN} ${u(L.projN)}${L.record ? ', your best year yet' : ''}</span></span><span class="ah-v"><b>${about$(L.proj$)}</b><small>${L.est ? 'about ' : ''}${money(L.sales)} so far</small></span></button></div>
+    <p class="small muted">What’s done and booked, plus what you usually see that month at this year’s pace, at about ${money(L.per)} a ${P.unitOne}.</p></section>`;
 }
 function viewMonth(){
   const [y, m1] = (S.mo || isoDay(T0).slice(0, 7)).split('-').map(Number), m = m1 - 1, nowY = T0.getFullYear(), nowM = T0.getMonth(), day = T0.getDate();
@@ -2647,11 +2692,9 @@ function viewSnapFresh(){
 }
 function viewSnap(){
   if (P.fresh) return viewSnapFresh();
-  const lastY = sum(HIST[CUR-1].slice(0, DONE)), up = (SO_FAR - lastY) / lastY * 100;
-  const mo = DONE - 1, moN = HIST[CUR][mo], moP = HIST[CUR-1][mo];
-  const q3 = sum(HIST[CUR].slice(DONE-3, DONE)), q3p = sum(HIST[CUR-1].slice(DONE-3, DONE));
-  const dl = (c, p) => { const v = (c - p) / p * 100; return `${v >= 0 ? '▲' : '▼'} ${Math.abs(v).toFixed(0)}%`; };
-  const mx = Math.max(PROJ, ...YEARS.map(yearTotal));
+  const L = liveYear(), lm = L.lastMonth, booked = AP.filter(a => (a.off > 0 || (a.off === 0 && a.start >= NOW)) && !noShow(a)).length;
+  const dl = (c, p) => { if (!p) return ''; const v = (c - p) / p * 100; return `${v >= 0 ? '▲' : '▼'} ${Math.abs(v).toFixed(0)}%`; };
+  const mx = Math.max(L.projN, ...YEARS.map(yearTotal));
   const td = sumOf('today'), left = apptsOn(0).filter(a => a.start >= NOW).length, owe = unpaid();
   const kept = BOOKS[Y2].kept, keptUp = (kept - BOOKS[Y1].kept) / BOOKS[Y1].kept * 100;
   const seas = Array.from({length:12}, (_,m) => seasonAvg(m)), smx = Math.max(...seas), nowM = T0.getMonth();
@@ -2666,23 +2709,23 @@ function viewSnap(){
   if (tiles.length % 2) tiles[tiles.length-1].wide = true;
   tiles.push({wide:true, go:'data-act="snapgo" data-sec="y-costs"', h:`<span class="k">${I.wallet}Where it goes · ${P.costsYear}</span><span class="s">${COSTS[0].n} is <b>${Math.round(COSTS[0].v/COST_TOTAL*100)}%</b> of your costs.</span>${costRows()}`});
   return `
-  <p class="lede"><b>${SO_FAR} ${P.unit}</b> this year. On pace for about ${PROJ}${RECORD ? ', your best year yet' : ''}.</p>
+  <p class="lede"><b>${L.est ? 'About ' : ''}${money(L.sales)}</b> so far this year from ${L.soFar} ${P.unit}. On pace for about ${about$(L.proj$)}${L.record ? ', your best year yet' : ''}.</p>
   ${WIDE ? '<div class="cols2"><div class="col">' : ''}<section class="snap-hero">${MOTIF}
     <button class="snap-go" data-act="snapgo" data-sec="y-proj">
-      <span class="snap-k">${I.trend}Your year · through ${MON[DONE-1]}</span>
-      <span class="snap-big">${SO_FAR}<small>${P.unit}</small></span>
-      <span><span class="delta">${dl(SO_FAR, lastY)}</span> vs the same months of ${CUR-1}</span>
-      <span class="yrs">${[...YEARS].reverse().map(y => { const n = yearTotal(y); return `<span class="yr ${y===CUR?'cur':''}"><span>${y}</span><span class="tr"><i style="width:${n/mx*100}%"></i>${y===CUR?`<u style="left:${n/mx*100}%;width:${(PROJ-n)/mx*100}%"></u>`:''}</span><b>${y===CUR?'~'+PROJ:n}</b></span>`; }).join('')}</span>
+      <span class="snap-k">${I.trend}Your year · through ${MON[L.nowM].slice(0, 3)} ${L.day}</span>
+      <span class="snap-big">${L.soFar}<small>${P.unit}</small></span>
+      ${L.lastSame ? `<span><span class="delta">${dl(L.soFar, L.lastSame)}</span> vs this time last year</span>` : ''}
+      <span class="yrs">${[...YEARS].reverse().map(y => { const n = yearTotal(y); return `<span class="yr ${y===CUR?'cur':''}"><span>${y}</span><span class="tr"><i style="width:${n/mx*100}%"></i>${y===CUR?`<u style="left:${n/mx*100}%;width:${(L.projN-n)/mx*100}%"></u>`:''}</span><b>${y===CUR?'~'+L.projN:n}</b></span>`; }).join('')}</span>
       <span class="cta">Open your year ${I.right}</span>
     </button>
     <div class="pills">
-      <button data-act="month" data-v="${CUR}-${pad2(mo + 1)}"><b>${moN}</b><small>in ${MON[mo]} · ${dl(moN, moP)}</small></button>
-      <button data-act="snapgo" data-sec="y-season"><b>${q3}</b><small>last 3 months · ${dl(q3, q3p)}</small></button>
-      <button data-act="snapgo" data-sec="y-proj"><b>${(SO_FAR/(DONE*52/12)).toFixed(1)}</b><small>a week, on average</small></button>
+      ${lm ? `<button data-act="month" data-v="${CUR}-${pad2(lm.m + 1)}"><b>${lm.n}</b><small>in ${MON[lm.m]}${lm.was ? ` · ${dl(lm.n, lm.was)}` : ''}</small></button>` : ''}
+      <button data-act="tab" data-v="schedule"><b>${booked}</b><small>booked ahead</small></button>
+      <button data-act="snapgo" data-sec="y-proj"><b>${L.perWeek.toFixed(1)}</b><small>a week, on average</small></button>
     </div>
   </section>
+  ${aheadCard()}
   ${monthsCard()}
-  ${SQX ? squareCard() : ''}
   ${WIDE ? '</div><div class="col">' : ''}${moneyCard()}
   ${clientsCard()}${WIDE ? '</div></div>' : ''}
   <p class="eyebrow" style="margin:0">Dig in</p>
@@ -2804,8 +2847,9 @@ function glanceCard(td){
     const m = sumOf('month'); L = ['This month', money(m.net), `+ ${money(m.tips)} tips`]; R = [cap(P.unit), String(m.n), 'paid so far']; act = 'data-act="money" data-v="month"';
   } else {
     const y = SQX && SQX.years && SQX.years[String(T0.getFullYear())], ly = LEDGER.filter(x => x.kind === 'pay' && x.date.startsWith(String(T0.getFullYear())));
-    L = ['Sales this year', y ? money(y.net + ly.reduce((t, x) => t + x.amount, 0)) : `about ${money(SO_FAR * RATE)}`, y ? `+ ${money(y.tips + ly.reduce((t, x) => t + (x.tip || 0), 0))} tips` : 'from your records'];
-    R = [cap(P.unit), String(SO_FAR), `on pace for ${PROJ}`]; pct = PROJ ? SO_FAR / PROJ : 0; act = 'data-act="money" data-v="year"';
+    const LY = liveYear();
+    L = ['Sales this year', y ? money(y.net + ly.reduce((t, x) => t + x.amount, 0)) : `about ${money(LY.sales)}`, y ? `+ ${money(y.tips + ly.reduce((t, x) => t + (x.tip || 0), 0))} tips` : 'from your records'];
+    R = [cap(P.unit), String(LY.soFar), `on pace for ${LY.projN}`]; pct = LY.projN ? LY.soFar / LY.projN : 0; act = 'data-act="money" data-v="year"';
   }
   const half = ([a, b, c]) => `<span><span class="small muted">${a}</span><span class="big">${b}</span><span class="small muted">${c}</span></span>`;
   return `<div class="mt">
@@ -3111,14 +3155,17 @@ function entryRow(x){
 function moneyCard(){
   const yk = String(T0.getFullYear()), mk = isoDay(T0).slice(0,7), inY = LEDGER.filter(x => x.date.startsWith(yk));
   const pays = inY.filter(x => x.kind === 'pay'), costs = inY.filter(x => x.kind === 'cost'), tot = L => L.reduce((t, x) => t + x.amount, 0);
-  const recent = [...LEDGER].sort(entrySort).slice(0, 4);
-  return `<section class="card sec" id="s-books"><div class="sec-h"><h2>Money in and out</h2>${LEDGER.length > 4 ? '<button class="chip" data-act="lg-all">See all</button>' : `<span class="aside">${CUR}</span>`}</div>
-    <div class="stat3 two"><button data-act="lg-all"><b>${money(tot(pays))}</b><span>cash and other payments</span></button><button data-act="lg-all"><b>${money(tot(costs))}</b><span>costs, ${costs.length} receipt${costs.length === 1 ? '' : 's'}</span></button></div>
+  const recent = [...LEDGER].sort(entrySort).slice(0, 4), sy = SQX && (SQX.years[yk] || {net:0, tips:0, fees:0, deposited:0, orders:0});
+  const open = giftCards().filter(g => g.left > 0), w = weekInfo(-1), row = (act, v, t, sub) => `<button class="li ah" data-act="${act}" ${v ? `data-v="${v}"` : ''}><span class="who"><b>${t}</b><span>${sub}</span></span>${I.chev}</button>`;
+  return `<section class="card sec" id="s-books"><div class="sec-h"><h2>Money</h2>${LEDGER.length > 4 ? '<button class="chip" data-act="lg-all">See all</button>' : `<span class="aside">${sy && SQX.updatedText ? `<span id="sq-at">${SQX.updatedText}</span>` : CUR}</span>`}</div>
+    ${sy && SQX.today ? `<p class="lede" style="margin:0 0 12px"><b>Today: ${money(SQX.today.net)}</b> ${SQX.today.n ? `from ${SQX.today.n} card payment${SQX.today.n === 1 ? '' : 's'}, plus ${money(SQX.today.tips)} in tips.` : 'so far. Card payments show up here a minute or two after you take them.'}</p>` : ''}
+    ${sy ? `<div class="stat3"><button data-act="snapgo" data-sec="y-square"><b>${money(sy.net)}</b><span>cards in ${CUR}</span></button><button data-act="snapgo" data-sec="y-square"><b>${money(sy.tips)}</b><span>tips</span></button><button data-act="lg-all"><b>${money(tot(pays))}</b><span>cash and other</span></button></div>
+      <p class="small muted">${sy.orders} card payments · Square’s cut ${money(sy.fees)} · ${money(sy.deposited)} to your bank</p>`
+    : `<div class="stat3 two"><button data-act="lg-all"><b>${money(tot(pays))}</b><span>cash and other payments</span></button><button data-act="lg-all"><b>${money(tot(costs))}</b><span>costs, ${costs.length} receipt${costs.length === 1 ? '' : 's'}</span></button></div>`}
     ${recent.length ? `<div class="list flat">${recent.map(entryRow).join('')}</div>` : `<p class="small muted">${SQX ? 'Square only sees cards. ' : ''}Add cash, Zelle and other payments here, and snap a receipt for anything you pay for.</p>`}
     <div class="btn-row" style="margin-top:10px"><button class="btn" data-act="addpay">Add a payment</button><button class="btn" data-act="addcost">Add a cost</button></div>
-    ${(() => { const open = giftCards().filter(g => g.left > 0); return `<button class="btn line wk-go" data-act="gifts">${I.wallet.replace('<svg', '<svg width="18" height="18"')}${open.length ? `Gift cards · ${money(open.reduce((t, g) => t + g.left, 0))} left on ${open.length}` : 'Gift cards'}</button>`; })()}
-    ${(() => { const w = weekInfo(-1); return `<button class="btn line wk-go" data-act="wkcheck" data-v="-1">${I.check.replace('<svg', '<svg width="18" height="18"')}${w.rec.checked ? 'Last week is checked' : w.todo ? `Weekly check · ${w.todo} to look at` : 'Weekly check'}</button>`; })()}
-    ${costs.length && tot(pays) + (SQX ? (SQX.years[yk] || {net:0}).net : 0) ? `<p class="small muted" style="margin-top:8px">${MON[T0.getMonth()]}: ${money(tot(LEDGER.filter(x => x.kind === 'pay' && x.date.startsWith(mk))))} in and ${money(tot(LEDGER.filter(x => x.kind === 'cost' && x.date.startsWith(mk))))} out here${SQX ? ', besides cards' : ''}.</p>` : ''}
+    <div class="list flat money-rows">${sy ? row('lg-all', '', 'Costs', `${money(tot(costs))} · ${costs.length} receipt${costs.length === 1 ? '' : 's'} this year`) : ''}${row('gifts', '', 'Gift cards', open.length ? `${money(open.reduce((t, g) => t + g.left, 0))} left on ${open.length}` : 'Sell one, or add one sold before')}${row('wkcheck', '-1', 'Weekly check', w.rec.checked ? 'Last week is checked' : w.todo ? `${w.todo} to look at from last week` : 'Every visit paid, every payment a visit')}</div>
+    ${SQ && SQ.liveAsk && SQX && !SQX.live ? `<button class="btn" style="width:100%" data-act="sqlive">See payments as they come in</button>` : ''}
   </section>`;
 }
 // the weekly check: every visit has its payment, and every card payment has its visit
@@ -3370,14 +3417,6 @@ function saveNotes(){
   if (back) openAppt(+back); else if (S.tab === 'clients' && S.cl === k) closeSheet(); else openClient(k);
   toast('Notes saved.');
 }
-function squareCard(){
-  const y = SQX.years[String(CUR)] || {net:0, tips:0, fees:0, deposited:0, orders:0}, m = SQX.month;
-  return `<section class="card sec"><div class="sec-h"><h2>Card payments</h2><span class="aside">${SQX.live ? '' : 'Square · '}<span id="sq-at">${SQX.updatedText}</span></span></div>
-    ${SQX.today ? `<p class="lede" style="margin:0 0 12px"><b>Today: ${money(SQX.today.net)}</b> ${SQX.today.n ? `from ${SQX.today.n} card payment${SQX.today.n === 1 ? '' : 's'}, plus ${money(SQX.today.tips)} in tips.` : 'so far. Card payments show up here a minute or two after you take them.'}</p>` : ''}
-    <div class="stat3"><button data-act="snapgo" data-sec="y-square"><b>${money(y.net)}</b><span>services in ${CUR}</span></button><button data-act="snapgo" data-sec="y-square"><b>${money(y.tips)}</b><span>tips</span></button><button data-act="snapgo" data-sec="y-square"><b>${money(y.deposited)}</b><span>in your bank</span></button></div>
-    <p class="muted small">${y.orders} card payments this year. Square’s cut was ${money(y.fees)}. ${MON[T0.getMonth()]} so far: ${money(m.net)} plus ${money(m.tips)} in tips.</p>
-    ${SQ.liveAsk && !SQX.live ? `<button class="btn" style="width:100%" data-act="sqlive">See payments as they come in</button>` : ''}</section>`;
-}
 function sqClientRows(list){
   return list.map(c => `<button class="topc" data-act="sqclient" data-v="${c.id}"><span class="n">${c.rank}</span><span class="nm"><b>${esc(sqName(c))}</b><i style="width:${Math.max(6, c.bar)}%"></i></span><span class="v">${money(c.val)}</span></button>`).join('');
 }
@@ -3617,18 +3656,19 @@ function seg(){
   return `<div class="seg" role="group" aria-label="Period">${opts.map(([k,l]) => `<button data-act="range" data-v="${k}" aria-pressed="${S.range===k}">${l}</button>`).join('')}</div>`;
 }
 function viewYear(){
-  const extra = S.wiC * 50 * (RATE + S.wiP) + S.wiP * PROJ;
+  const LY = liveYear(), extra = S.wiC * 50 * (RATE + S.wiP) + S.wiP * LY.projN;
   return `
   <section class="hero">
-    <p class="eyebrow">${P.real ? 'From your records' : 'Sample numbers'} · ${CUR} through ${MON[DONE-1]}</p>
-    <p class="amt">${SO_FAR} <span style="font-size:24px">${P.unit}</span></p>
-    <p class="sub num"><span>about <b>${money(SO_FAR*RATE)}</b></span><span><b>${(SO_FAR/(DONE*52/12)).toFixed(1)}</b> a week</span></p>
+    <p class="eyebrow">${P.real ? 'From your records' : 'Sample numbers'} · ${CUR} through ${MON[LY.nowM].slice(0, 3)} ${LY.day}</p>
+    <p class="amt">${LY.soFar} <span style="font-size:24px">${P.unit}</span></p>
+    <p class="sub num"><span>${LY.est ? 'about ' : ''}<b>${money(LY.sales)}</b> in sales</span><span><b>${LY.perWeek.toFixed(1)}</b> a week</span></p>
   </section>
   <section class="card facts2" id="y-proj">
     <p class="eyebrow" style="margin:0">Where the year is headed</p>
-    <p class="lede">You’re on pace for about <b>${PROJ} ${P.unit}</b>, worth about <b>${money(PROJ*RATE)}</b>.</p>
-    <p class="muted">${RECORD ? 'That would be your best year yet. ' : ''}Your best so far was ${BEST_PAST_Y}, with ${BEST_PAST}. This year is running ${Math.abs(Math.round((PACE-1)*100))}% ${PACE >= 1 ? 'ahead of' : 'behind'} last year.</p>
+    <p class="lede">You’re on pace for about <b>${LY.projN} ${P.unit}</b> and about <b>${about$(LY.proj$)}</b> by December.</p>
+    <p class="muted">${LY.record ? 'That would be your best year yet. ' : ''}Your best so far was ${BEST_PAST_Y}, with ${BEST_PAST}.${LY.lastSame ? ` This year is running ${Math.abs(Math.round((LY.pace - 1) * 100))}% ${LY.pace >= 1 ? 'ahead of' : 'behind'} this time last year.` : ''}</p>
   </section>
+  ${aheadCard()}
   <section class="card chart">${yearChart()}</section>
   <section class="sec" id="y-season"><div class="sec-h"><h2>Your seasons</h2><span class="aside">2023 to now</span></div>
     <div class="season"><div><span class="small muted">Busiest months</span><b>${listMonths(BUSY)}</b></div><div><span class="small muted">Slowest months</span><b>${listMonths(SLOW)}</b></div></div>
@@ -3637,7 +3677,7 @@ function viewYear(){
   <section class="card" id="y-whatif"><div class="sec-h"><h2>What if…</h2></div>
     <div class="step"><span>I see more ${WN} each week</span><span class="stepper"><button data-act="wi" data-k="wiC" data-v="-1" aria-label="Fewer">−</button><output>${S.wiC ? '+' + S.wiC : '0'}</output><button data-act="wi" data-k="wiC" data-v="1" aria-label="More">+</button></span></div>
     <div class="step"><span>I change my price</span><span class="stepper"><button data-act="wi" data-k="wiP" data-v="-5" aria-label="Lower">−</button><output>${S.wiP > 0 ? '+$' + S.wiP : S.wiP < 0 ? '−$' + (-S.wiP) : '$0'}</output><button data-act="wi" data-k="wiP" data-v="5" aria-label="Higher">+</button></span></div>
-    <p class="wi-out">${S.wiC || S.wiP ? `<b>${extra >= 0 ? '+' : '−'}${money(Math.abs(extra))} a year</b>${extra >= 0 ? 'more' : 'less'} than now, at about ${PROJ} ${P.unit} a year.` : `<span class="muted">Tap + to see what one more ${W1} a week, or a small price change, adds up to.</span>`}</p>
+    <p class="wi-out">${S.wiC || S.wiP ? `<b>${extra >= 0 ? '+' : '−'}${money(Math.abs(extra))} a year</b>${extra >= 0 ? 'more' : 'less'} than now, at about ${LY.projN} ${P.unit} a year.` : `<span class="muted">Tap + to see what one more ${W1} a week, or a small price change, adds up to.</span>`}</p>
   </section>
   <section class="card" id="y-costs"><div class="sec-h"><h2>Where it goes</h2><span class="aside">${P.costsYear} costs</span></div>${costRows()}
     <p class="small muted" style="margin-top:8px">${COSTS[0].n} is ${Math.round(COSTS[0].v/COST_TOTAL*100)}% of what you spend. Everything else together is ${money(COST_TOTAL-COSTS[0].v)} a year.</p></section>
@@ -3659,22 +3699,22 @@ function viewYear(){
 }
 function yearChart(){
   const W = 340, H = 196, top = 30, base = 160, bw = 38, step = W / YEARS.length;
-  const max = Math.ceil(Math.max(PROJ_HI, BEST_PAST) / 100) * 100;
+  const LY = liveYear(), max = Math.ceil(Math.max(LY.projN, BEST_PAST) / 100) * 100;
   const y = v => base - (v / max) * (base - top);
   const bar = (x, v0, v1, cls) => { const r = v0 === 0 ? Math.min(4, (y(v0) - y(v1))) : 0, yt = y(v1), yb = y(v0);
     return `<path class="${cls}" d="M${x},${yb} V${yt+r} Q${x},${yt} ${x+r},${yt} H${x+bw-r} Q${x+bw},${yt} ${x+bw},${yt+r} V${yb} Z"/>`; };
   const bars = YEARS.map((yr,i) => {
     const x = step*i + (step-bw)/2, on = yr === S.yr, n = yearTotal(yr);
     let g = bar(x, 0, n, 'bar' + (on ? ' on' : ''));
-    if (yr === CUR) g += `<path class="proj" d="M${x},${y(n)} V${y(PROJ)} H${x+bw} V${y(n)}"/>`;
-    const top_ = yr === CUR ? PROJ : n;
-    return `${g}<text class="${on?'val':''}" x="${x+bw/2}" y="${y(top_)-8}" text-anchor="middle">${yr===CUR?'~'+PROJ:n}</text>
+    if (yr === CUR) g += `<path class="proj" d="M${x},${y(n)} V${y(LY.projN)} H${x+bw} V${y(n)}"/>`;
+    const top_ = yr === CUR ? LY.projN : n;
+    return `${g}<text class="${on?'val':''}" x="${x+bw/2}" y="${y(top_)-8}" text-anchor="middle">${yr===CUR?'~'+LY.projN:n}</text>
       <text class="${on?'on':''}" x="${x+bw/2}" y="${base+20}" text-anchor="middle">${yr}</text>
       <rect class="hit" x="${step*i}" y="0" width="${step}" height="${H}" data-act="yr" data-v="${yr}"><title>${yr}: ${n} ${P.unit}</title></rect>`;
   }).join('');
   const n = yearTotal(S.yr), months = HIST[S.yr], bi = months.indexOf(Math.max(...months));
   const detail = S.yr === CUR
-    ? `<b>${CUR} so far</b> · ${n} ${P.unit} through ${MON[DONE-1]} · expected ${PROJ_LO} to ${PROJ_HI} by December`
+    ? `<b>${CUR} so far</b> · ${n} ${P.unit} through ${MON[LY.nowM].slice(0, 3)} ${LY.day} · about ${LY.projN} expected by December`
     : `<b>${S.yr}</b> · ${n} ${P.unit} · about ${money(n*RATE)} · busiest month ${MON[bi]} (${months[bi]})`;
   return `<div class="sec-h"><h2>${unitCap} each year</h2><span class="aside">tap a year</span></div>
   <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${unitCap} each year, ${YEARS[0]} to ${CUR}">
@@ -4059,7 +4099,7 @@ function ask(q){
     a = `<b>${c.name}</b> was last in ${lastText(hit).toLowerCase()}. ${sp.a.v ? `Spent <b>${money(sp.y.$)}</b> this year and ${money(sp.a.$)} all time. ` : ''}${n ? `Next visit: <b>${whenText(n)}</b>, ${svLabel(n.s)}.` : 'Nothing booked yet.'}
       <div class="btn-row" style="margin-top:10px"><button class="btn" data-act="client" data-c="${hit}">Open notes</button><button class="btn primary" data-act="book" data-c="${hit}">Book</button></div>`;
   } else if (/(year|pace|forecast|project|on track|going)/.test(s)) {
-    a = P.fresh ? `Your first year on SolePro started this month. So far you’ve brought in <b>${money(sumOf('month').net)}</b> from ${sumOf('month').n} ${P.unit}. Connect Square or upload past sales and SolePro fills in the rest of your year.` : `You’ve done <b>${SO_FAR} ${P.unit}</b> this year through ${MON[DONE-1]}, worth about <b>${money(SO_FAR*RATE)}</b>. You’re on pace for about <b>${PROJ}</b>, which would beat your best year (${BEST_PAST_Y}, with ${BEST_PAST}).
+    a = P.fresh ? `Your first year on SolePro started this month. So far you’ve brought in <b>${money(sumOf('month').net)}</b> from ${sumOf('month').n} ${P.unit}. Connect Square or upload past sales and SolePro fills in the rest of your year.` : `${(L => `You’ve done <b>${L.soFar} ${P.unit}</b> this year, ${L.est ? 'worth about' : 'with'} <b>${money(L.sales)}</b>${L.est ? '' : ' in sales'}. You’re on pace for about <b>${L.projN}</b> and about <b>${about$(L.proj$)}</b> by December${L.record ? `, which would beat your best year (${BEST_PAST_Y}, with ${BEST_PAST})` : `; your best year was ${BEST_PAST_Y}, with ${BEST_PAST}`}.`)(liveYear())}
       <div class="btn-row" style="margin-top:10px"><button class="btn primary" data-act="money" data-v="year">See your year</button></div>`;
   } else if (/(paid|owe|unpaid|charge)/.test(s)) {
     const u = unpaid();
