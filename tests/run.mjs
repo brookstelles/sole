@@ -226,6 +226,42 @@ console.log('ok private Square views');
   await q.close();
   console.log('ok own book');
 }
+// gift cards: sell one, pay for a visit with it, book someone paying with one (made-up data)
+{
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const sole = {appts:[{uid:'aG1', c:'nGIFT', s:'sw60', date:iso(new Date()), start:1, paid:false, tip:0, w:'Kelli'}], blocks:[],
+    clients:{nGIFT:{name:'Gift Sample', phone:'', since:2026, visits:0, last:null, isNew:true, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true}}, ledger:[]};
+  const q = await open('index.html', `window.__SOLE_SQUARE = ${JSON.stringify({...JSON.parse(sq), sole})};`);
+  await q.click('.tab[data-v=money]'); await q.click('#s-books [data-act=gifts]');
+  check(/Sell a gift card/.test(await q.textContent('.sheet')), 'gift cards: the list offers to sell one');
+  await q.click('.sheet [data-act=gift-sell] >> nth=0');
+  await q.selectOption('#gs-to', 'nGIFT'); await q.fill('#gs-amt', '150'); await q.fill('#gs-code', 'GTEST');
+  await q.click('.sheet [data-act=gs-way][data-v=Cash]'); await q.click('.sheet [data-act=gs-save]');
+  let m = await q.textContent('#s-books');
+  check(/Gift cards · \$150 left on 1/.test(m) && /\$150/.test(m), 'gift cards: a card sold for cash shows, and counts as money in');
+  await q.click('.tab[data-v=today]'); await q.click('[data-act=appt]:has-text("Gift Sample")');
+  await q.click('.sheet [data-act=charge]');
+  check(/150 on a gift card/.test(await q.textContent('.sheet')), 'gift cards: checking out says the client has a gift card');
+  await q.click('.sheet [data-act=payfor-gift]');
+  check(/GTEST/.test(await q.textContent('.sheet #pf-card')), 'gift cards: the client\'s card is picked');
+  await q.click('.sheet [data-act=pf-save]'); await q.waitForTimeout(150);
+  const L = await q.evaluate(() => SQ.sole.ledger);
+  check(L.some(x => x.kind === 'giftuse' && x.amount === 100 && x.card) && L.some(x => x.gift && x.gift.code === 'GTEST'), 'gift cards: the use and the sale are saved to the book');
+  await q.click('.tab[data-v=money]');
+  check(/Gift cards · \$50 left on 1/.test(await q.textContent('#s-books')), 'gift cards: what\'s left goes down');
+  check(/Today so far\s*\$150/.test(await (async () => { await q.click('.tab[data-v=today]'); return q.textContent('.glance'); })()), 'gift cards: using a card isn\'t counted as money a second time');
+  check(!/Not paid/.test(await q.textContent('main:has-text("Gift Sample")')), 'gift cards: the visit shows as paid');
+  await q.click('.tab[data-v=schedule]'); await goDay(q, 1);
+  for (let i = 2; i < 8 && !(await q.locator('[data-act=gap]').count()); i++) await goDay(q, i);
+  await q.click('[data-act=gap] >> nth=0'); await q.fill('#b-find', 'Gift Sam'); await q.click('.sheet [data-act=b-c][data-v=nGIFT]');
+  check(/\$50 on a gift card/.test(await q.textContent('.sheet')), 'gift cards: booking says the client has a gift card');
+  await q.click('.sheet [data-act=b-gift]'); await q.click('.sheet [data-act=b-t] >> nth=0'); await q.click('#book-go');
+  if (await q.locator('.sheet .close').count()) await q.click('.sheet .close');
+  check(await q.evaluate(() => SQ.sole.appts.some(a => a.gift)) && /Gift card/.test(await q.textContent('main')), 'gift cards: a booking paying with a gift card is saved and tagged');
+  check(!(await wide(q)), 'gift cards: wider than the phone');
+  await q.close();
+  console.log('ok gift cards');
+}
 // the weekly check and visit notes
 {
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;

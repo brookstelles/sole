@@ -142,13 +142,11 @@ does (`askSignIn`; everyone else signs in with codes). What it needs:
   `account` Edge Function with verify_jwt off (it uses the billing function's `STRIPE_SECRET_KEY`). Until then
   "Delete my account" says it didn't go through.
 - **The review account** (above).
-- **help@getsolepro.com working** (Cloudflare Email Routing), since it is the support contact.
-- **Privacy policy and terms updates on getsolepro.com** (Lovable), so they match the app: say accounts can be deleted
-  in the app (initials → Delete my account; immediate, backups within 30 days) and give those steps on the privacy
-  page (Google's delete-account link); add Google (the sign-in code emails go out through Gmail) and Google Fonts
-  (the app loads its fonts from Google) to the companies list; say SolePro sees counts and last sign-in per business
-  (the owner view); say SolePro is for adults running a business (18+); in the terms, "cancel from the app" is true only
-  on the web (the phone apps have no plan buttons).
+- **help@getsolepro.com working** (Cloudflare Email Routing), since it is the support contact. Checked Nov 5, 2026:
+  getsolepro.com has no MX records, so mail to it bounces.
+- **Privacy policy and terms**: rewritten Nov 5, 2026 in Lovable to match the app (every company used, in-app deletion
+  with steps, 18+, the owner view, plans only on the web, HIPAA, the app stores). Google Play's delete-account link:
+  https://getsolepro.com/privacy#delete. Publish in Lovable once Brooks has read them.
 - **The weather line**: Open-Meteo's free API is for non-commercial use and asks for credit ("Weather data by
   Open-Meteo.com"). For a paid product: take their commercial plan (an API key) or switch provider, and show the credit.
 - **Apple's decision on 3.1.3(f)** is App Review's to make; if they ask for in-app purchase, see `app/README.md`.
