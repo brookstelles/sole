@@ -92,12 +92,15 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     return {data:{ok:true}};
   };
   // the gift Edge Function: the gift card page, back from Square's checkout, a card's own page, and sending a card
-  const gift = ({action, biz, token, order, uid, email, name, amount, to, from, sendTo, message}) => {
+  const gift = ({action, biz, token, order, uid, email, name, amount, service, to, from, sendTo, message}) => {
     const F = window.__FAKE; F.gifts = F.gifts || [];
     const b = biz && T.businesses.find(x => x.data && x.data.site && x.data.site.slug === biz);
-    if (action === 'open') return b ? {data:{pub:{biz:b.data.biz, owner:b.data.owner, look:b.data.look}, on:!window.__FAKE_GIFT_OFF, amounts:[50, 100, 150, 200]}} : {data:{error:'gone'}};
-    if (action === 'buy') { if (!b) return {data:{error:'gone'}}; if (!(amount >= 10 && amount <= 1000)) return {data:{error:'amount'}};
-      const id = '00000000-0000-4000-8000-' + String(F.gifts.length).padStart(12, '0'); F.gifts.push({id, amount, to, from, sendTo, message});
+    // the business's services, cheapest first, as the gift function lists them
+    const svcs = b ? Object.entries(b.data.services || {}).map(([k, v]) => ({k, name:v.name, min:v.min, price:v.price})).sort((x, y) => x.price - y.price || x.min - y.min) : [];
+    if (action === 'open') return b ? {data:{pub:{biz:b.data.biz, owner:b.data.owner, look:b.data.look}, on:!window.__FAKE_GIFT_OFF, services:svcs, amounts:[50, 100, 150, 200]}} : {data:{error:'gone'}};
+    if (action === 'buy') { if (!b) return {data:{error:'gone'}}; const sv = service ? svcs.find(x => x.k === service) : null; if (service && !sv) return {data:{error:'service'}}; if (sv) amount = sv.price;
+      if (!(amount >= 10 && amount <= 1000)) return {data:{error:'amount'}};
+      const id = '00000000-0000-4000-8000-' + String(F.gifts.length).padStart(12, '0'); F.gifts.push({id, amount, service:sv ? `${sv.min} min ${sv.name}` : null, to, from, sendTo, message});
       return {data:{url:'https://square.test/pay/' + id, order:id}}; }
     if (action === 'confirm') { const txt = /1$/.test(order || '');   // order ...0001 was sent by text; texting isn't set up, so the buyer texts it
       return {data:{status:'sent', code:'GFAKE', amount:100, to:'Jo Test', from:'Pat Test', message:'Enjoy!', send_to:'them', send_by:txt ? 'text' : 'email', texted:false, to_phone:txt ? '+15615550142' : null, emailed:txt ? [] : ['jo@example.com'], receipt:true, card:'c'.repeat(48)}}; }

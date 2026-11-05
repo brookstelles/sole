@@ -26,6 +26,19 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&a
 // +1 and ten digits (US and Canada), or null
 const e164 = (v: unknown) => { let d = String(v ?? '').replace(/\D/g, ''); if (d.length === 11 && d[0] === '1') d = d.slice(1); return d.length === 10 ? '+1' + d : null; };
 const money = (n: number) => '$' + (Math.round(n * 100) % 100 ? n.toFixed(2) : String(Math.round(n)));
+const svLen = (m: number) => m < 120 ? `${m} min` : (m % 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m / 60} hr`);
+const svName = (v: any) => v.min ? `${svLen(v.min)} ${v.name}` : v.name;
+// what the business offers, as its website lists it: the owner's own list when she has changed it in SolePro (the book's
+// people/prefs `services`, ones she stopped left out), else the profile's; lowest starting price first, then by length
+async function servicesOf(b: any) {
+  const { data: pr, error } = await db.from('items').select('data').eq('business_id', b.id).eq('col', 'people').eq('id', 'prefs').maybeSingle(); if (error) throw error;
+  const own = pr?.data?.services;
+  const list = (Array.isArray(own) && own.length ? own.filter((v: any) => v && !v.off) : Object.entries(b.data.services || {}).map(([k, v]: any) => ({ k, ...v })))
+    .filter((v: any) => v && v.k && v.name && Number(v.price) >= 10 && Number(v.price) <= 1000)
+    .map((v: any) => ({ k: String(v.k), name: clip(v.name, 60), min: Number(v.min) || 0, price: Math.round(Number(v.price) * 100) / 100 }));
+  const from: Record<string, number> = {}; for (const v of list) from[v.name] = Math.min(from[v.name] ?? Infinity, v.price);
+  return list.sort((a: any, c: any) => from[a.name] - from[c.name] || a.name.localeCompare(c.name) || a.min - c.min);
+}
 // what the gift card page shows about the business: never the clients, the book or the money
 const PUBLIC = ['biz', 'owner', 'look', 'color', 'logo', 'short', 'trade'];
 
@@ -68,6 +81,7 @@ function cardHTML(o: any, pub: any, forBuyer: boolean) {
     <div style="font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:#E0A62A">Gift card</div>
     <div style="font-size:22px;font-weight:700;margin-top:6px">${biz}</div>
     <div style="font-size:48px;font-weight:700;margin:18px 0 6px">${money(Number(o.amount))}</div>
+    ${o.service ? `<div style="font-size:17px;margin-bottom:8px">Good for a ${esc(o.service)}</div>` : ''}
     <div style="font-size:16px">For ${esc(to)}${o.from_name ? ` · from ${esc(o.from_name)}` : ''}</div>
     ${o.message ? `<div style="font-size:16px;margin-top:14px;font-style:italic">“${esc(o.message)}”</div>` : ''}
     <div style="margin-top:20px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.12);font-size:18px;letter-spacing:.14em;display:inline-block">${esc(o.code)}</div>
@@ -91,7 +105,7 @@ async function textCard(o: any, pub: any) {
   const SID = env('TWILIO_ACCOUNT_SID'), TOKEN = env('TWILIO_AUTH_TOKEN'), FROM = env('TWILIO_FROM');
   if (!SID || !TOKEN || !FROM || o.send_by !== 'text' || !o.to_phone || o.texted_at) return false;
   const { data: stop } = await db.from('text_optouts').select('phone').eq('phone', o.to_phone).maybeSingle(); if (stop) return false;
-  let body = `${o.from_name ? clip(o.from_name, 40).split(' ')[0] + ' sent you' : 'You have'} a ${money(Number(o.amount))} gift card to ${clip(pub.biz || 'us', 60)}!${o.message ? ` \u201c${clip(o.message, 160)}\u201d` : ''} Code ${o.code}. See it and what\u2019s left on it: ${APP()}/?card=${o.view_token}`;
+  let body = `${o.from_name ? clip(o.from_name, 40).split(' ')[0] + ' sent you' : 'You have'} a ${money(Number(o.amount))} gift card to ${clip(pub.biz || 'us', 60)}${o.service ? `, good for a ${o.service}` : ''}!${o.message ? ` \u201c${clip(o.message, 160)}\u201d` : ''} Code ${o.code}. See it and what\u2019s left on it: ${APP()}/?card=${o.view_token}`;
   const { count: before } = await db.from('texts').select('id', { count: 'exact', head: true }).eq('phone', o.to_phone).eq('dir', 'out').eq('status', 'sent');
   if (!before) body += ' Reply STOP to opt out.';   // the carriers ask for it on a number's first text
   const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${SID}/Messages.json`, { method: 'POST',
@@ -122,7 +136,7 @@ async function fulfill(o: any) {
   const { data: b } = await db.from('businesses').select('id,data').eq('id', o.business_id).maybeSingle(); if (!b) return;
   const uid = 'g' + Date.now().toString(36) + crypto.randomUUID().slice(0, 4);
   const entry = { uid, kind: 'gift', date: today(b), amount: 0, tip: 0, method: 'Card', c: null, cname: o.from_name || null,
-    gift: { code: o.code, to: null, toName: o.to_name || '', from: o.from_name || '', amount: Number(o.amount), email: o.to_email || null, phone: o.to_phone || null, online: true, order: o.id } };
+    gift: { code: o.code, to: null, toName: o.to_name || '', from: o.from_name || '', amount: Number(o.amount), service: o.service || null, email: o.to_email || null, phone: o.to_phone || null, online: true, order: o.id } };
   const { error: e1 } = await db.from('items').insert({ business_id: b.id, col: 'ledger', id: uid, data: entry });
   if (e1) { await db.from('gift_orders').update({ status: 'pending', paid_at: null }).eq('id', o.id); throw e1; }
   const { error: e2 } = await db.from('gift_orders').update({ status: 'sent', ledger_uid: uid }).eq('id', o.id); if (e2) throw e2;
@@ -131,7 +145,7 @@ async function fulfill(o: any) {
   try { await sendEmails(o, pubOf(b)); } catch (e) { console.error('gift: emails', String(e)); }
   try {
     await fetch(env('SUPABASE_URL') + '/functions/v1/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env('SUPABASE_SERVICE_ROLE_KEY') },
-      body: JSON.stringify({ action: 'send', business_id: b.id, msg: { title: `Gift card sold online: ${money(Number(o.amount))}`, body: `For ${o.to_name || 'someone'}${o.from_name ? ', from ' + o.from_name : ''}. Code ${o.code}.`, url: '/', tag: 'gift-' + o.id } }) });
+      body: JSON.stringify({ action: 'send', business_id: b.id, msg: { title: `Gift card sold online: ${money(Number(o.amount))}${o.service ? ` (${o.service})` : ''}`, body: `For ${o.to_name || 'someone'}${o.from_name ? ', from ' + o.from_name : ''}. Code ${o.code}.`, url: '/', tag: 'gift-' + o.id } }) });
   } catch (e) { console.error('gift: push', String(e)); }
 }
 // has Square been paid for this order's checkout?
@@ -146,7 +160,7 @@ async function checkPaid(o: any) {
   }
   return o;
 }
-const cardOut = (o: any) => ({ status: o.status, code: o.status === 'pending' ? null : o.code, amount: Number(o.amount), to: o.to_name, from: o.from_name, message: o.message, send_to: o.send_to, send_by: o.send_by ?? 'email', texted: !!o.texted_at, to_phone: o.to_phone ?? null, emailed: (o.emailed_to ?? []).filter((x: string) => !x.startsWith('buyer:')), receipt: (o.emailed_to ?? []).some((x: string) => x.startsWith('buyer:')), card: o.status === 'pending' ? null : o.view_token });
+const cardOut = (o: any) => ({ status: o.status, code: o.status === 'pending' ? null : o.code, amount: Number(o.amount), service: o.service ?? null, to: o.to_name, from: o.from_name, message: o.message, send_to: o.send_to, send_by: o.send_by ?? 'email', texted: !!o.texted_at, to_phone: o.to_phone ?? null, emailed: (o.emailed_to ?? []).filter((x: string) => !x.startsWith('buyer:')), receipt: (o.emailed_to ?? []).some((x: string) => x.startsWith('buyer:')), card: o.status === 'pending' ? null : o.view_token });
 async function leftOn(o: any) {
   if (!o.ledger_uid) return Number(o.amount);
   const { data: card } = await db.from('items').select('data').eq('business_id', o.business_id).eq('col', 'ledger').eq('id', o.ledger_uid).maybeSingle();
@@ -167,26 +181,28 @@ Deno.serve(async (req) => {
 
     if (action === 'open') {   // the gift card page
       const b = await bizBySlug(q.biz); if (!b) return reply({ error: 'gone' });
-      return reply({ pub: pubOf(b), on: await sells(b), amounts: [50, 100, 150, 200] });   // round amounts; "Other" for the price of a visit
+      return reply({ pub: pubOf(b), on: await sells(b), services: await servicesOf(b), amounts: [50, 100, 150, 200] });   // amounts: for a business with no services listed
     }
 
     if (action === 'buy') {
       const b = await bizBySlug(q.biz); if (!b) return reply({ error: 'gone' });
       if (!(await sells(b))) return reply({ error: 'off' });
-      const amount = Math.round(Number(q.amount) * 100) / 100;
+      // one of the business's services at its price today, or an amount the buyer picks
+      let amount = Math.round(Number(q.amount) * 100) / 100, service: string | null = null;
+      if (q.service != null && q.service !== '') { const v = (await servicesOf(b)).find((x: any) => x.k === String(q.service)); if (!v) return reply({ error: 'service' }); amount = v.price; service = svName(v); }
       if (!(amount >= 10 && amount <= 1000)) return reply({ error: 'amount' });
       const from = q.from ?? {}, to = q.to ?? {}, sendTo = q.sendTo === 'me' ? 'me' : 'them', sendBy = q.sendTo === 'text' ? 'text' : 'email', toPhone = sendBy === 'text' ? e164(to.phone) : null;
       const o = { from_name: clip(from.name, 100), from_email: clip(from.email, 200).toLowerCase(), to_name: clip(to.name, 100), to_email: clip(to.email, 200).toLowerCase(), message: String(q.message ?? '').trim().slice(0, 300) };
       if (!o.from_name || !emailOk(o.from_email) || !o.to_name || (sendTo === 'them' && sendBy === 'email' && !emailOk(o.to_email)) || (sendBy === 'text' && !toPhone)) return reply({ error: 'incomplete' });
       const { count } = await db.from('gift_orders').select('id', { count: 'exact', head: true }).eq('business_id', b.id).gte('created_at', new Date(Date.now() - 864e5).toISOString());
       if ((count ?? 0) >= 60) return reply({ error: 'busy' });   // more than a real day's worth: something's wrong
-      const { data: row, error } = await db.from('gift_orders').insert({ business_id: b.id, kind: 'online', code: await newCode(b.id), amount, ...o, to_email: sendTo === 'them' && sendBy === 'email' ? o.to_email : null, send_to: sendTo, send_by: sendBy, to_phone: toPhone, view_token: token() }).select('*').single();
+      const { data: row, error } = await db.from('gift_orders').insert({ business_id: b.id, kind: 'online', code: await newCode(b.id), amount, ...o, to_email: sendTo === 'them' && sendBy === 'email' ? o.to_email : null, send_to: sendTo, send_by: sendBy, to_phone: toPhone, service, view_token: token() }).select('*').single();
       if (error) throw error;
       const { locations } = await square('/locations'), loc = (locations ?? []).find((l: any) => l.status === 'ACTIVE');
       if (!loc) throw new Error('no active Square location');
       const pl = await square('/online-checkout/payment-links', 'POST', {
         idempotency_key: row.id,
-        quick_pay: { name: `${clip(b.data.biz || 'Gift', 80)} gift card`, price_money: { amount: Math.round(amount * 100), currency: loc.currency || 'USD' }, location_id: loc.id },
+        quick_pay: { name: `${clip(b.data.biz || 'Gift', 80)} gift card${service ? ` (${service})` : ''}`.slice(0, 255), price_money: { amount: Math.round(amount * 100), currency: loc.currency || 'USD' }, location_id: loc.id },
         checkout_options: { redirect_url: `${APP()}/?gift=${encodeURIComponent(q.biz)}&order=${row.id}`, ask_for_shipping_address: false },
         pre_populated_data: { buyer_email: o.from_email },
         payment_note: `Gift card ${row.code} for ${o.to_name}`.slice(0, 500),
@@ -230,7 +246,7 @@ Deno.serve(async (req) => {
       if (to_email && !emailOk(to_email)) return reply({ error: 'email' });
       let { data: o } = await db.from('gift_orders').select('*').eq('business_id', m.business_id).eq('ledger_uid', String(q.uid)).maybeSingle();
       if (!o) {
-        const r = await db.from('gift_orders').insert({ business_id: m.business_id, kind: 'sent', status: 'sent', code: g.code, amount: Number(g.amount), from_name: g.from || null, to_name, to_email: to_email || null, send_to: 'them', view_token: token(), ledger_uid: String(q.uid), paid_at: new Date().toISOString() }).select('*').single();
+        const r = await db.from('gift_orders').insert({ business_id: m.business_id, kind: 'sent', status: 'sent', code: g.code, amount: Number(g.amount), service: g.service ? clip(g.service, 120) : null, from_name: g.from || null, to_name, to_email: to_email || null, send_to: 'them', view_token: token(), ledger_uid: String(q.uid), paid_at: new Date().toISOString() }).select('*').single();
         if (r.error) throw r.error; o = r.data;
       } else if (to_email && to_email !== o.to_email) {
         await db.from('gift_orders').update({ to_email, to_name, emailed_to: (o.emailed_to ?? []).filter((x: string) => x !== to_email) }).eq('id', o.id); o = { ...o, to_email, to_name };

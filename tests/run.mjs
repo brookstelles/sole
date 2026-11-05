@@ -239,6 +239,9 @@ console.log('ok private Square views');
   await q.click('.tab[data-v=money]'); await q.click('#s-books [data-act=gifts]');
   check(/Sell a gift card/.test(await q.textContent('.sheet')), 'gift cards: the list offers to sell one');
   await q.click('.sheet [data-act=gift-sell] >> nth=0');
+  await q.selectOption('#gs-svc', {index:1});
+  { const got = await q.inputValue('#gs-amt'), lab = await q.$eval('#gs-svc', s => s.options[s.selectedIndex].text); check(got && lab.includes('$' + got), 'gift cards: picking a service fills in its price'); }
+  await q.selectOption('#gs-svc', '');
   await q.selectOption('#gs-to', 'nGIFT'); await q.fill('#gs-amt', '150'); await q.fill('#gs-code', 'GTEST');
   await q.click('.sheet [data-act=gs-way][data-v=Cash]'); await q.click('.sheet [data-act=gs-save]');
   let m = await q.textContent('#s-books');
@@ -469,13 +472,15 @@ console.log('ok private Square views');
   check(/Give a gift card/.test(await fq.textContent('main')) && /Cloud Test Massage/.test(await fq.textContent('main')) && !(await fq.locator('.tab').count()), 'gift page: anyone can open the business\'s gift card page');
   await fq.click('[data-act=gp-pay]');
   check(/Add who it’s for/.test(await fq.textContent('main')), 'gift page: says what\'s missing');
-  await fq.click('[data-act=gp-amt][data-v="150"]'); await fq.fill('#gp-to', 'Jo Test'); await fq.fill('#gp-toe', 'jo@example.com'); await fq.fill('#gp-msg', 'Enjoy!');
+  { const t = await fq.textContent('.gp-svcs'); check(/Deep tissue/.test(t) && /\$110/.test(t) && /Another amount/.test(t), 'gift page: the choices are the business\'s own services and prices'); }
+  await fq.click('[data-act=gp-amt][data-v="svc:dt60"]'); check(/Pay \$110 with Square/.test(await fq.textContent('main')) && /60 min Deep tissue/.test(await fq.textContent('main')), 'gift page: picking a service sets its price');
+  await fq.click('[data-act=gp-amt][data-v=other]'); await fq.fill('#gp-other', '150'); await fq.fill('#gp-to', 'Jo Test'); await fq.fill('#gp-toe', 'jo@example.com'); await fq.fill('#gp-msg', 'Enjoy!');
   await fq.fill('#gp-from', 'Pat Test'); await fq.fill('#gp-frome', 'pat@example.com');
   check(!(await wide(fq)), 'gift page: fits the phone');
   await fq.evaluate(() => { window.__SOLE_GO = u => { window.__wentTo = u; }; });
   await fq.click('[data-act=gp-pay]'); await fq.waitForTimeout(200);
   const bought = await fq.evaluate(() => ({to:window.__wentTo, g:window.__FAKE.gifts[0]}));
-  check(/^https:\/\/square\.test\/pay\//.test(bought.to) && bought.g.amount === 150 && bought.g.to.email === 'jo@example.com' && bought.g.sendTo === 'them' && bought.g.from.name === 'Pat Test', 'gift page: paying opens Square\'s checkout for the card');
+  check(/^https:\/\/square\.test\/pay\//.test(bought.to) && bought.g.amount === 150 && !bought.g.service && bought.g.to.email === 'jo@example.com' && bought.g.sendTo === 'them' && bought.g.from.name === 'Pat Test', 'gift page: paying opens Square\'s checkout for the card');
   await fq.goto('https://sole.test/?gift=cloud-test&order=00000000-0000-4000-8000-000000000000', {waitUntil:'networkidle'});
   { const t = await fq.textContent('main'); check(/Thank you/.test(t) && /emailed the gift card to Jo Test/.test(t) && /GFAKE/.test(t), 'gift page: back from Square, the card is made and emailed'); }
   await fq.goto('https://sole.test/?card=' + 'c'.repeat(48), {waitUntil:'networkidle'});
@@ -488,7 +493,7 @@ console.log('ok private Square views');
   await fq.fill('#gp-tot', '(561) 555-0142'); check(!(await wide(fq)), 'gift page: three ways to send fit the phone');
   await fq.evaluate(() => { window.__SOLE_GO = u => { window.__wentTo = u; }; });
   await fq.click('[data-act=gp-pay]'); await fq.waitForTimeout(300);
-  { const g = await fq.evaluate(() => window.__FAKE.gifts[window.__FAKE.gifts.length - 1]); check(g && g.sendTo === 'text' && g.to.phone === '5615550142' && !g.to.email, 'gift page: by text sends their mobile, not an email'); }
+  { const g = await fq.evaluate(() => window.__FAKE.gifts[window.__FAKE.gifts.length - 1]); check(g && g.sendTo === 'text' && g.to.phone === '5615550142' && !g.to.email && g.service === '60 min Swedish' && g.amount === 95, 'gift page: by text sends their mobile, not an email'); }
   await fq.goto('https://sole.test/?gift=cloud-test&order=00000000-0000-4000-8000-000000000001', {waitUntil:'networkidle'});
   { const t = await fq.textContent('main'), h = await fq.getAttribute('#gp-sms', 'href').catch(() => '');
     check(/Text it to Jo/.test(t) && /^sms:\+15615550142[?&]body=/.test(h || '') && decodeURIComponent(h || '').includes('?card=' + 'c'.repeat(48)), 'gift page: back from Square, a card for texting opens Messages to their number with the link'); }

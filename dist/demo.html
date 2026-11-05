@@ -252,6 +252,13 @@ main{display:flex;flex-direction:column;gap:22px;padding-top:10px}   /* room und
 .gcard{display:grid;gap:6px;border-radius:22px;padding:24px;background:linear-gradient(140deg,var(--accent),color-mix(in srgb,var(--accent) 70%,#000));color:var(--accent-ink);margin-block:12px;box-shadow:var(--shadow)}
 .gcard .gc-k{font-size:13px;letter-spacing:.12em;text-transform:uppercase;opacity:.85}
 .gcard .gc-biz{font-size:20px}
+.gcard .gc-svc{font-size:17px;font-weight:600}
+.gp-svcs{display:grid;gap:8px}
+.gp-svc{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;width:100%;min-height:56px;padding:10px 16px;border:1.5px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);text-align:left}
+.gp-svc > span{display:flex;flex-direction:column;min-width:0}
+.gp-svc small{font-size:13.5px;color:var(--muted)}
+.gp-svc > b{font-size:18px;font-weight:600}
+.gp-svc[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent);background:var(--accent-soft)}
 .gcard .gc-amt{font-family:var(--display);font-size:46px;line-height:1.1;margin-top:8px}
 .gcard .gc-amt small{font-size:16px;font-family:inherit;opacity:.85}
 .gcard .gc-msg{font-style:italic}
@@ -2708,7 +2715,7 @@ const GIFT_WAY = 'Gift card';
 const GIFT_SOLD_WAYS = ['Cash', 'Zelle', 'Venmo', 'Check', 'Card', 'Before'];
 const giftWayName = w => w === 'Card' ? 'Card in Square' : w === 'Before' ? 'Sold before SolePro' : w;
 function giftCards(){
-  const cards = LEDGER.filter(x => x.gift).map(x => ({uid:x.uid, code:x.gift.code || '', to:x.gift.to || null, toName:x.gift.toName || '', from:x.gift.from || '', amount:x.gift.amount, date:x.date, method:x.method, online:!!x.gift.online, email:x.gift.email || null, phone:x.gift.phone || null}));
+  const cards = LEDGER.filter(x => x.gift).map(x => ({uid:x.uid, code:x.gift.code || '', to:x.gift.to || null, toName:x.gift.toName || '', from:x.gift.from || '', amount:x.gift.amount, date:x.date, method:x.method, online:!!x.gift.online, service:x.gift.service || null, email:x.gift.email || null, phone:x.gift.phone || null}));
   Object.entries(CL).forEach(([k, c]) => { if (c.gift) cards.push({uid:'legacy-' + k, code:'', to:k, toName:c.name, from:c.giftFrom || '', amount:c.gift, date:'', legacy:true}); });   // the sample businesses' cards
   cards.forEach(g => { g.used = LEDGER.filter(x => x.kind === 'giftuse' && x.card === g.uid).reduce((t, x) => t + x.amount, 0); g.left = Math.max(0, Math.round((g.amount - g.used) * 100) / 100); });
   return cards;
@@ -2732,7 +2739,7 @@ function openGift(uid){
   const uses = LEDGER.filter(x => x.kind === 'giftuse' && x.card === uid).sort(entrySort);
   sheet(`${top(`${g.code ? esc(g.code) + ' · ' : ''}${money(g.left)} left`, `Gift card for ${esc(giftWho(g))}`)}
     <dl class="notes">
-      <div class="note"><dt>Worth</dt><dd>${money(g.amount)}</dd></div>
+      <div class="note"><dt>Worth</dt><dd>${money(g.amount)}${g.service ? ` · for a ${esc(g.service)}` : ''}</dd></div>
       ${g.from ? `<div class="note"><dt>From</dt><dd>${esc(g.from)}</dd></div>` : ''}
       ${g.date ? `<div class="note"><dt>Sold</dt><dd>${dayShortIso(g.date)}${g.online ? ' · bought online' : g.method ? ' · ' + esc(giftWayName(g.method)) : ''}</dd></div>` : ''}
       ${g.email ? `<div class="note"><dt>Emailed to</dt><dd style="word-break:break-all">${esc(g.email)}</dd></div>` : ''}
@@ -2746,12 +2753,13 @@ let GS = null;
 function openGiftSell(o = {}){
   GS = {way:o.way || 'Cash', amt:null};
   const opts = Object.keys(CL).filter(k => !CL[k].anon).sort((a, b) => CL[a].name.localeCompare(CL[b].name));
-  const amts = [...new Set(svOpen().map(k => SV[k].price).filter(p => p > 0))].sort((a, b) => a - b).slice(0, 3);
+  const svcs = svOpen().filter(k => SV[k].price > 0);
   sheet(`${top(GS.way === 'Before' ? 'Add a gift card you sold' : 'Sell a gift card', GS.way === 'Before' ? 'A card someone already has, so SolePro knows what’s left on it.' : 'Write the code on the card. Whoever brings it in can use it.')}
     <div class="field"><span class="label">Who it’s for</span><select class="text-in" id="gs-to"><option value="">Someone not in SolePro yet</option>${opts.map(k => `<option value="${esc(k)}"${k === o.c ? ' selected' : ''}>${esc(CL[k].name)}</option>`).join('')}</select>
       <input class="text-in" id="gs-name" placeholder="Their name, if you know it" autocomplete="off" ${o.c ? 'hidden' : ''}></div>
     <div class="field"><span class="label">Bought by</span><input class="text-in" id="gs-from" placeholder="Who paid for it, if someone else" autocomplete="off"></div>
-    <div class="field"><span class="label">${GS.way === 'Before' ? 'Left on it' : 'Amount'}</span>${amts.length ? `<div class="chips" style="margin-bottom:8px">${amts.map(a => `<button class="chip" data-act="gs-amt" data-v="${a}">${money(a)}</button>`).join('')}</div>` : ''}
+    ${svcs.length ? `<div class="field"><span class="label">What it’s for</span><select class="text-in" id="gs-svc"><option value="">An amount</option>${svcs.map(k => `<option value="${esc(k)}">${esc(svLen(SV[k].min) + ' ' + SV[k].name)} · ${money(SV[k].price)}</option>`).join('')}</select></div>` : ''}
+    <div class="field"><span class="label">${GS.way === 'Before' ? 'Left on it' : 'Amount'}</span>
       <input class="text-in" id="gs-amt" inputmode="decimal" autocomplete="off" placeholder="$0"></div>
     ${GS.way === 'Before' ? '' : `<div class="field"><span class="label">How they paid</span><div class="chips">${GIFT_SOLD_WAYS.filter(w => w !== 'Before').map(w => `<button class="chip" data-act="gs-way" data-v="${w}" aria-pressed="${w === GS.way}">${giftWayName(w)}</button>`).join('')}</div></div>`}
     <div class="two-in"><div class="field"><span class="label">Code</span><input class="text-in" id="gs-code" autocomplete="off" autocapitalize="characters" value="${newGiftCode()}"></div>
@@ -2771,7 +2779,8 @@ function saveGiftSell(){
   if (!amount) { toast('Add the amount first.'); return; }
   if (code && giftCards().some(g => g.code === code)) { toast(`There’s already a gift card ${code}. Give this one another code.`); return; }
   const toName = to && CL[to] ? CL[to].name : ($('#gs-name').value || '').trim(), from = ($('#gs-from').value || '').trim(), counts = !['Card', 'Before'].includes(GS.way);
-  LEDGER.push({uid:uidOf('g'), kind:counts ? 'pay' : 'gift', date, amount:counts ? amount : 0, tip:0, method:GS.way, c:null, cname:from || null, gift:{code, to:to || null, toName, from, amount}});
+  const sk = ($('#gs-svc') || {}).value, service = sk && SV[sk] ? `${svLen(SV[sk].min)} ${SV[sk].name}` : null;
+  LEDGER.push({uid:uidOf('g'), kind:counts ? 'pay' : 'gift', date, amount:counts ? amount : 0, tip:0, method:GS.way, c:null, cname:from || null, gift:{code, to:to || null, toName, from, amount, ...(service ? {service} : {})}});
   saveState(); closeSheet(); KEEP = {...S}; boot(KEY);
   toast(`Gift card ${code ? code + ' ' : ''}for ${money(amount)} saved${toName ? ` for ${toName.split(' ')[0]}` : ''}.`);
 }
@@ -4495,6 +4504,7 @@ function openFill(i, k){
 function giftVisual(g){
   return `<div class="gcard"><span class="gc-k">Gift card</span><b class="gc-biz">${esc(P.biz)}</b>
     <span class="gc-amt">${money(g.left != null ? g.left : g.amount)}${g.left != null && g.left < g.amount ? `<small> left of ${money(g.amount)}</small>` : ''}</span>
+    ${g.service ? `<span class="gc-svc">Good for a ${esc(g.service)}</span>` : ''}
     <span class="gc-who">For ${esc(g.to || 'you')}${g.from ? ` · from ${esc(g.from)}` : ''}</span>
     ${g.message ? `<span class="gc-msg">“${esc(g.message)}”</span>` : ''}
     ${g.code ? `<span class="gc-code">${esc(g.code)}</span>` : ''}</div>`;
@@ -4527,12 +4537,16 @@ function giftPage(L){
   }
   // the shop
   if (!L.on) return oops(`Gift cards from ${esc(P.biz)}`, `Gift cards aren’t sold online here yet. Ask ${esc(P.biz)} about one in person.`);
-  GP = GP && GP.slug === L.slug ? GP : {slug:L.slug, amt:(L.amounts || [100])[Math.min(1, (L.amounts || []).length - 1)], other:'', sendTo:'them', busy:false, err:''};
+  const SVC = (L.services || []).filter(v => v && v.k && v.price > 0), svcName = v => `${v.min ? svLen(v.min) + ' ' : ''}${v.name}`;
+  GP = GP && GP.slug === L.slug ? GP : {slug:L.slug, amt:SVC.length ? 'svc:' + SVC[0].k : (L.amounts || [100])[Math.min(1, (L.amounts || []).length - 1)], other:'', sendTo:'them', busy:false, err:''};
+  const pickSvc = SVC.find(v => GP.amt === 'svc:' + v.k);
   const v = id => { const el = $('#' + id); return el ? el.value : ''; };
   const keep = {to:v('gp-to'), toEmail:v('gp-toe') || GP.toEmail || '', toPhone:v('gp-tot') || GP.toPhone || '', msg:v('gp-msg'), from:v('gp-from'), fromEmail:v('gp-frome'), other:v('gp-other') || GP.other};
-  const amt = GP.amt === 'other' ? num(keep.other) : GP.amt;
+  const amt = GP.amt === 'other' ? num(keep.other) : pickSvc ? pickSvc.price : GP.amt;
   shell(`<h2 class="gp-h">Give a gift card</h2>
-    <div class="field"><span class="label">Amount</span><div class="chips gp-amts">${(L.amounts || []).map(a => `<button class="chip" data-act="gp-amt" data-v="${a}" aria-pressed="${GP.amt === a}">${money(a)}</button>`).join('')}<button class="chip" data-act="gp-amt" data-v="other" aria-pressed="${GP.amt === 'other'}">Other</button></div>
+    ${SVC.length ? `<div class="field"><span class="label">Choose a gift</span><div class="gp-svcs" role="group">${SVC.map(v => `<button class="gp-svc" data-act="gp-amt" data-v="svc:${esc(v.k)}" aria-pressed="${GP.amt === 'svc:' + v.k}"><span><b>${esc(v.name)}</b>${v.min ? `<small>${svLen(v.min)}</small>` : ''}</span><b class="num">${money(v.price)}</b></button>`).join('')}
+      <button class="gp-svc" data-act="gp-amt" data-v="other" aria-pressed="${GP.amt === 'other'}"><span><b>Another amount</b><small>Any amount from $10 to $1,000</small></span></button></div>`
+    : `<div class="field"><span class="label">Amount</span><div class="chips gp-amts">${(L.amounts || []).map(a => `<button class="chip" data-act="gp-amt" data-v="${a}" aria-pressed="${GP.amt === a}">${money(a)}</button>`).join('')}<button class="chip" data-act="gp-amt" data-v="other" aria-pressed="${GP.amt === 'other'}">Other</button></div>`}
       ${GP.amt === 'other' ? `<input class="text-in" id="gp-other" inputmode="decimal" placeholder="$10 to $1,000" value="${esc(keep.other)}" autocomplete="off">` : ''}</div>
     <div class="field"><span class="label">Who it’s for</span><input class="text-in" id="gp-to" placeholder="Their name" value="${esc(keep.to)}" autocomplete="off"></div>
     <div class="field"><span class="label">Send it</span><div class="seg" role="group" style="grid-template-columns:1fr 1fr 1fr"><button data-act="gp-send" data-v="them" aria-pressed="${GP.sendTo === 'them'}">Email them</button><button data-act="gp-send" data-v="text" aria-pressed="${GP.sendTo === 'text'}">Text them</button><button data-act="gp-send" data-v="me" aria-pressed="${GP.sendTo === 'me'}">Give it myself</button></div>
@@ -4542,11 +4556,13 @@ function giftPage(L){
       <input class="text-in" id="gp-frome" type="email" inputmode="email" placeholder="Your email, for the receipt" value="${esc(keep.fromEmail)}" autocomplete="email"></div>
     ${GP.err ? `<p class="gp-err">${esc(GP.err)}</p>` : ''}
     <button class="btn primary" style="width:100%" data-act="gp-pay" ${GP.busy ? 'disabled' : ''}>${GP.busy ? 'Opening Square…' : `Pay ${amt ? money(amt) : ''} with Square`}</button>
+    ${pickSvc ? `<p class="small muted" style="text-align:center;margin-top:-6px">A gift card for a ${esc(svcName(pickSvc))}.</p>` : ''}
     <p class="small muted" style="text-align:center">You’ll pay on Square’s secure page. Gift cards never expire.</p>`);
 }
 async function giftPay(){
   const v = id => ($('#' + id) || {}).value || '';
-  const amount = GP.amt === 'other' ? num(v('gp-other')) : GP.amt, to = v('gp-to').trim(), toEmail = v('gp-toe').trim(), toPhone = v('gp-tot').trim(), from = v('gp-from').trim(), fromEmail = v('gp-frome').trim();
+  const svc = typeof GP.amt === 'string' && GP.amt.startsWith('svc:') ? (GIFT_LINK.services || []).find(x => 'svc:' + x.k === GP.amt) : null;
+  const amount = GP.amt === 'other' ? num(v('gp-other')) : svc ? svc.price : GP.amt, to = v('gp-to').trim(), toEmail = v('gp-toe').trim(), toPhone = v('gp-tot').trim(), from = v('gp-from').trim(), fromEmail = v('gp-frome').trim();
   const digits = toPhone.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
   const em = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
   GP.other = v('gp-other');
@@ -4554,9 +4570,9 @@ async function giftPay(){
   if (GP.err) return giftPage(GIFT_LINK);
   GP.busy = true; giftPage(GIFT_LINK);
   try {
-    const { data, error } = await SB.functions.invoke('gift', {body:{action:'buy', biz:GIFT_LINK.slug, amount, to:{name:to, email:GP.sendTo === 'them' ? toEmail : '', phone:GP.sendTo === 'text' ? digits : ''}, from:{name:from, email:fromEmail}, sendTo:GP.sendTo, message:v('gp-msg')}});
+    const { data, error } = await SB.functions.invoke('gift', {body:{action:'buy', biz:GIFT_LINK.slug, amount, service:svc ? svc.k : '', to:{name:to, email:GP.sendTo === 'them' ? toEmail : '', phone:GP.sendTo === 'text' ? digits : ''}, from:{name:from, email:fromEmail}, sendTo:GP.sendTo, message:v('gp-msg')}});
     if (data && data.url) return goOut(data.url);
-    GP.err = data && data.error === 'off' ? 'Gift cards can’t be bought online right now.' : data && data.error === 'busy' ? 'Lots of gift cards today. Try again tomorrow.' : 'That didn’t go through. Check what you typed and try again.';
+    GP.err = data && data.error === 'off' ? 'Gift cards can’t be bought online right now.' : data && data.error === 'service' ? 'That service isn’t offered any more. Pick another one.' : data && data.error === 'busy' ? 'Lots of gift cards today. Try again tomorrow.' : 'That didn’t go through. Check what you typed and try again.';
   } catch (_) { GP.err = 'That didn’t go through. Check your connection and try again.'; }
   GP.busy = false; giftPage(GIFT_LINK);
 }
@@ -4732,7 +4748,7 @@ on('click', e => {
     case 'pf-m': PF.method = v; document.querySelectorAll('[data-act=pf-m]').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
       { const g = $('#pf-gift'), t = $('#pf-tipf'); if (g) g.hidden = v !== GIFT_WAY; if (t) t.hidden = v === GIFT_WAY; } break;
     case 'gifts': openGifts(); break;
-    case 'gp-amt': GP.amt = v === 'other' ? 'other' : +v; giftPage(GIFT_LINK); break;
+    case 'gp-amt': GP.amt = v === 'other' || v.startsWith('svc:') ? v : +v; giftPage(GIFT_LINK); break;
     case 'gp-send': { const e = $('#gp-toe'), t = $('#gp-tot'); if (e) GP.toEmail = e.value; if (t) GP.toPhone = t.value; GP.sendTo = v; giftPage(GIFT_LINK); break; }
     case 'gp-pay': giftPay(); break;
     case 'gp-copy': try { navigator.clipboard.writeText(v).then(() => toast('Link copied.')); } catch (_) {} break;
@@ -4745,12 +4761,11 @@ on('click', e => {
     case 'ge-send': { const name = ($('#ge-name').value || '').trim(), mail = ($('#ge-mail').value || '').trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { toast('Add their email first.'); break; }
       el.disabled = true; giftSend(v, {name, email:mail}).then(r => { if (!r) { el.disabled = false; return; } closeSheet(); toast(r.emailed ? `Emailed to ${name.split(' ')[0] || mail}.` : r.mail ? 'It didn’t send. Check the email and try again.' : 'Email isn’t set up yet. Text them the link instead.'); }); break; }
     case 'gift-text': { const g = giftCards().find(x => x.uid === v); if (!g) break; el.disabled = true;
-      giftSend(v, {}).then(r => { el.disabled = false; if (!r) return; msgSheet(`Text ${g.code}`, `Here’s your ${money(g.left)} gift card to ${P.biz}${g.from ? `, from ${g.from}` : ''}! Code ${g.code}: ${r.link}`, g.to && CL[g.to] && CL[g.to].phone || g.phone || ''); }); break; }
+      giftSend(v, {}).then(r => { el.disabled = false; if (!r) return; msgSheet(`Text ${g.code}`, `Here’s your ${money(g.left)} gift card to ${P.biz}${g.service && g.left >= g.amount ? `, good for a ${g.service}` : ''}${g.from ? `, from ${g.from}` : ''}! Code ${g.code}: ${r.link}`, g.to && CL[g.to] && CL[g.to].phone || g.phone || ''); }); break; }
     case 'gift-page': { const u = `${WEB_HOME()}/?gift=${encodeURIComponent(P.site.slug)}`; try { if (navigator.share && v === 'share') navigator.share({url:u, title:`Gift cards from ${P.biz}`}); else navigator.clipboard.writeText(u).then(() => toast('Gift card page link copied.')); } catch (_) {} break; }
     case 'gift-open': openGift(v); break;
     case 'gift-sell': openGiftSell({way:v || 'Cash', c:el.dataset.c}); break;
     case 'gift-use': { const g = giftCards().find(x => x.uid === v); if (g) openPay({c:g.to || '', amt:g.left, method:GIFT_WAY, card:g.uid}); break; }
-    case 'gs-amt': $('#gs-amt').value = v; break;
     case 'gs-way': GS.way = v; document.querySelectorAll('[data-act=gs-way]').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); break;
     case 'gs-save': saveGiftSell(); break;
     case 'payfor-gift': { const a = AP.find(x => x.id === id); const g = giftCards().filter(x => x.left > 0 && x.to === a.c)[0]; openPay({c:a.c, amt:prOf(a), date:isoDay(dateOf(a.off)), method:GIFT_WAY, card:g ? g.uid : ''}); break; }
@@ -5006,6 +5021,7 @@ on('click', e => {
 });
 on('change', e => {
   if (e.target.dataset && e.target.dataset.yn) { const m = $('#ff-' + e.target.dataset.yn + '-more'); if (m) { m.hidden = e.target.value !== 'yes'; if (!m.hidden) m.focus(); } }
+  if (e.target.id === 'gs-svc') { const k = e.target.value; if (k && SV[k]) $('#gs-amt').value = SV[k].price; }
   if (e.target.id === 'ob-logo' && OB) obLogo(e.target.files[0]);
   if (e.target.id === 'ob-docs' && OB) obDocs(e.target.files);
   if (e.target.id === 'rc-file' && RC && e.target.files[0]) takeReceipt(e.target.files[0]);
