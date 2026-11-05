@@ -2,7 +2,8 @@
 // usual hours, address, about, specialties and reviews (the profile's `site`), and where new clients fill in the intake form.
 // Services are the owner's own list when she has changed them in SolePro (the book's people/prefs `services`; ones she
 // stopped offering are left out), else the profile's.
-// Never a phone number or email (visitors send a message through intake instead), clients, the book or money.
+// The business phone (asked for Nov 5, 2026, for Google: the same number on the website and the Google listing; it was
+// left off from Oct 26) and the studio's map location for the search engines; never an email, clients, the book or money.
 // GET ?b=<site slug> (heart-and-soul). Deploy with verify_jwt off.
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
 
@@ -36,7 +37,9 @@ Deno.serve(async (req) => {
   return reply({
     business: p.biz, owner: p.owner, trade: p.trade || null, unit: p.unitOne || 'appointment',
     tagline: s.tagline || '', about: s.about || [], specialties: s.specialties || [], reviews: s.reviews || [],
-    address: s.address || '', hoursNote: s.hoursNote || '',
+    address: s.address || '', hoursNote: s.hoursNote || '', phone: s.phone || '', url: s.url || '',
+    license: s.license || '',   // Florida puts the license number in every massage ad, the website included (s. 480.0465, rule 64B7-33.001)
+    geo: p.geo && isFinite(p.geo.lat) && isFinite(p.geo.lon) ? { lat: Math.round(p.geo.lat * 1e5) / 1e5, lon: Math.round(p.geo.lon * 1e5) / 1e5 } : null,
     hours: open, services,
     intakeUrl: `https://app.solepro.app/?new=${encodeURIComponent(s.slug)}`,
     updated: new Date().toISOString(),
