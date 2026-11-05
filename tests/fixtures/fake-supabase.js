@@ -95,7 +95,7 @@ window.__SOLE_CLOUD_CLIENT = (() => {
   const gift = ({action, biz, token, order, uid, email, name, amount, to, from, sendTo, message}) => {
     const F = window.__FAKE; F.gifts = F.gifts || [];
     const b = biz && T.businesses.find(x => x.data && x.data.site && x.data.site.slug === biz);
-    if (action === 'open') return b ? {data:{pub:{biz:b.data.biz, owner:b.data.owner, look:b.data.look}, on:!window.__FAKE_GIFT_OFF, amounts:[50, 100, 150]}} : {data:{error:'gone'}};
+    if (action === 'open') return b ? {data:{pub:{biz:b.data.biz, owner:b.data.owner, look:b.data.look}, on:!window.__FAKE_GIFT_OFF, amounts:[50, 100, 150, 200]}} : {data:{error:'gone'}};
     if (action === 'buy') { if (!b) return {data:{error:'gone'}}; if (!(amount >= 10 && amount <= 1000)) return {data:{error:'amount'}};
       const id = '00000000-0000-4000-8000-' + String(F.gifts.length).padStart(12, '0'); F.gifts.push({id, amount, to, from, sendTo, message});
       return {data:{url:'https://square.test/pay/' + id, order:id}}; }

@@ -264,6 +264,7 @@ main{display:flex;flex-direction:column;gap:22px}
 .gift-page .gp-h{font-family:var(--display);font-weight:400;font-size:30px;margin:6px 0 2px}
 .gift-page .field input + input{margin-top:8px}
 .gp-err{color:var(--bad);font-weight:600}
+.gp-amts{display:grid;grid-template-columns:repeat(auto-fit,minmax(58px,1fr));gap:6px}.gp-amts .chip{padding:8px 4px;text-align:center}
 .li.wk{grid-template-columns:62px 1fr auto}
 .wk-btns{display:flex;flex-direction:column;gap:6px}
 .btn.sm{min-height:36px;padding:6px 12px;font-size:14px;border-radius:11px}
@@ -4501,7 +4502,7 @@ function giftPage(L){
   const keep = {to:v('gp-to'), toEmail:v('gp-toe'), msg:v('gp-msg'), from:v('gp-from'), fromEmail:v('gp-frome'), other:v('gp-other') || GP.other};
   const amt = GP.amt === 'other' ? num(keep.other) : GP.amt;
   shell(`<h2 class="gp-h">Give a gift card</h2>
-    <div class="field"><span class="label">Amount</span><div class="chips">${(L.amounts || []).map(a => `<button class="chip" data-act="gp-amt" data-v="${a}" aria-pressed="${GP.amt === a}">${money(a)}</button>`).join('')}<button class="chip" data-act="gp-amt" data-v="other" aria-pressed="${GP.amt === 'other'}">Other</button></div>
+    <div class="field"><span class="label">Amount</span><div class="chips gp-amts">${(L.amounts || []).map(a => `<button class="chip" data-act="gp-amt" data-v="${a}" aria-pressed="${GP.amt === a}">${money(a)}</button>`).join('')}<button class="chip" data-act="gp-amt" data-v="other" aria-pressed="${GP.amt === 'other'}">Other</button></div>
       ${GP.amt === 'other' ? `<input class="text-in" id="gp-other" inputmode="decimal" placeholder="$10 to $1,000" value="${esc(keep.other)}" autocomplete="off">` : ''}</div>
     <div class="field"><span class="label">Who it’s for</span><input class="text-in" id="gp-to" placeholder="Their name" value="${esc(keep.to)}" autocomplete="off"></div>
     <div class="field"><span class="label">Send it</span><div class="seg" role="group" style="grid-template-columns:1fr 1fr"><button data-act="gp-send" data-v="them" aria-pressed="${GP.sendTo === 'them'}">To them by email</button><button data-act="gp-send" data-v="me" aria-pressed="${GP.sendTo === 'me'}">To me to give</button></div>
