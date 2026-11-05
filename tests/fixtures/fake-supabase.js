@@ -91,6 +91,19 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     (window.__FAKE.deleted = window.__FAKE.deleted || []).push({email:em, canceled:paid ? biz.stripe_sub : null}); session = null;
     return {data:{ok:true}};
   };
+  // the gift Edge Function: the gift card page, back from Square's checkout, a card's own page, and sending a card
+  const gift = ({action, biz, token, order, uid, email, name, amount, to, from, sendTo, message}) => {
+    const F = window.__FAKE; F.gifts = F.gifts || [];
+    const b = biz && T.businesses.find(x => x.data && x.data.site && x.data.site.slug === biz);
+    if (action === 'open') return b ? {data:{pub:{biz:b.data.biz, owner:b.data.owner, look:b.data.look}, on:!window.__FAKE_GIFT_OFF, amounts:[50, 100, 150]}} : {data:{error:'gone'}};
+    if (action === 'buy') { if (!b) return {data:{error:'gone'}}; if (!(amount >= 10 && amount <= 1000)) return {data:{error:'amount'}};
+      const id = '00000000-0000-4000-8000-' + String(F.gifts.length).padStart(12, '0'); F.gifts.push({id, amount, to, from, sendTo, message});
+      return {data:{url:'https://square.test/pay/' + id, order:id}}; }
+    if (action === 'confirm') return {data:{status:'sent', code:'GFAKE', amount:100, to:'Jo Test', from:'Pat Test', message:'Enjoy!', send_to:'them', emailed:['jo@example.com'], receipt:true, card:'c'.repeat(48)}};
+    if (action === 'view') return token === 'c'.repeat(48) ? {data:{status:'sent', code:'GFAKE', amount:100, left:60, to:'Jo Test', from:'Pat Test', message:'Enjoy!', card:token, pub:{biz:'Cloud Test Massage', address:'1 Test Street'}}} : {data:{error:'gone'}};
+    if (action === 'send') { F.giftSent = (F.giftSent || []).concat([{uid, email, name}]); return {data:{link:'https://sole.test/?card=' + 'd'.repeat(48), emailed:!!email, mail:true}}; }
+    return {data:{error:'what?'}};
+  };
   // the intake Edge Function: a client filling in a texted form (see supabase/functions/intake)
   const intake = ({token, action, answers, sig, biz}) => {
     if (action === 'open-new' || action === 'submit-new') {   // a new client from the business's website
@@ -124,6 +137,6 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     from:query,
     channel:() => { const ch = {on:(type, opts, cb) => { subs.push({table:opts.table, cb}); return ch; }, subscribe:() => ch}; return ch; },
     storage:{from:() => ({upload:async () => ({error:null}), createSignedUrl:async () => ({data:{signedUrl:'data:,'}})})},
-    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'intake' ? intake(o.body) : name === 'signup' ? signup(o.body) : name === 'billing' ? billing(o.body) : name === 'admin' ? admin(o.body) : name === 'account' ? account(o.body) : name === 'text' ? text(o.body) : name === 'calendar' ? {data:{url:'https://example.test/functions/v1/calendar?t=' + (o.body.action === 'reset' ? 'b' : 'a').repeat(48)}} : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
+    functions:{invoke:async (name, o) => { window.__FAKE.invoked.push(o.body); return name === 'gift' ? gift(o.body) : name === 'intake' ? intake(o.body) : name === 'signup' ? signup(o.body) : name === 'billing' ? billing(o.body) : name === 'admin' ? admin(o.body) : name === 'account' ? account(o.body) : name === 'text' ? text(o.body) : name === 'calendar' ? {data:{url:'https://example.test/functions/v1/calendar?t=' + (o.body.action === 'reset' ? 'b' : 'a').repeat(48)}} : name === 'push' ? {data:o.body.action === 'key' ? {key:'BFAKEFAKEFAKE'} : {ok:true}} : {data:{payments:0, customers:0}}; }},
   };
 })();

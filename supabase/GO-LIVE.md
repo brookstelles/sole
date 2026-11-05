@@ -104,3 +104,23 @@ is still to do once the app version is live:
 3. **Check** with a throwaway email: sign in, set up a business with an invite code, Delete my account, then
    `select * from businesses where name = '<that name>'` returns nothing and the email is gone from
    Authentication → Users.
+
+## Digital gift cards (Nov 5, 2026), to email the cards people buy online
+
+Done by Claude: table `gift_orders` (`migrations/20261105000000_gift_orders.sql`), the `gift` function and the
+`square` function's hand-off, all live. Heart and Soul's gift card page works now:
+https://app.solepro.app/?gift=heart-and-soul. Until the two secrets below are set, cards are made and shown on the
+thank-you page with their link, but no email goes out.
+
+1. **Resend** (resend.com, free for 3,000 emails a month): sign up with Sellet Solutions LLC's email, Domains → Add
+   Domain → `getsolepro.com`. Let it set the records in Cloudflare (Auto configure) or copy them in by hand: they sit
+   on `send.getsolepro.com` and `resend._domainkey`, so they don't touch the help@ Email Routing records. Wait for
+   Verified.
+2. Resend → API Keys → Create (Sending access, getsolepro.com only).
+3. Supabase → Edge Functions → Secrets: `RESEND_API_KEY` (that key) and `GIFT_FROM` = `SolePro <gifts@getsolepro.com>`.
+   The emails go out under the business's own name at that address ("Heart and Soul Massage <gifts@getsolepro.com>").
+4. Check: buy a $10 card for yourself on the page with a real card. The thank-you page shows the card, the email
+   arrives, Kelli's phone buzzes, and the card is in SolePro under Snapshot → Money in and out → Gift cards ("bought
+   online"). If the page says it couldn't reach Square, the token in `SQUARE_ACCESS_TOKEN` can't make payment
+   links: it needs `ORDERS_WRITE` and `PAYMENTS_WRITE` (a personal access token from the Square Developer dashboard
+   has them). Refund the $10 in Square afterwards if you like, and take the card off in SolePro.

@@ -460,6 +460,23 @@ console.log('ok private Square views');
   await fq.click('#fill-go'); await fq.waitForSelector('.thanks');
   check(await fq.evaluate(() => window.__FAKE.sent && window.__FAKE.sent.data.via === 'website' && window.__FAKE.sent.data.client === null && window.__FAKE.sent.data.name === 'Web Newcomer'), 'website form: saved as a new client');
   await fq.goto('https://sole.test/?new=nobody', {waitUntil:'networkidle'}); check(/link has closed/.test(await fq.textContent('main')), 'website form: an unknown business says so');
+  // digital gift cards: the business's gift card page, Square's checkout, the thank-you and the card's own page
+  await fq.goto('https://sole.test/?gift=cloud-test', {waitUntil:'networkidle'});
+  check(/Give a gift card/.test(await fq.textContent('main')) && /Cloud Test Massage/.test(await fq.textContent('main')) && !(await fq.locator('.tab').count()), 'gift page: anyone can open the business\'s gift card page');
+  await fq.click('[data-act=gp-pay]');
+  check(/Add who it’s for/.test(await fq.textContent('main')), 'gift page: says what\'s missing');
+  await fq.click('[data-act=gp-amt][data-v="150"]'); await fq.fill('#gp-to', 'Jo Test'); await fq.fill('#gp-toe', 'jo@example.com'); await fq.fill('#gp-msg', 'Enjoy!');
+  await fq.fill('#gp-from', 'Pat Test'); await fq.fill('#gp-frome', 'pat@example.com');
+  check(!(await wide(fq)), 'gift page: fits the phone');
+  await fq.evaluate(() => { window.__SOLE_GO = u => { window.__wentTo = u; }; });
+  await fq.click('[data-act=gp-pay]'); await fq.waitForTimeout(200);
+  const bought = await fq.evaluate(() => ({to:window.__wentTo, g:window.__FAKE.gifts[0]}));
+  check(/^https:\/\/square\.test\/pay\//.test(bought.to) && bought.g.amount === 150 && bought.g.to.email === 'jo@example.com' && bought.g.sendTo === 'them' && bought.g.from.name === 'Pat Test', 'gift page: paying opens Square\'s checkout for the card');
+  await fq.goto('https://sole.test/?gift=cloud-test&order=00000000-0000-4000-8000-000000000000', {waitUntil:'networkidle'});
+  { const t = await fq.textContent('main'); check(/Thank you/.test(t) && /emailed the gift card to Jo Test/.test(t) && /GFAKE/.test(t), 'gift page: back from Square, the card is made and emailed'); }
+  await fq.goto('https://sole.test/?card=' + 'c'.repeat(48), {waitUntil:'networkidle'});
+  { const t = await fq.textContent('main'); check(/\$60/.test(t) && /left of \$100/.test(t) && /GFAKE/.test(t) && /1 Test Street/.test(t), 'gift card page: shows what\'s left and the code'); }
+  await fq.goto('https://sole.test/?card=nope', {waitUntil:'networkidle'}); check(/isn’t here/.test(await fq.textContent('main')), 'gift card page: an unknown card says so');
   await fq.close();
   await q.evaluate(row => window.__FAKE.emit('items', {eventType:'INSERT', new:row}), sent);
   check(await q.waitForFunction(() => /Imported sent their client intake form/.test((document.querySelector('.toast') || {}).textContent || ''), null, {timeout:4000}).then(() => true, () => false), 'website: a texted form shows up on her phone the moment it is sent');

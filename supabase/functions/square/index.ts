@@ -69,6 +69,13 @@ async function sellerOf(merchant: string) {
   return free[0].id as string;
 }
 
+// a payment for a gift card bought online: the gift function makes the card (it checks with Square itself, and only once)
+async function giftNudge(body: unknown) {
+  try {
+    await fetch(env('SUPABASE_URL') + '/functions/v1/gift', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env('SUPABASE_SERVICE_ROLE_KEY') }, body: JSON.stringify(body) });
+  } catch (e) { console.error('square: gift', String(e)); }   // the 15-minute catch-up asks again
+}
+
 async function signatureOk(req: Request, body: string) {
   const sig = req.headers.get('x-square-hmacsha256-signature') ?? '';
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env('SQUARE_WEBHOOK_SIGNATURE_KEY')), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
@@ -90,7 +97,7 @@ Deno.serve(async (req) => {
       if (!business_id) { console.error('square: notice for a seller no business is linked to'); return reply({ ignored: 'unknown seller' }); }
       const obj = ev.data?.object ?? {};
       // store the payment as Square has it now (a Tap to Pay payment is approved, then completed seconds later)
-      if (obj.payment) { let p = obj.payment; try { p = (await square('/payments/' + encodeURIComponent(p.id))).payment ?? p; } catch (_) { /* keep the notice's copy */ } await savePayments(business_id, [p]); }
+      if (obj.payment) { let p = obj.payment; try { p = (await square('/payments/' + encodeURIComponent(p.id))).payment ?? p; } catch (_) { /* keep the notice's copy */ } await savePayments(business_id, [p]); if (p.order_id) await giftNudge({ action: 'paid', order_id: p.order_id }); }
       if (obj.customer) { const { error } = await db.from('square_customers').upsert({ business_id, id: obj.customer.id, name: nameOf(obj.customer) }); if (error) throw error; }
       return reply({ ok: true });
     }
@@ -103,6 +110,7 @@ Deno.serve(async (req) => {
       let ids = (rows ?? []).map(r => r.business_id as string);
       if (!ids.length) { const me = await square('/merchants/me'); const b = await sellerOf(me.merchant.id); if (b) ids = [b]; }
       const synced = []; for (const b of ids) synced.push(await sync(b, false));
+      await giftNudge({ action: 'sweep' });
       return reply({ ok: true, synced });
     }
     // the app: pull history for a business the signed-in person belongs to
