@@ -110,7 +110,9 @@ is still to do once the app version is live:
 Done by Claude: table `gift_orders` (`migrations/20261105000000_gift_orders.sql`), the `gift` function and the
 `square` function's hand-off, all live. Heart and Soul's gift card page works now:
 https://app.solepro.app/?gift=heart-and-soul. Until the two secrets below are set, cards are made and shown on the
-thank-you page with their link, but no email goes out.
+thank-you page with their link, but no email goes out. A card the buyer chose to send by text goes from SolePro's
+own number once Twilio is set up (the same three secrets as booking texts, above); until then the thank-you page's
+"Text it to ..." button opens the buyer's own Messages with the card ready to send.
 
 1. **Resend** (resend.com, free for 3,000 emails a month): sign up with Sellet Solutions LLC's email, Domains → Add
    Domain → `getsolepro.com`. Let it set the records in Cloudflare (Auto configure) or copy them in by hand: they sit

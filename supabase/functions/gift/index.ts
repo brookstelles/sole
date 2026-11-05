@@ -9,7 +9,9 @@
 // Deploy with verify_jwt off: buying and viewing need no sign-in; "paid" and "sweep" need the service role key; "send"
 // checks the member's token. Secrets: SQUARE_ACCESS_TOKEN (shared with the square function; making checkouts needs its
 // payments and orders permissions), RESEND_API_KEY and GIFT_FROM (e.g. "SolePro <gifts@getsolepro.com>", on a domain
-// verified in Resend) for the emails; without them the card is still made and shown, just not emailed.
+// verified in Resend) for the emails; without them the card is still made and shown, just not emailed. A card can go
+// to someone's phone instead (send_by 'text'): SolePro's own number texts it once the text function's Twilio secrets
+// (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM) are set; until then the thank-you page has the buyer text it.
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
 
 const SQ = 'https://connect.squareup.com/v2';
@@ -21,6 +23,8 @@ const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body)
 const clip = (v: unknown, n: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 const emailOk = (e: string) => /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(e);
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+// +1 and ten digits (US and Canada), or null
+const e164 = (v: unknown) => { let d = String(v ?? '').replace(/\D/g, ''); if (d.length === 11 && d[0] === '1') d = d.slice(1); return d.length === 10 ? '+1' + d : null; };
 const money = (n: number) => '$' + (Math.round(n * 100) % 100 ? n.toFixed(2) : String(Math.round(n)));
 // what the gift card page shows about the business: never the clients, the book or the money
 const PUBLIC = ['biz', 'owner', 'look', 'color', 'logo', 'short', 'trade'];
@@ -59,7 +63,7 @@ async function newCode(business_id: string) {
 function cardHTML(o: any, pub: any, forBuyer: boolean) {
   const link = `${APP()}/?card=${o.view_token}`, to = o.to_name || 'you', biz = esc(pub.biz || 'us');
   return `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#17153A">
-  ${forBuyer ? `<p>Thank you${o.from_name ? ', ' + esc(o.from_name.split(' ')[0]) : ''}! ${o.send_to === 'them' && o.to_email ? `We emailed this gift card to ${esc(o.to_name || o.to_email)}.` : 'Here is your gift card to print or pass along.'}</p>` : ''}
+  ${forBuyer ? `<p>Thank you${o.from_name ? ', ' + esc(o.from_name.split(' ')[0]) : ''}! ${o.send_to === 'them' && o.send_by === 'text' ? (o.texted_at ? `We texted this gift card to ${esc(o.to_name || 'them')}.` : `Text it to ${esc(o.to_name || 'them')} with the link below, or forward this email.`) : o.send_to === 'them' && o.to_email ? `We emailed this gift card to ${esc(o.to_name || o.to_email)}.` : 'Here is your gift card to print or pass along.'}</p>` : ''}
   <div style="border-radius:18px;padding:28px;background:#3A3576;color:#FAF8F4">
     <div style="font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:#E0A62A">Gift card</div>
     <div style="font-size:22px;font-weight:700;margin-top:6px">${biz}</div>
@@ -82,6 +86,24 @@ async function email(to: string, subject: string, html: string, biz = '') {
   if (!r.ok) { console.error('gift: email', r.status, (await r.text()).slice(0, 200)); return false; }
   return true;
 }
+// ---- the text (Twilio, SolePro's own number; the same secrets, opt-outs and log as the text function) ----
+async function textCard(o: any, pub: any) {
+  const SID = env('TWILIO_ACCOUNT_SID'), TOKEN = env('TWILIO_AUTH_TOKEN'), FROM = env('TWILIO_FROM');
+  if (!SID || !TOKEN || !FROM || o.send_by !== 'text' || !o.to_phone || o.texted_at) return false;
+  const { data: stop } = await db.from('text_optouts').select('phone').eq('phone', o.to_phone).maybeSingle(); if (stop) return false;
+  let body = `${o.from_name ? clip(o.from_name, 40).split(' ')[0] + ' sent you' : 'You have'} a ${money(Number(o.amount))} gift card to ${clip(pub.biz || 'us', 60)}!${o.message ? ` \u201c${clip(o.message, 160)}\u201d` : ''} Code ${o.code}. See it and what\u2019s left on it: ${APP()}/?card=${o.view_token}`;
+  const { count: before } = await db.from('texts').select('id', { count: 'exact', head: true }).eq('phone', o.to_phone).eq('dir', 'out').eq('status', 'sent');
+  if (!before) body += ' Reply STOP to opt out.';   // the carriers ask for it on a number's first text
+  const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${SID}/Messages.json`, { method: 'POST',
+    body: new URLSearchParams({ To: o.to_phone, Body: body, [FROM.startsWith('MG') ? 'MessagingServiceSid' : 'From']: FROM }),
+    headers: { Authorization: 'Basic ' + btoa(SID + ':' + TOKEN), 'Content-Type': 'application/x-www-form-urlencoded' } });
+  const j = await r.json().catch(() => ({}));
+  // logged like the text function's, so a reply goes to this business's inbox
+  await db.from('texts').insert({ business_id: o.business_id, dir: 'out', phone: o.to_phone, name: o.to_name || null, kind: 'gift', ref: o.id, body, sid: j.sid ?? null, status: r.ok ? 'sent' : 'failed', error: r.ok ? null : clip(`${j.code ?? r.status} ${j.message ?? ''}`, 300) });
+  if (!r.ok) { if (j.code === 21610) await db.from('text_optouts').upsert({ phone: o.to_phone }); return false; }
+  const at = new Date().toISOString(); await db.from('gift_orders').update({ texted_at: at }).eq('id', o.id); o.texted_at = at;
+  return true;
+}
 async function sendEmails(o: any, pub: any) {
   const sent: string[] = [...(o.emailed_to ?? [])];
   const biz = pub.biz || 'a business you love';
@@ -100,11 +122,12 @@ async function fulfill(o: any) {
   const { data: b } = await db.from('businesses').select('id,data').eq('id', o.business_id).maybeSingle(); if (!b) return;
   const uid = 'g' + Date.now().toString(36) + crypto.randomUUID().slice(0, 4);
   const entry = { uid, kind: 'gift', date: today(b), amount: 0, tip: 0, method: 'Card', c: null, cname: o.from_name || null,
-    gift: { code: o.code, to: null, toName: o.to_name || '', from: o.from_name || '', amount: Number(o.amount), email: o.to_email || null, online: true, order: o.id } };
+    gift: { code: o.code, to: null, toName: o.to_name || '', from: o.from_name || '', amount: Number(o.amount), email: o.to_email || null, phone: o.to_phone || null, online: true, order: o.id } };
   const { error: e1 } = await db.from('items').insert({ business_id: b.id, col: 'ledger', id: uid, data: entry });
   if (e1) { await db.from('gift_orders').update({ status: 'pending', paid_at: null }).eq('id', o.id); throw e1; }
   const { error: e2 } = await db.from('gift_orders').update({ status: 'sent', ledger_uid: uid }).eq('id', o.id); if (e2) throw e2;
   o.ledger_uid = uid;
+  try { await textCard(o, pubOf(b)); } catch (e) { console.error('gift: text', String(e)); }
   try { await sendEmails(o, pubOf(b)); } catch (e) { console.error('gift: emails', String(e)); }
   try {
     await fetch(env('SUPABASE_URL') + '/functions/v1/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env('SUPABASE_SERVICE_ROLE_KEY') },
@@ -123,7 +146,7 @@ async function checkPaid(o: any) {
   }
   return o;
 }
-const cardOut = (o: any) => ({ status: o.status, code: o.status === 'pending' ? null : o.code, amount: Number(o.amount), to: o.to_name, from: o.from_name, message: o.message, send_to: o.send_to, emailed: (o.emailed_to ?? []).filter((x: string) => !x.startsWith('buyer:')), receipt: (o.emailed_to ?? []).some((x: string) => x.startsWith('buyer:')), card: o.status === 'pending' ? null : o.view_token });
+const cardOut = (o: any) => ({ status: o.status, code: o.status === 'pending' ? null : o.code, amount: Number(o.amount), to: o.to_name, from: o.from_name, message: o.message, send_to: o.send_to, send_by: o.send_by ?? 'email', texted: !!o.texted_at, to_phone: o.to_phone ?? null, emailed: (o.emailed_to ?? []).filter((x: string) => !x.startsWith('buyer:')), receipt: (o.emailed_to ?? []).some((x: string) => x.startsWith('buyer:')), card: o.status === 'pending' ? null : o.view_token });
 async function leftOn(o: any) {
   if (!o.ledger_uid) return Number(o.amount);
   const { data: card } = await db.from('items').select('data').eq('business_id', o.business_id).eq('col', 'ledger').eq('id', o.ledger_uid).maybeSingle();
@@ -152,12 +175,12 @@ Deno.serve(async (req) => {
       if (!(await sells(b))) return reply({ error: 'off' });
       const amount = Math.round(Number(q.amount) * 100) / 100;
       if (!(amount >= 10 && amount <= 1000)) return reply({ error: 'amount' });
-      const from = q.from ?? {}, to = q.to ?? {}, sendTo = q.sendTo === 'me' ? 'me' : 'them';
+      const from = q.from ?? {}, to = q.to ?? {}, sendTo = q.sendTo === 'me' ? 'me' : 'them', sendBy = q.sendTo === 'text' ? 'text' : 'email', toPhone = sendBy === 'text' ? e164(to.phone) : null;
       const o = { from_name: clip(from.name, 100), from_email: clip(from.email, 200).toLowerCase(), to_name: clip(to.name, 100), to_email: clip(to.email, 200).toLowerCase(), message: String(q.message ?? '').trim().slice(0, 300) };
-      if (!o.from_name || !emailOk(o.from_email) || !o.to_name || (sendTo === 'them' && !emailOk(o.to_email))) return reply({ error: 'incomplete' });
+      if (!o.from_name || !emailOk(o.from_email) || !o.to_name || (sendTo === 'them' && sendBy === 'email' && !emailOk(o.to_email)) || (sendBy === 'text' && !toPhone)) return reply({ error: 'incomplete' });
       const { count } = await db.from('gift_orders').select('id', { count: 'exact', head: true }).eq('business_id', b.id).gte('created_at', new Date(Date.now() - 864e5).toISOString());
       if ((count ?? 0) >= 60) return reply({ error: 'busy' });   // more than a real day's worth: something's wrong
-      const { data: row, error } = await db.from('gift_orders').insert({ business_id: b.id, kind: 'online', code: await newCode(b.id), amount, ...o, to_email: sendTo === 'them' ? o.to_email : null, send_to: sendTo, view_token: token() }).select('*').single();
+      const { data: row, error } = await db.from('gift_orders').insert({ business_id: b.id, kind: 'online', code: await newCode(b.id), amount, ...o, to_email: sendTo === 'them' && sendBy === 'email' ? o.to_email : null, send_to: sendTo, send_by: sendBy, to_phone: toPhone, view_token: token() }).select('*').single();
       if (error) throw error;
       const { locations } = await square('/locations'), loc = (locations ?? []).find((l: any) => l.status === 'ACTIVE');
       if (!loc) throw new Error('no active Square location');
@@ -166,7 +189,7 @@ Deno.serve(async (req) => {
         quick_pay: { name: `${clip(b.data.biz || 'Gift', 80)} gift card`, price_money: { amount: Math.round(amount * 100), currency: loc.currency || 'USD' }, location_id: loc.id },
         checkout_options: { redirect_url: `${APP()}/?gift=${encodeURIComponent(q.biz)}&order=${row.id}`, ask_for_shipping_address: false },
         pre_populated_data: { buyer_email: o.from_email },
-        payment_note: `Gift card ${row.code} for ${o.to_name}`,
+        payment_note: `Gift card ${row.code} for ${o.to_name}`.slice(0, 500),
       });
       const link = pl.payment_link ?? {};
       await db.from('gift_orders').update({ square_order_id: link.order_id ?? null, square_link_id: link.id ?? null }).eq('id', row.id);
@@ -184,7 +207,7 @@ Deno.serve(async (req) => {
       if (typeof q.token !== 'string' || q.token.length !== 48) return reply({ error: 'gone' });
       const { data: o } = await db.from('gift_orders').select('*').eq('view_token', q.token).neq('status', 'pending').maybeSingle(); if (!o) return reply({ error: 'gone' });
       const { data: b } = await db.from('businesses').select('id,data').eq('id', o.business_id).maybeSingle(); if (!b) return reply({ error: 'gone' });
-      return reply({ ...cardOut(o), left: await leftOn(o), pub: pubOf(b), slug: b.data.site?.slug ?? null });
+      return reply({ ...cardOut(o), to_phone: null, left: await leftOn(o), pub: pubOf(b), slug: b.data.site?.slug ?? null });
     }
 
     if (action === 'paid' || action === 'sweep') {   // the square function: Square's notice, or the 15-minute catch-up

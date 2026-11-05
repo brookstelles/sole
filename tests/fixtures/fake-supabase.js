@@ -99,7 +99,8 @@ window.__SOLE_CLOUD_CLIENT = (() => {
     if (action === 'buy') { if (!b) return {data:{error:'gone'}}; if (!(amount >= 10 && amount <= 1000)) return {data:{error:'amount'}};
       const id = '00000000-0000-4000-8000-' + String(F.gifts.length).padStart(12, '0'); F.gifts.push({id, amount, to, from, sendTo, message});
       return {data:{url:'https://square.test/pay/' + id, order:id}}; }
-    if (action === 'confirm') return {data:{status:'sent', code:'GFAKE', amount:100, to:'Jo Test', from:'Pat Test', message:'Enjoy!', send_to:'them', emailed:['jo@example.com'], receipt:true, card:'c'.repeat(48)}};
+    if (action === 'confirm') { const txt = /1$/.test(order || '');   // order ...0001 was sent by text; texting isn't set up, so the buyer texts it
+      return {data:{status:'sent', code:'GFAKE', amount:100, to:'Jo Test', from:'Pat Test', message:'Enjoy!', send_to:'them', send_by:txt ? 'text' : 'email', texted:false, to_phone:txt ? '+15615550142' : null, emailed:txt ? [] : ['jo@example.com'], receipt:true, card:'c'.repeat(48)}}; }
     if (action === 'view') return token === 'c'.repeat(48) ? {data:{status:'sent', code:'GFAKE', amount:100, left:60, to:'Jo Test', from:'Pat Test', message:'Enjoy!', card:token, pub:{biz:'Cloud Test Massage', address:'1 Test Street'}}} : {data:{error:'gone'}};
     if (action === 'send') { F.giftSent = (F.giftSent || []).concat([{uid, email, name}]); return {data:{link:'https://sole.test/?card=' + 'd'.repeat(48), emailed:!!email, mail:true}}; }
     return {data:{error:'what?'}};

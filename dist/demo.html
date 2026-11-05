@@ -2665,7 +2665,7 @@ const GIFT_WAY = 'Gift card';
 const GIFT_SOLD_WAYS = ['Cash', 'Zelle', 'Venmo', 'Check', 'Card', 'Before'];
 const giftWayName = w => w === 'Card' ? 'Card in Square' : w === 'Before' ? 'Sold before SolePro' : w;
 function giftCards(){
-  const cards = LEDGER.filter(x => x.gift).map(x => ({uid:x.uid, code:x.gift.code || '', to:x.gift.to || null, toName:x.gift.toName || '', from:x.gift.from || '', amount:x.gift.amount, date:x.date, method:x.method, online:!!x.gift.online, email:x.gift.email || null}));
+  const cards = LEDGER.filter(x => x.gift).map(x => ({uid:x.uid, code:x.gift.code || '', to:x.gift.to || null, toName:x.gift.toName || '', from:x.gift.from || '', amount:x.gift.amount, date:x.date, method:x.method, online:!!x.gift.online, email:x.gift.email || null, phone:x.gift.phone || null}));
   Object.entries(CL).forEach(([k, c]) => { if (c.gift) cards.push({uid:'legacy-' + k, code:'', to:k, toName:c.name, from:c.giftFrom || '', amount:c.gift, date:'', legacy:true}); });   // the sample businesses' cards
   cards.forEach(g => { g.used = LEDGER.filter(x => x.kind === 'giftuse' && x.card === g.uid).reduce((t, x) => t + x.amount, 0); g.left = Math.max(0, Math.round((g.amount - g.used) * 100) / 100); });
   return cards;
@@ -4479,21 +4479,24 @@ function giftPage(L){
       if (GP.tries <= 10) setTimeout(async () => { try { const { data } = await SB.functions.invoke('gift', {body:{action:'confirm', order:L.order}}); if (data && !data.error) GIFT_LINK = {...L, card:data}; } catch (_) {} giftPage(GIFT_LINK); }, 3000);
       return shell(`<div class="thanks"><h2>Almost there…</h2><p>${GP.tries <= 10 ? 'Square is confirming your payment. This takes a few seconds.' : 'Your payment is still being confirmed. The gift card will come by email, or refresh this page in a minute.'}</p></div>`);
     }
-    return shell(`<div class="thanks" style="padding-bottom:8px"><h2>Thank you!</h2><p>${c.send_to === 'them' && c.emailed && c.emailed.length ? `We emailed the gift card to ${esc(c.to || 'them')}.` : 'Here’s your gift card. Send it on or print it.'}${c.receipt ? ' A copy is in your email too.' : ''}</p></div>
-      ${giftVisual(c)}${c.card ? shareBits(c.card) : ''}`);
+    const who = esc(c.to || 'them'), first = esc(String(c.to || '').split(' ')[0] || 'them');
+    const toText = c.send_by === 'text' && !c.texted && c.to_phone && c.card;   // SolePro couldn't text it: the buyer does, from their phone
+    const smsBody = `${c.from ? String(c.from).split(' ')[0] + ' sent you' : 'Here’s'} a ${money(c.amount)} gift card to ${P.biz}!${c.message ? ` “${c.message}”` : ''} Code ${c.code}. See it here: ${c.card ? cardLink(c.card) : ''}`;
+    return shell(`<div class="thanks" style="padding-bottom:8px"><h2>Thank you!</h2><p>${c.send_by === 'text' ? (c.texted ? `We texted the gift card to ${who}.` : `Your gift card is ready. Text it to ${who} below.`) : c.send_to === 'them' && c.emailed && c.emailed.length ? `We emailed the gift card to ${who}.` : 'Here’s your gift card. Send it on or print it.'}${c.receipt ? ' A copy is in your email too.' : ''}</p></div>
+      ${giftVisual(c)}${toText ? `<a class="btn primary" style="width:100%" id="gp-sms" href="sms:${esc(c.to_phone)}${IOS ? '&' : '?'}body=${encodeURIComponent(smsBody)}" target="_top">Text it to ${first}</a>` : ''}${c.card ? shareBits(c.card) : ''}`);
   }
   // the shop
   if (!L.on) return oops(`Gift cards from ${esc(P.biz)}`, `Gift cards aren’t sold online here yet. Ask ${esc(P.biz)} about one in person.`);
   GP = GP && GP.slug === L.slug ? GP : {slug:L.slug, amt:(L.amounts || [100])[Math.min(1, (L.amounts || []).length - 1)], other:'', sendTo:'them', busy:false, err:''};
   const v = id => { const el = $('#' + id); return el ? el.value : ''; };
-  const keep = {to:v('gp-to'), toEmail:v('gp-toe'), msg:v('gp-msg'), from:v('gp-from'), fromEmail:v('gp-frome'), other:v('gp-other') || GP.other};
+  const keep = {to:v('gp-to'), toEmail:v('gp-toe') || GP.toEmail || '', toPhone:v('gp-tot') || GP.toPhone || '', msg:v('gp-msg'), from:v('gp-from'), fromEmail:v('gp-frome'), other:v('gp-other') || GP.other};
   const amt = GP.amt === 'other' ? num(keep.other) : GP.amt;
   shell(`<h2 class="gp-h">Give a gift card</h2>
     <div class="field"><span class="label">Amount</span><div class="chips gp-amts">${(L.amounts || []).map(a => `<button class="chip" data-act="gp-amt" data-v="${a}" aria-pressed="${GP.amt === a}">${money(a)}</button>`).join('')}<button class="chip" data-act="gp-amt" data-v="other" aria-pressed="${GP.amt === 'other'}">Other</button></div>
       ${GP.amt === 'other' ? `<input class="text-in" id="gp-other" inputmode="decimal" placeholder="$10 to $1,000" value="${esc(keep.other)}" autocomplete="off">` : ''}</div>
     <div class="field"><span class="label">Who it’s for</span><input class="text-in" id="gp-to" placeholder="Their name" value="${esc(keep.to)}" autocomplete="off"></div>
-    <div class="field"><span class="label">Send it</span><div class="seg" role="group" style="grid-template-columns:1fr 1fr"><button data-act="gp-send" data-v="them" aria-pressed="${GP.sendTo === 'them'}">To them by email</button><button data-act="gp-send" data-v="me" aria-pressed="${GP.sendTo === 'me'}">To me to give</button></div>
-      ${GP.sendTo === 'them' ? `<input class="text-in" id="gp-toe" type="email" inputmode="email" placeholder="Their email" value="${esc(keep.toEmail)}" autocomplete="off">` : ''}</div>
+    <div class="field"><span class="label">Send it</span><div class="seg" role="group" style="grid-template-columns:1fr 1fr 1fr"><button data-act="gp-send" data-v="them" aria-pressed="${GP.sendTo === 'them'}">Email them</button><button data-act="gp-send" data-v="text" aria-pressed="${GP.sendTo === 'text'}">Text them</button><button data-act="gp-send" data-v="me" aria-pressed="${GP.sendTo === 'me'}">Give it myself</button></div>
+      ${GP.sendTo === 'them' ? `<input class="text-in" id="gp-toe" type="email" inputmode="email" placeholder="Their email" value="${esc(keep.toEmail)}" autocomplete="off">` : GP.sendTo === 'text' ? `<input class="text-in" id="gp-tot" type="tel" inputmode="tel" placeholder="Their mobile number" value="${esc(keep.toPhone)}" autocomplete="off">` : ''}</div>
     <div class="field"><span class="label">A note (if you like)</span><textarea class="text-in" id="gp-msg" maxlength="300" placeholder="Happy birthday! Treat yourself." style="min-height:80px">${esc(keep.msg)}</textarea></div>
     <div class="field"><span class="label">From you</span><input class="text-in" id="gp-from" placeholder="Your name" value="${esc(keep.from)}" autocomplete="name">
       <input class="text-in" id="gp-frome" type="email" inputmode="email" placeholder="Your email, for the receipt" value="${esc(keep.fromEmail)}" autocomplete="email"></div>
@@ -4503,14 +4506,15 @@ function giftPage(L){
 }
 async function giftPay(){
   const v = id => ($('#' + id) || {}).value || '';
-  const amount = GP.amt === 'other' ? num(v('gp-other')) : GP.amt, to = v('gp-to').trim(), toEmail = v('gp-toe').trim(), from = v('gp-from').trim(), fromEmail = v('gp-frome').trim();
+  const amount = GP.amt === 'other' ? num(v('gp-other')) : GP.amt, to = v('gp-to').trim(), toEmail = v('gp-toe').trim(), toPhone = v('gp-tot').trim(), from = v('gp-from').trim(), fromEmail = v('gp-frome').trim();
+  const digits = toPhone.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
   const em = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
   GP.other = v('gp-other');
-  GP.err = !(amount >= 10 && amount <= 1000) ? 'Pick an amount from $10 to $1,000.' : !to ? 'Add who it’s for.' : GP.sendTo === 'them' && !em(toEmail) ? 'Add their email so we can send it.' : !from || !em(fromEmail) ? 'Add your name and email for the receipt.' : '';
+  GP.err = !(amount >= 10 && amount <= 1000) ? 'Pick an amount from $10 to $1,000.' : !to ? 'Add who it’s for.' : GP.sendTo === 'them' && !em(toEmail) ? 'Add their email so we can send it.' : GP.sendTo === 'text' && digits.length !== 10 ? 'Add their 10-digit mobile number so we can text it.' : !from || !em(fromEmail) ? 'Add your name and email for the receipt.' : '';
   if (GP.err) return giftPage(GIFT_LINK);
   GP.busy = true; giftPage(GIFT_LINK);
   try {
-    const { data, error } = await SB.functions.invoke('gift', {body:{action:'buy', biz:GIFT_LINK.slug, amount, to:{name:to, email:toEmail}, from:{name:from, email:fromEmail}, sendTo:GP.sendTo, message:v('gp-msg')}});
+    const { data, error } = await SB.functions.invoke('gift', {body:{action:'buy', biz:GIFT_LINK.slug, amount, to:{name:to, email:GP.sendTo === 'them' ? toEmail : '', phone:GP.sendTo === 'text' ? digits : ''}, from:{name:from, email:fromEmail}, sendTo:GP.sendTo, message:v('gp-msg')}});
     if (data && data.url) return goOut(data.url);
     GP.err = data && data.error === 'off' ? 'Gift cards can’t be bought online right now.' : data && data.error === 'busy' ? 'Lots of gift cards today. Try again tomorrow.' : 'That didn’t go through. Check what you typed and try again.';
   } catch (_) { GP.err = 'That didn’t go through. Check your connection and try again.'; }
@@ -4689,7 +4693,7 @@ on('click', e => {
       { const g = $('#pf-gift'), t = $('#pf-tipf'); if (g) g.hidden = v !== GIFT_WAY; if (t) t.hidden = v === GIFT_WAY; } break;
     case 'gifts': openGifts(); break;
     case 'gp-amt': GP.amt = v === 'other' ? 'other' : +v; giftPage(GIFT_LINK); break;
-    case 'gp-send': GP.sendTo = v; giftPage(GIFT_LINK); break;
+    case 'gp-send': { const e = $('#gp-toe'), t = $('#gp-tot'); if (e) GP.toEmail = e.value; if (t) GP.toPhone = t.value; GP.sendTo = v; giftPage(GIFT_LINK); break; }
     case 'gp-pay': giftPay(); break;
     case 'gp-copy': try { navigator.clipboard.writeText(v).then(() => toast('Link copied.')); } catch (_) {} break;
     case 'gp-share': try { navigator.share({url:v, title:`Gift card to ${P.biz}`}); } catch (_) {} break;
@@ -4701,7 +4705,7 @@ on('click', e => {
     case 'ge-send': { const name = ($('#ge-name').value || '').trim(), mail = ($('#ge-mail').value || '').trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { toast('Add their email first.'); break; }
       el.disabled = true; giftSend(v, {name, email:mail}).then(r => { if (!r) { el.disabled = false; return; } closeSheet(); toast(r.emailed ? `Emailed to ${name.split(' ')[0] || mail}.` : r.mail ? 'It didn’t send. Check the email and try again.' : 'Email isn’t set up yet. Text them the link instead.'); }); break; }
     case 'gift-text': { const g = giftCards().find(x => x.uid === v); if (!g) break; el.disabled = true;
-      giftSend(v, {}).then(r => { el.disabled = false; if (!r) return; msgSheet(`Text ${g.code}`, `Here’s your ${money(g.left)} gift card to ${P.biz}${g.from ? `, from ${g.from}` : ''}! Code ${g.code}: ${r.link}`, g.to && CL[g.to] ? CL[g.to].phone : ''); }); break; }
+      giftSend(v, {}).then(r => { el.disabled = false; if (!r) return; msgSheet(`Text ${g.code}`, `Here’s your ${money(g.left)} gift card to ${P.biz}${g.from ? `, from ${g.from}` : ''}! Code ${g.code}: ${r.link}`, g.to && CL[g.to] && CL[g.to].phone || g.phone || ''); }); break; }
     case 'gift-page': { const u = `${WEB_HOME()}/?gift=${encodeURIComponent(P.site.slug)}`; try { if (navigator.share && v === 'share') navigator.share({url:u, title:`Gift cards from ${P.biz}`}); else navigator.clipboard.writeText(u).then(() => toast('Gift card page link copied.')); } catch (_) {} break; }
     case 'gift-open': openGift(v); break;
     case 'gift-sell': openGiftSell({way:v || 'Cash', c:el.dataset.c}); break;

@@ -477,6 +477,17 @@ console.log('ok private Square views');
   await fq.goto('https://sole.test/?card=' + 'c'.repeat(48), {waitUntil:'networkidle'});
   { const t = await fq.textContent('main'); check(/\$60/.test(t) && /left of \$100/.test(t) && /GFAKE/.test(t) && /1 Test Street/.test(t), 'gift card page: shows what\'s left and the code'); }
   await fq.goto('https://sole.test/?card=nope', {waitUntil:'networkidle'}); check(/isn’t here/.test(await fq.textContent('main')), 'gift card page: an unknown card says so');
+  // sent by text: their mobile instead of their email; texting isn't set up, so the thank-you page has the buyer text it
+  await fq.goto('https://sole.test/?gift=cloud-test', {waitUntil:'networkidle'});
+  await fq.click('[data-act=gp-send][data-v=text]'); await fq.fill('#gp-to', 'Jo Test'); await fq.fill('#gp-from', 'Pat Test'); await fq.fill('#gp-frome', 'pat@example.com');
+  await fq.click('[data-act=gp-pay]'); check(/mobile number/.test(await fq.textContent('main')), 'gift page: by text asks for their mobile');
+  await fq.fill('#gp-tot', '(561) 555-0142'); check(!(await wide(fq)), 'gift page: three ways to send fit the phone');
+  await fq.evaluate(() => { window.__SOLE_GO = u => { window.__wentTo = u; }; });
+  await fq.click('[data-act=gp-pay]'); await fq.waitForTimeout(300);
+  { const g = await fq.evaluate(() => window.__FAKE.gifts[window.__FAKE.gifts.length - 1]); check(g && g.sendTo === 'text' && g.to.phone === '5615550142' && !g.to.email, 'gift page: by text sends their mobile, not an email'); }
+  await fq.goto('https://sole.test/?gift=cloud-test&order=00000000-0000-4000-8000-000000000001', {waitUntil:'networkidle'});
+  { const t = await fq.textContent('main'), h = await fq.getAttribute('#gp-sms', 'href').catch(() => '');
+    check(/Text it to Jo/.test(t) && /^sms:\+15615550142[?&]body=/.test(h || '') && decodeURIComponent(h || '').includes('?card=' + 'c'.repeat(48)), 'gift page: back from Square, a card for texting opens Messages to their number with the link'); }
   await fq.close();
   await q.evaluate(row => window.__FAKE.emit('items', {eventType:'INSERT', new:row}), sent);
   check(await q.waitForFunction(() => /Imported sent their client intake form/.test((document.querySelector('.toast') || {}).textContent || ''), null, {timeout:4000}).then(() => true, () => false), 'website: a texted form shows up on her phone the moment it is sent');
