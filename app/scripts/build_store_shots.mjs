@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { framePage } from './store_frame.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), ROOT = path.join(APP, '..');
 const OUT = path.join(APP, 'store', 'screenshots');
@@ -36,21 +37,16 @@ const DEVICES = {
   android: { raw: { w: 412, h: 869 }, out: { w: 360, h: 640, dpr: 3 } },
 };
 const fonts = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@500;600;700&display=block">';
+// The look (store_frame.mjs): SolePro's indigo night and sunrise gold, Jost, a rising-sun motif.
+const THEME = {
+  name: 'SolePro', nameHtml: 'Sole<span>Pro</span>', head: fonts, display: 'Jost,sans-serif', displayWeight: 700, body: 'Jost,sans-serif',
+  bg: ['#332E78', NIGHT], glow: 'rgba(242,181,68,.30)', accent: GOLD, ink: '#FFFFFF', motif: 'sun',
+  icon: fs.readFileSync(path.join(APP, 'ios', 'App', 'App', 'Assets.xcassets', 'AppIcon.appiconset', 'AppIcon-512@2x.png')),
+};
+// The demo's own screens are kept in store/screenshots/.raw (not committed); STORE_REFRAME=1 frames them again
+// without opening the demo (to change only the look).
+const RAW = path.join(OUT, '.raw');
 
-// a caption over the screen, which sits in a rounded frame and runs off the bottom edge
-function frame(img, caption, d) {
-  const { w, h } = d.out, pad = Math.round(w * 0.07), capH = Math.round(h * 0.17);
-  const sw = w - pad * 2, sh = Math.round(sw * d.raw.h / d.raw.w), size = Math.round(w * (w > 700 ? 0.05 : 0.072));
-  return `<!doctype html><html><head>${fonts}<style>
-    html,body{margin:0;width:${w}px;height:${h}px;overflow:hidden;background:radial-gradient(120% 60% at 50% 0%,#2A2560 0,${NIGHT} 70%)}
-    .cap{position:absolute;left:${pad}px;right:${pad}px;top:0;height:${capH}px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
-    .cap svg{width:${size * 0.9}px;height:${size * 0.9}px;margin-bottom:${size * 0.35}px}
-    .cap b{font:600 ${size}px/1.12 Jost,sans-serif;color:#fff;letter-spacing:-0.01em}
-    .shot{position:absolute;left:${pad}px;top:${capH}px;width:${sw}px;height:${sh}px;border-radius:${Math.round(sw * 0.07)}px;overflow:hidden;
-      box-shadow:0 0 0 ${Math.max(2, w * 0.006)}px rgba(242,181,68,.5),0 ${w * 0.03}px ${w * 0.08}px rgba(0,0,0,.5)}
-    .shot img{width:100%;display:block}
-  </style></head><body><div class="cap">${BADGE}<b>${caption}</b></div><div class="shot"><img src="data:image/png;base64,${img.toString('base64')}"></div></body></html>`;
-}
 const fav = fs.readFileSync(path.join(ROOT, 'site', 'favicon.svg'), 'utf8');
 const BADGE = fav.replace('<svg ', '<svg aria-hidden="true" ');
 function feature(tagline) {
@@ -73,6 +69,10 @@ async function main() {
   const only = (process.env.STORE_DEVICES || '').split(',').filter(Boolean);
   for (const [dev, d] of Object.entries(DEVICES)) {
     if (only.length && !only.includes(dev)) continue;
+    const rawDir = path.join(RAW, dev);
+    let raws = [];
+    if (process.env.STORE_REFRAME && fs.existsSync(path.join(rawDir, `${SHOTS.at(-1).id}.png`))) raws = SHOTS.map(s => fs.readFileSync(path.join(rawDir, `${s.id}.png`)));
+    else {
     const ctx = await browser.newContext({ viewport: { width: d.raw.w, height: d.raw.h }, deviceScaleFactor: 3, hasTouch: true, isMobile: dev !== 'ipad', locale: 'en-US', timezoneId: 'America/New_York', colorScheme: 'light' });
     await ctx.addInitScript(() => { window.__SOLE_INTRO_MS = 0; window.__SOLE_WX = null; try { localStorage.setItem('sole-seen', '1'); } catch (_) {} });
     const page = await ctx.newPage();
@@ -80,7 +80,6 @@ async function main() {
     await page.route(BASE, r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: html }));
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.locator('.biz-name').first().waitFor();
-    const raws = [];
     for (const s of SHOTS) {
       await s.go(page);
       await page.waitForTimeout(600);
@@ -88,11 +87,14 @@ async function main() {
       raws.push(await page.screenshot());
     }
     await ctx.close();
+    fs.mkdirSync(rawDir, { recursive: true });
+    SHOTS.forEach((s, i) => fs.writeFileSync(path.join(rawDir, `${s.id}.png`), raws[i]));
+    }
     const dir = path.join(OUT, dev);
     fs.mkdirSync(dir, { recursive: true });
     const fp = await browser.newPage({ viewport: { width: d.out.w, height: d.out.h }, deviceScaleFactor: d.out.dpr });
     for (let i = 0; i < SHOTS.length; i++) {
-      await fp.setContent(frame(raws[i], caps.shots[i], d), { waitUntil: 'networkidle' });
+      await fp.setContent(framePage({ img: raws[i], back: raws[i - 1], caption: caps.shots[i], i, d, dev, theme: THEME }), { waitUntil: 'networkidle' });
       await fp.evaluate(() => document.fonts.ready);
       await fp.screenshot({ path: path.join(dir, `${SHOTS[i].id}.png`) });
     }
