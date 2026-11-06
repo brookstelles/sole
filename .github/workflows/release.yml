@@ -16,7 +16,7 @@ on:
       platform:
         description: "Which app"
         type: choice
-        options: [both, ios, android]
+        options: [both, ios, android, none]  # none: no build, only the store listings (with "listings")
         default: both
       version:
         description: "Version people see (e.g. 1.0)"
@@ -45,7 +45,7 @@ env:
   VERSION: ${{ inputs.version }}
 jobs:
   ios:
-    if: inputs.platform != 'android'
+    if: inputs.platform != 'android' && inputs.platform != 'none'
     runs-on: ${{ inputs.mac }}
     timeout-minutes: 60
     defaults:
@@ -111,7 +111,7 @@ jobs:
           echo "Uploaded SolePro $VERSION ($BUILD_NUMBER). It shows in App Store Connect > TestFlight after Apple processes it (about 10 to 30 minutes)."
 
   android:
-    if: inputs.platform != 'ios'
+    if: inputs.platform != 'ios' && inputs.platform != 'none'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
