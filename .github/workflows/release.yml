@@ -186,6 +186,8 @@ jobs:
         if: inputs.platform != 'android' && env.ASC_KEY_ID != ''
         run: |
           node -e 'const fs=require("fs");fs.writeFileSync(process.env.RUNNER_TEMP+"/asc.json",JSON.stringify({key_id:process.env.ASC_KEY_ID,issuer_id:process.env.ASC_ISSUER_ID,key:process.env.ASC_KEY,in_house:false}))'
+          # An empty Deliverfile: without one, deliver stops to ask whether to set one up (no one can answer in CI).
+          touch Deliverfile
           fastlane deliver --api_key_path "$RUNNER_TEMP/asc.json" --app_identifier com.brookstelles.solepro \
             --metadata_path build/store/ios/metadata --screenshots_path build/store/ios/screenshots \
             --skip_binary_upload true --overwrite_screenshots true --submit_for_review false \
