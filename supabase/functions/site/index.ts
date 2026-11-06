@@ -39,6 +39,7 @@ Deno.serve(async (req) => {
     tagline: s.tagline || '', about: s.about || [], specialties: s.specialties || [], reviews: s.reviews || [],
     address: s.address || '', hoursNote: s.hoursNote || '', phone: s.phone || '', url: s.url || '',
     license: s.license || '',   // Florida puts the license number in every massage ad, the website included (s. 480.0465, rule 64B7-33.001)
+    pages: s.pages || {},   // the website's own pages: one per main service and the gift card page (their words; prices come from services)
     geo: p.geo && isFinite(p.geo.lat) && isFinite(p.geo.lon) ? { lat: Math.round(p.geo.lat * 1e5) / 1e5, lon: Math.round(p.geo.lon * 1e5) / 1e5 } : null,
     hours: open, services,
     intakeUrl: `https://app.solepro.app/?new=${encodeURIComponent(s.slug)}`,
