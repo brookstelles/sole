@@ -937,7 +937,8 @@ await tour(p, 'demo');
   const go = await p.textContent('#book-go'); check(/Take \d+ days off/.test(go), 'time off: the button says how many days');
   await p.click('#book-go'); await p.waitForTimeout(150);
   check(/Beach week: \d+ days off/.test(await p.textContent('.toast')), 'time off: vacation saved');
-  await goDay(p, 1);
+  // the vacation's first working day (tomorrow can be a closed weekend day, which shows as closed instead)
+  for (let n = 1; n <= 9; n++) { await goDay(p, n); if (await p.locator('[data-act=block]').count()) break; }
   check(/All day/.test(await p.textContent('main')) && /Beach week/.test(await p.textContent('main')), 'time off: the day shows the vacation all day');
   await p.click('[data-act=block] >> nth=0');
   check(/Remove all \d+/.test(await p.textContent('.sheet')), 'time off: a vacation can be removed in one go');
@@ -1083,7 +1084,7 @@ console.log('ok digital forms');
   await c.click('[data-act=td-open][data-v=rm]'); await c.click('[data-act=rm-edit]');
   check(/Just confirming your/.test(await c.inputValue('#rm-tpl')) && !/\[name\]/.test(await c.textContent('#rm-prev')), 'confirm wording: she sees the wording and how it reads for a real client');
   await c.fill('#rm-tpl', 'Hello [name], see you [when]. Test wording from [me]');
-  check(/^Hello \w+, see you tomorrow at .+ Test wording from Lena$/.test(await c.textContent('#rm-prev')), 'confirm wording: the preview follows what she types');
+  check(/^Hello \w+, see you (tomorrow|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) at .+ Test wording from Lena$/.test(await c.textContent('#rm-prev')), 'confirm wording: the preview follows what she types');   // on a Friday her next working day is Monday
   check(!(await wide(c)), 'confirm wording: fits the phone');
   await c.click('[data-act=rm-save]');
   check(/Test%20wording%20from/.test(await c.getAttribute('[data-act=rm-sent] >> nth=0', 'href')), 'confirm wording: the Text button uses her wording');
