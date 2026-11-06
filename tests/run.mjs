@@ -933,7 +933,7 @@ await tour(p, 'demo');
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`, a = new Date(), b = new Date();
   a.setDate(a.getDate() + 1); b.setDate(b.getDate() + 10);
   await p.fill('#b-from', iso(a)); await p.fill('#b-to', iso(b)); await p.fill('#b-name', 'Beach week');
-  check(/working days? off/.test(await p.textContent('.sheet')) && /booked then/.test(await p.textContent('.sheet')), 'time off: a vacation counts working days and shows who is booked then');
+  check(/\b10 days off/.test(await p.textContent('.sheet')) && /booked then/.test(await p.textContent('.sheet')), 'time off: a vacation counts every day, closed ones too, and shows who is booked then');
   const go = await p.textContent('#book-go'); check(/Take \d+ days off/.test(go), 'time off: the button says how many days');
   await p.click('#book-go'); await p.waitForTimeout(150);
   check(/Beach week: \d+ days off/.test(await p.textContent('.toast')), 'time off: vacation saved');
@@ -944,8 +944,30 @@ await tour(p, 'demo');
   check(/Remove all \d+/.test(await p.textContent('.sheet')), 'time off: a vacation can be removed in one go');
   await p.click('[data-act=unblock-grp]');
   check(await p.locator('[data-act=block]').count() === 0 || !/Beach week/.test(await p.textContent('main')), 'time off: removing the vacation frees the days');
+  // a weekend away goes on the calendar even on days she doesn't work, and so does an event on a closed day
+  {
+    const sat = new Date(); sat.setDate(sat.getDate() + ((6 - sat.getDay() + 7) % 7 || 7)); const sun = new Date(sat); sun.setDate(sun.getDate() + 1);
+    const so = Math.round((new Date(sat.getFullYear(), sat.getMonth(), sat.getDate()) - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 864e5);
+    await p.click('[data-act=blockt]'); await p.click('[data-act=b-l][data-v=Vacation]');
+    await p.fill('#b-from', iso(sat)); await p.fill('#b-to', iso(sun)); await p.fill('#b-name', 'Weekend away');
+    check(/Take 2 days off/.test(await p.textContent('#book-go')) && !(await p.locator('#book-go').isDisabled()), 'time off: a weekend can be taken off, closed days or not');
+    await p.click('#book-go'); await p.waitForTimeout(150);
+    check(/Weekend away: 2 days off/.test(await p.textContent('.toast')), 'time off: the weekend is saved');
+    for (const o of [so, so + 1]) { if (await p.locator('[data-act=snav][data-v="0"]').count()) await p.click('[data-act=snav][data-v="0"]'); await goDay(p, o); check(/Weekend away/.test(await p.textContent('main')) && /All day/.test(await p.textContent('main')), `time off: day ${o - so + 1} of the weekend shows on the schedule`); }
+    await p.click('[data-act=block] >> nth=0'); await p.click('[data-act=unblock-grp]');
+    // an event on a day she's closed: times from morning to night, no need to open the day
+    await p.click('[data-act=blockt]'); await p.click('[data-act=b-l][data-v=Appointment]');
+    const closedChip = p.locator('[data-act=b-d]', {hasText:'closed'}).first();
+    if (await closedChip.count()) {
+      await closedChip.click();
+      check(await p.locator('[data-act=b-t]').count() > 20 && /without opening the day/.test(await p.textContent('.sheet')) && !(await p.locator('[data-act=dh-save]').count()), 'time off: an event on a closed day offers times without opening the day');
+      await p.fill('#b-name', 'Rylee recital'); await p.click('[data-act=b-t] >> nth=4'); await p.click('#book-go'); await p.waitForTimeout(150);
+      check(/Rylee recital:/.test(await p.textContent('.toast')), 'time off: the event on a closed day is saved');
+      await p.click('.toast [data-act=undo]'); await p.waitForTimeout(150);   // leave the day free for the booking checks below
+    } else { await p.click('.sheet .close'); console.log('  (no closed day in the next weeks: skipped the closed-day event)'); }
+  }
   await p.click('[data-act=blockt]'); await p.click('[data-act=b-l][data-v=Lunch]');
-  for (let i = 0; i < 5 && !(await p.locator('[data-act=b-t]').count()); i++) await p.click(`[data-act=b-d] >> nth=${i + 1}`);
+  await p.locator('[data-act=b-d]:not(.dim)').nth(1).click();   // a working day after today (closed days take time off too, from 7 am)
   await p.click('[data-act=b-t] >> nth=0'); await p.click('[data-act=b-rep]');
   check(/^Every \w+day at/.test(await p.textContent('#book-go')), 'time off: a weekly lunch');
   await p.click('#book-go'); await p.waitForTimeout(150);
