@@ -968,10 +968,32 @@ await tour(p, 'demo');
   }
   await p.click('[data-act=blockt]'); await p.click('[data-act=b-l][data-v=Lunch]');
   await p.locator('[data-act=b-d]:not(.dim)').nth(1).click();   // a working day after today (closed days take time off too, from 7 am)
-  await p.click('[data-act=b-t] >> nth=0'); await p.click('[data-act=b-rep]');
+  await p.click('[data-act=b-t] >> nth=0'); await p.fill('#b-name', 'Pilates'); await p.click('[data-act=b-rep]');
   check(/^Every \w+day at/.test(await p.textContent('#book-go')), 'time off: a weekly lunch');
   await p.click('#book-go'); await p.waitForTimeout(150);
-  check(/Lunch every \w+day at .*: \d+ weeks? blocked/.test(await p.textContent('.toast')), 'time off: weekly lunch saved for the coming weeks');
+  check(/Pilates every \w+day at .*: \d+ weeks? blocked/.test(await p.textContent('.toast')), 'time off: weekly lunch saved for the coming weeks');
+  // tap time off to change it, as in a calendar: the series from this week on, then just one, and Undo after removing
+  {
+    const openLunch = async () => { await p.click('[data-act=sview][data-v=week]'); if (await p.locator('[data-act=snav][data-v="0"]').count()) await p.click('[data-act=snav][data-v="0"]');
+      for (let i = 0; i < 2 && !(await p.locator('.wk-row.blk', {hasText:'Pilates'}).count()); i++) await p.click('[data-act=snav][data-v="1"]');
+      await p.click('.wk-row.blk >> text=Pilates'); };
+    await openLunch();
+    check(/Change just this one/.test(await p.textContent('.sheet')) && /Change this and the \d+ after/.test(await p.textContent('.sheet')), 'time off: a weekly series offers to change one or the rest');
+    await p.click('[data-act=blk-edit][data-v=all]'); await p.click('[data-act=b-t] >> nth=1');
+    check(/^Change them to \w+days at/.test(await p.textContent('#book-go')), 'time off: changing the series says so');
+    await p.click('#book-go'); await p.waitForTimeout(150);
+    check(/Pilates: \d+ changed to \w+days at/.test(await p.textContent('.toast')), 'time off: the series moved');
+    await openLunch(); await p.click('[data-act=blk-edit]:not([data-v])');
+    const ends = await p.locator('#b-end option').evaluateAll(o => o.map(x => x.value));
+    check(ends.length > 1 && /^Save: /.test(await p.textContent('#book-go')), 'time off: one can be changed, with when it ends');
+    await p.selectOption('#b-end', ends[1]); await p.fill('#b-name', 'Long lunch'); await p.click('#book-go'); await p.waitForTimeout(150);
+    check(/Long lunch: now .* to /.test(await p.textContent('.toast')), 'time off: the change is saved');
+    await p.click('.wk-row.blk >> text=Long lunch'); await p.click('.sheet [data-act=unblock]'); await p.waitForTimeout(100);
+    check(await p.locator('.toast [data-act=undo]').count() === 1, 'time off: removing it can be undone');
+    await p.click('.toast [data-act=undo]'); await p.waitForTimeout(150);
+    check(await p.locator('.wk-row.blk', {hasText:'Long lunch'}).count() === 1, 'time off: Undo puts it back');
+    await p.click('[data-act=sview][data-v=day]');
+  }
   check(!(await wide(p)), 'time off: wider than the phone');
   await p.click('.tab[data-v=today]');
   console.log('ok time off');

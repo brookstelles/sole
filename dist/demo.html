@@ -4275,11 +4275,12 @@ function openBook(o){
   B = Object.assign({kind:'client', mode:'new', c:null, newName:'', s:svOpen()[0], off:S.tab==='schedule'?S.day:1, start:null, label:'Lunch', name:'', len:30, rep:false, w:S.tab==='schedule'?S.who:ME}, o);
   if (o.c && !o.s && CL[o.c] && CL[o.c].usual && SV[CL[o.c].usual] && !SV[CL[o.c].usual].off) B.s = CL[o.c].usual;
   B.s0 = B.s; B.off0 = B.off; B.start0 = B.start;
-  if (B.off != null) { while ((B.kind !== 'block' && isOff(B.off)) || B.off < 0) B.off++; }   // time off goes on any day, closed ones too
-  B.to = B.off; B.calM = B.off != null ? B.off : B.hint != null ? B.hint : 0;
+  if (B.off != null && B.mode !== 'edit') { while ((B.kind !== 'block' && isOff(B.off)) || B.off < 0) B.off++; }   // time off goes on any day, closed ones too
+  B.to = o.to != null ? o.to : B.off; B.calM = B.off != null ? B.off : B.hint != null ? B.hint : 0;
   fixStart(); sheet(bookHTML());
 }
 const TIME_OFF = [['Lunch', 30], ['Break', 15], ['Errand', 60], ['Appointment', 60], ['Day off', 0], ['Vacation', 0]];
+const blkType = b => allDay(b) ? (b.grp ? 'Vacation' : 'Day off') : TIME_OFF.some(t => t[0] === b.label && t[1]) ? b.label : 'Appointment';
 const wholeDays = () => B.kind === 'block' && (B.label === 'Day off' || B.label === 'Vacation');
 const offOfIso = v => Math.round((new Date(v + 'T00:00:00') - T0) / 864e5);
 const rangeDays = (a, b) => { const out = []; for (let o = a; o <= b; o++) out.push(o); return out; };   // every day, closed ones too: a weekend away still goes on the calendar
@@ -4290,15 +4291,16 @@ const bStarts = () => validStarts(B.off, bLen(), B.kind === 'client' ? TURN : 0,
 function fixStart(){ if (B.off == null || !bStarts().includes(B.start)) B.start = null; }
 function bookReady(){ if (wholeDays()) return B.off != null && B.to >= B.off; return B.off != null && B.start != null && (B.kind !== 'client' || (B.c && (B.c !== 'new' || B.newName.trim()))); }
 function bookLabel(){
-  if (wholeDays()) { const n = rangeDays(B.off, B.to).length; return `Take ${n} day${n === 1 ? '' : 's'} off`; }
+  if (wholeDays()) { const n = rangeDays(B.off, B.to).length; return B.mode === 'edit' ? `Save: ${n} day${n === 1 ? '' : 's'} off` : `Take ${n} day${n === 1 ? '' : 's'} off`; }
   if (!bookReady()) return B.kind === 'client' ? (B.off == null ? 'Pick a day' : B.c ? 'Pick a time' : 'Pick who and a time') : 'Pick a time';
   const when = `${dayShort(B.off).slice(0,3)} ${clock(B.start)}`;
+  if (B.kind === 'block' && B.mode === 'edit') return B.series ? `Change them to ${DOW[dateOf(B.off).getDay()]}s at ${clock(B.start)}` : `Save: ${when}`;
   if (B.kind === 'block') return B.rep ? `Every ${DOW[dateOf(B.off).getDay()]} at ${clock(B.start)}` : `Block ${when}`;
   const who = B.c === 'new' ? B.newName.trim().split(' ')[0] : first(B.c);
   return B.mode === 'move' ? (B.off === B.off0 && B.start === B.start0 ? (B.s === B.s0 ? 'Keep it as it is' : 'Save the change') : `Move to ${when}`) : `Book ${who} · ${when}`;
 }
 function bookHTML(){
-  const head = B.kind === 'block' ? top('Time off', `Breaks, your own appointments and days away. ${cap(WN)} can’t be booked over it.`)
+  const head = B.kind === 'block' ? (B.mode === 'edit' ? top('Change time off', B.series && !wholeDays() ? `This one and the ${B.allN - 1} after it, each a week apart.` : `${cap(WN)} can’t be booked over it.`) : top('Time off', `Breaks, your own appointments and days away. ${cap(WN)} can’t be booked over it.`))
     : B.mode === 'move' ? top(`Move or change ${esc(first(B.c))}’s ${P.unitOne}`, `${svLabel(B.s0)}, now ${whenText(AP.find(a=>a.id===B.id))}`)
     : B.rebook ? top(`Book ${esc(first(B.c))} again`, 'Same as last time. Pick a day on the calendar.')
     : top(`Book a ${W1}`, B.fromReq ? `${CL[B.c].name} asked for ${dayName(REQ.off)} at ${clock(REQ.start)}` : TURN ? `${TURN} minutes to reset is added after each ${P.unitOne}.` : 'Booked back to back.');
@@ -4314,7 +4316,7 @@ function bookHTML(){
       ${same.length ? `<button class="chip" data-act="b-also" aria-pressed="${!!B.also}" style="align-self:flex-start">${esc(first(B.c))}’s other ${same.length} upcoming ${same.length === 1 ? P.unitOne : P.unit} too</button><span class="small muted">${same.map(a => dayShort(a.off)).join(', ')}</span>` : ''}</div>` : '')
     : `<div class="field"><span class="label">What</span><div class="chips">${TIME_OFF.map(([l]) => `<button class="chip" data-act="b-l" data-v="${l}" aria-pressed="${B.label===l}">${l}</button>`).join('')}</div>
        <input class="text-in" id="b-name" placeholder="Name it if you like: Dentist, school pickup…" value="${esc(B.name)}" autocomplete="off" aria-label="Name it">
-       ${wholeDays() ? '' : `<span class="label" style="margin-top:6px">How long</span><div class="chips">${[15,30,45,60,90,120,180,240].map(m => `<button class="chip" data-act="b-len" data-v="${m}" aria-pressed="${B.len===m}">${dur(m)}</button>`).join('')}</div>`}</div>`;
+       ${wholeDays() ? '' : `<span class="label" style="margin-top:6px">How long</span><div class="chips">${[...new Set([15,30,45,60,90,120,180,240, B.len])].sort((x, y) => x - y).map(m => `<button class="chip" data-act="b-len" data-v="${m}" aria-pressed="${B.len===m}">${dur(m)}</button>`).join('')}</div>`}</div>`;
   const withWho = MULTI && B.kind === 'client' ? `<div class="field"><span class="label">With</span><div class="chips">${P.team.map(t => `<button class="chip" data-act="b-w" data-v="${t}" aria-pressed="${B.w===t}">${t}</button>`).join('')}</div></div>` : '';
   if (wholeDays()) {   // a day off or a vacation: a range of dates, every day in it blocked, closed days too
     const n = rangeDays(B.off, B.to).length, clash = AP.filter(a => a.off >= B.off && a.off <= B.to && !noShow(a)).sort((x, y) => x.off - y.off || x.start - y.start);
@@ -4331,14 +4333,20 @@ function bookHTML(){
     return `<div class="field"><button class="chip" data-act="b-gift" aria-pressed="${!!B.gift}" style="align-self:flex-start">Paying with a gift card</button>${left ? `<span class="small muted">${esc(first(B.c))} has ${money(left)} on a gift card.</span>` : ''}</div>`; })() : '';
   return `${head}${who}${withWho}${what}${gift}${dayAndTime()}`;
 }
+// time off: every end time from the start that stays clear of what's booked (as far as the day goes)
+function blockEnds(){ if (B.kind !== 'block' || B.off == null || B.start == null) return [];
+  const out = [], w = B.wide || blockWide(), last = w ? 1260 : closeOf(B.off);
+  for (let e = B.start + 15; e <= last; e += 15) { if (validStarts(B.off, e - B.start, 0, B.id, B.w, w).includes(B.start)) out.push(e); else break; }
+  return out; }
 function dayAndTime(){
   const days = Array.from({length:B.kind === 'block' ? 42 : 28}, (_, o) => o), st = B.off == null ? [] : bStarts();   // every day: closed ones can be opened
   return `<div class="field"><span class="label lbl-row">Day<button class="chip sm" data-act="b-cal">${B.cal ? 'Next few weeks' : 'Calendar'}</button></span>${B.cal ? calHTML() : `<div class="scroller">${days.map(o => `<button class="chip${isOff(o) ? ' dim' : ''}${familyOn(o).length ? ' fam' : ''}" data-act="b-d" data-v="${o}" aria-pressed="${B.off===o}">${o===0?'Today':o===1?'Tomorrow':dayShort(o).slice(0,3)+' '+dateOf(o).getDate()}${isOff(o) ? ' · closed' : ''}</button>`).join('')}</div>`}${B.off != null && dayTags(B.off) ? `<div class="day-tags">${dayTags(B.off)}</div>` : ''}</div>
     ${B.off == null ? '' : blockWide() ? `<p class="small muted">You’re usually closed ${DOW[dateOf(B.off).getDay()]}s. This goes on your calendar without opening the day.</p>` : isOff(B.off) && !B.wide ? `<div class="card facts2"><p><b>You’re usually closed ${DOW[dateOf(B.off).getDay()]}s.</b> Open this day?</p>${hoursPick(B.off)}
       <button class="btn primary" data-act="dh-save" data-in="book" data-v="${B.off}">Open ${dayShort(B.off).slice(0,3)} ${dateOf(B.off).getDate()}</button></div>` : ''}
     <div class="field" ${B.off == null || (isOff(B.off) && !B.wide && !blockWide()) ? 'hidden' : ''}><span class="label">Time</span>${st.length ? `<div class="chips">${st.map(t => `<button class="chip num" data-act="b-t" data-v="${t}" aria-pressed="${B.start===t}">${clock(t)}</button>`).join('')}</div>` : `<p class="muted">No room for ${dur(bLen())} that day. Try another day.</p>`}</div>
+    ${blockEnds().length ? `<label class="field"><span class="label">Until</span><select class="text-in" id="b-end">${blockEnds().map(e => `<option value="${e}" ${e === B.start + B.len ? 'selected' : ''}>${clock(e)} · ${dur(e - B.start)}</option>`).join('')}</select></label>` : ''}
     <div class="field" ${blockWide() ? 'hidden' : ''}><button class="chip" data-act="b-wide" aria-pressed="${!!B.wide}" style="align-self:flex-start">Earlier or later</button>${B.wide ? `<span class="small muted">Times from 7 am to 9 pm, outside your usual ${hrs(openOf(B.off))} to ${hrs(closeOf(B.off))}.</span>` : ''}</div>
-    ${B.kind === 'block' ? `<div class="field"><button class="chip" data-act="b-rep" aria-pressed="${B.rep}" style="align-self:flex-start">Every week</button>${B.rep ? `<span class="small muted">Every ${DOW[dateOf(B.off).getDay()]} for the next 3 months. Weeks that are already busy then are skipped.</span>` : ''}</div>` : ''}
+    ${B.kind === 'block' && B.mode !== 'edit' ? `<div class="field"><button class="chip" data-act="b-rep" aria-pressed="${B.rep}" style="align-self:flex-start">Every week</button>${B.rep ? `<span class="small muted">Every ${DOW[dateOf(B.off).getDay()]} for the next 3 months. Weeks that are already busy then are skipped.</span>` : ''}</div>` : ''}
     <div class="sticky-go"><button class="btn primary" id="book-go" data-act="b-go" ${bookReady()?'':'disabled'}>${esc(bookLabel())}</button></div>`;
 }
 // a month to pick a day from: closed days dimmed, a dot for each visit already booked, holidays and family days marked,
@@ -4358,11 +4366,23 @@ function bookGo(){
   if (!bookReady()) return;
   let msg;
   if (B.kind === 'block') {
-    const label = B.name.trim() || B.label, grp = uidOf('g');
-    if (wholeDays()) { const ds = rangeDays(B.off, B.to); ds.forEach(o => BL.push({id:seq++, off:o, start:openOf(o), min:closeOf(o) - openOf(o), label, w:B.w, mine:true, uid:uidOf('b'), grp:ds.length > 1 ? grp : undefined}));
+    const label = B.name.trim() || B.label, grp = uidOf('g'), before = BL.slice();
+    let keep = null;   // a single block keeps its uid, so the database changes it in place
+    if (B.mode === 'edit') { const old = BL.find(x => x.id === B.id); if (!old) { closeSheet(); render(); return; }
+      if (B.series && !wholeDays()) {   // a weekly series: this one and the ones after, moved together
+        const delta = B.off - old.off; let n = 0, skip = 0;
+        BL.filter(x => x.grp === old.grp && x.off >= old.off).forEach(m => { const o = m.off + delta;
+          if (validStarts(o, B.len, 0, m.id, m.w, B.wide || isOff(o)).includes(B.start)) { Object.assign(m, {off:o, start:B.start, min:B.len, label}); n++; } else skip++; });
+        closeSheet(); render(); toast(`${label}: ${n} changed to ${DOW[dateOf(B.off).getDay()]}s at ${clock(B.start)}${skip ? `, ${skip} left as ${skip === 1 ? 'it was' : 'they were'} because that time is booked` : ''}.`); return; }
+      const gone = B.all && old.grp ? BL.filter(x => x.grp === old.grp) : [old];   // a vacation's whole range, else just this one
+      if (gone.length === 1) keep = old.uid;
+      for (let i = BL.length - 1; i >= 0; i--) if (gone.includes(BL[i])) BL.splice(i, 1); }
+    if (wholeDays()) { const ds = rangeDays(B.off, B.to); ds.forEach(o => BL.push({id:seq++, off:o, start:openOf(o), min:closeOf(o) - openOf(o), label, w:B.w, mine:true, uid:(ds.length === 1 && keep) || uidOf('b'), grp:ds.length > 1 ? grp : undefined}));
       msg = `${label}: ${ds.length} day${ds.length === 1 ? '' : 's'} off${ds.length > 1 ? `, ${dayShort(ds[0]).slice(4)} to ${dayShort(ds[ds.length - 1]).slice(4)}` : ` ${dayName(ds[0])}`}.`; }
     else { let n = 0, skip = 0;
-      (B.rep ? Array.from({length:13}, (_, i) => B.off + 7 * i) : [B.off]).forEach(o => { if (validStarts(o, B.len, 0, undefined, B.w, B.wide || isOff(o)).includes(B.start)) { BL.push({id:seq++, off:o, start:B.start, min:B.len, label, w:B.w, mine:true, uid:uidOf('b'), grp:B.rep ? grp : undefined}); n++; } else skip++; });
+      (B.rep ? Array.from({length:13}, (_, i) => B.off + 7 * i) : [B.off]).forEach(o => { if (validStarts(o, B.len, 0, undefined, B.w, B.wide || isOff(o)).includes(B.start)) { BL.push({id:seq++, off:o, start:B.start, min:B.len, label, w:B.w, mine:true, uid:keep || uidOf('b'), grp:B.rep ? grp : undefined}); n++; } else skip++; });
+      if (B.mode === 'edit' && !n) { BL.splice(0, BL.length, ...before); closeSheet(); render(); toast('That time is booked now, so nothing changed.'); return; }
+      if (B.mode === 'edit') msg = `${label}: now ${dayName(B.off)} ${clock(B.start)} to ${clock(B.start + B.len)}.`; else
       msg = B.rep ? `${label} every ${DOW[dateOf(B.off).getDay()]} at ${clock(B.start)}: ${n} week${n === 1 ? '' : 's'} blocked${skip ? `, ${skip} skipped because ${skip === 1 ? 'that one is' : 'they’re'} already busy` : ''}.` : `${label}: ${dayName(B.off)} ${clock(B.start)}, ${dur(B.len)}.`; }
   }
   else if (B.mode === 'move') { const a = AP.find(x => x.id === B.id), moved = a.off !== B.off || a.start !== B.start, svc = B.s !== B.s0;
@@ -4682,7 +4702,7 @@ function toast(m){ clearTimeout(TOAST_T); let el = $('.toast'); if (!el) { el = 
   TOAST_T = setTimeout(() => { el.remove(); UNDO.snap = null; }, u ? 7000 : 3600); }
 // Undo: a copy of the book is taken before booking, moving, canceling, a payment or a no-show; the toast that follows
 // offers to put it back for a few seconds (saving the book again undoes it in the database too)
-const UNDOABLE = ['b-go', 'cancel-yes', 'pf-save', 'wk-noshow', 'charge-card', 'ac-save', 'im-go'];
+const UNDOABLE = ['b-go', 'unblock', 'unblock-grp', 'cancel-yes', 'pf-save', 'wk-noshow', 'charge-card', 'ac-save', 'im-go'];
 const bookCopy = () => JSON.parse(JSON.stringify({AP, BL, LEDGER, VISITS, CL}));
 function bookPut(c){
   AP.splice(0, AP.length, ...c.AP); BL.splice(0, BL.length, ...c.BL); LEDGER.splice(0, LEDGER.length, ...c.LEDGER);
@@ -4820,11 +4840,19 @@ on('click', e => {
     case 'cancel': $('#confirm').hidden = false; $('#confirm').scrollIntoView({block:'nearest'}); break;
     case 'cancel-no': $('#confirm').hidden = true; break;
     case 'cancel-yes': { const i = AP.findIndex(x => x.id === id), a = AP[i]; AP.splice(i,1); closeSheet(); render(); toast(`Canceled ${first(a.c)}’s ${clock(a.start)}. That time is open again.`); break; }
-    case 'block': { const b = BL.find(x => x.id === id), g = b.grp ? BL.filter(x => x.grp === b.grp).sort((x, y) => x.off - y.off) : [];
-      sheet(`${top(esc(b.label), allDay(b) ? `${cap(dayLong(b.off))} · all day` : `${cap(dayName(b.off))} · ${clock(b.start)} to ${clock(b.start + b.min)}`)}
-        ${g.length > 1 ? `<p class="muted">One of ${g.length}, ${dayShort(g[0].off).slice(4)} to ${dayShort(g[g.length - 1].off).slice(4)}.</p>` : ''}
-        <div class="btn-row"><button class="btn danger" data-act="unblock" data-id="${b.id}">${g.length > 1 ? 'Remove just this one' : 'Remove it'}</button>
+    case 'block': { const b = BL.find(x => x.id === id); if (!b) break;
+      const g = b.grp ? BL.filter(x => x.grp === b.grp).sort((x, y) => x.off - y.off) : [], whole = allDay(b), later = g.filter(x => x.off >= b.off);
+      const when = whole ? (g.length > 1 ? `${dayShort(g[0].off)} to ${dayShort(g[g.length - 1].off)} · all day` : `${cap(dayLong(b.off))} · all day`) : `${cap(dayName(b.off))}, ${dayShort(b.off).slice(4)} · ${clock(b.start)} to ${clock(b.start + b.min)}`;
+      sheet(`${top(esc(b.label), when)}
+        <p class="muted">${g.length > 1 ? whole ? `${g.length} days off. ` : `Every ${DOW[dateOf(b.off).getDay()]}, one of ${g.length}: ${dayShort(g[0].off).slice(4)} to ${dayShort(g[g.length - 1].off).slice(4)}. ` : ''}Time off: ${WN} can’t be booked then.</p>
+        <div class="btn-row"><button class="btn primary" data-act="blk-edit" data-id="${b.id}">${g.length > 1 && !whole ? 'Change just this one' : 'Change it'}</button>
+        ${g.length > 1 && !whole && later.length > 1 ? `<button class="btn" data-act="blk-edit" data-id="${b.id}" data-v="all">Change this and the ${later.length - 1} after</button>` : ''}</div>
+        <div class="btn-row"><button class="btn danger" data-act="unblock" data-id="${b.id}">${g.length > 1 ? (whole ? 'Remove just this day' : 'Remove just this one') : 'Remove it'}</button>
         ${g.length > 1 ? `<button class="btn" data-act="unblock-grp" data-v="${b.grp}">Remove all ${g.length}</button>` : ''}</div>`); break; }
+    case 'blk-edit': { const b = BL.find(x => x.id === id); if (!b) break;
+      const whole = allDay(b), g = b.grp ? BL.filter(x => x.grp === b.grp).sort((x, y) => x.off - y.off) : [b], type = blkType(b);
+      openBook({kind:'block', mode:'edit', id:b.id, label:type, name:b.label === type ? '' : b.label, off:whole ? g[0].off : b.off, to:whole ? g[g.length - 1].off : undefined,
+        start:whole ? null : b.start, len:whole ? 60 : b.min, w:b.w, all:whole && g.length > 1, series:!whole && v === 'all', allN:g.filter(x => x.off >= b.off).length, wide:!whole && !isOff(b.off) && (b.start < openOf(b.off) || b.start + b.min > closeOf(b.off))}); break; }
     case 'unblock': { BL.splice(BL.findIndex(x => x.id === id), 1); closeSheet(); render(); toast('Removed. That time is open again.'); break; }
     case 'unblock-grp': { const n = BL.filter(x => x.grp === v).length; for (let i = BL.length - 1; i >= 0; i--) if (BL[i].grp === v) BL.splice(i, 1); closeSheet(); render(); toast(`Removed all ${n}. That time is open again.`); break; }
     case 'req-ok': add(REQ.c, REQ.s, REQ.off, REQ.start, {w:REQ.w, mine:true}); REQ.open = false; render(); toast(`Booked ${first(REQ.c)} for ${dayName(REQ.off)} at ${clock(REQ.start)}. In the real app, ${first(REQ.c)} gets a confirmation.`); break;
@@ -5031,6 +5059,7 @@ on('change', e => {
   if (e.target.dataset && e.target.dataset.im && IM && IM.map) { IM.map[e.target.dataset.im] = +e.target.value; IM.fix = true; rerenderIm(); }
   if (e.target.id === 'pp-file' && PPF && e.target.files[0]) { const fl = e.target.files[0]; PPF.name = ($('#pp-name') || {}).value || PPF.name; PPF.expires = ($('#pp-exp') || {}).value || PPF.expires; PPF.file = fl; PPF.url = URL.createObjectURL(fl); rerenderPaper(); }
   if (e.target.id === 'pv-c') { const f = $('#pv-new-f'); if (f) f.hidden = e.target.value !== 'new'; }
+  if (B && e.target.id === 'b-end' && B.start != null) { B.len = +e.target.value - B.start; rerenderBook(); }
   if (B && (e.target.id === 'b-from' || e.target.id === 'b-to') && e.target.value) { const o = Math.max(0, offOfIso(e.target.value));
     if (e.target.id === 'b-from') { B.off = o; B.to = Math.max(B.to, o); } else B.to = Math.max(o, B.off); rerenderBook(); }
 });
