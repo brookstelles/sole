@@ -1929,17 +1929,20 @@ if (LIVEBOOK) {
     if (b.customer_note && !CL[c].note) CL[c].note = b.customer_note;
     add(c, s, off, at.getHours() * 60 + at.getMinutes(), {sq:b.id, pending:b.status === 'PENDING'});
   });
-  // Square has no name for most cards: each one belongs to the client who had a visit the days it paid (by price,
-  // then time, when several did). The owner's own answers in people/merges come first (`c`: whose card, null for nobody's).
+  // Square has no name for most cards: each one belongs to the client who had a visit the days it paid. People pay as
+  // they leave, so a payment is for the visit that ended nearest it (one that hadn't started can't be it), the price
+  // only a nudge: a price can be off (an add-on, an old app's list price; Nov 6, 2026 a card always paying $115 for a
+  // $100 visit was voted to whoever had a $115 visit that day). The owner's own answers in people/merges come first
+  // (`c`: whose card, null for nobody's).
   const all = SQ.all ? SQ.all.filter(p => p.status === 'COMPLETED').map(payOf) : pays, onDay = {};
-  Object.values(VISITS).forEach(v => { if (v.from && v.date && v.c && CL[v.c]) (onDay[v.date] = onDay[v.date] || []).push({c:v.c, price:v.price || 0, start:v.start || 0}); });
-  AP.forEach(a => { if (a.off <= 0 && SV[a.s]) { const d = isoDay(dateOf(a.off)); (onDay[d] = onDay[d] || []).push({c:a.c, price:prOf(a), start:a.start}); } });
+  Object.values(VISITS).forEach(v => { if (v.from && v.date && v.c && CL[v.c]) (onDay[v.date] = onDay[v.date] || []).push({c:v.c, price:v.price || 0, start:v.start || 0, end:(v.start || 0) + ((SV[v.s] || {}).min || 60)}); });
+  AP.forEach(a => { if (a.off <= 0 && SV[a.s]) { const d = isoDay(dateOf(a.off)); (onDay[d] = onDay[d] || []).push({c:a.c, price:prOf(a), start:a.start, end:a.start + minOf(a), a}); } });
+  const payPick = (p, L) => { const C = L.filter(v => v.start <= p.at); if (!C.length) return L.length === 1 ? L[0] : null;
+    const sc = v => Math.abs(p.at - v.end) - (Math.abs(v.price - p.net) < 1 ? 30 : 0), S = [...C].sort((x, y) => sc(x) - sc(y));
+    return S.length < 2 || sc(S[0]) + 20 < sc(S[1]) ? S[0] : null; };   // nobody when two are about as likely
   const guess = {}, payBy = {}; all.forEach(p => { if (p.cust) (payBy[p.cust] = payBy[p.cust] || []).push(p); });
   Object.entries(payBy).forEach(([id, ps]) => { if (CL['sq:' + id]) return; const votes = {};
-    ps.forEach(p => { let L = onDay[p.day] || []; const near = v => Math.abs(p.at - v.start - 75);
-      if (L.length > 1) { const pr = L.filter(v => Math.abs(v.price - p.net) < 1); if (pr.length) L = pr; }
-      if (L.length > 1) { L = [...L].sort((a, b) => near(a) - near(b)); if (near(L[0]) + 30 >= near(L[1])) return; }
-      if (L.length) votes[L[0].c] = (votes[L[0].c] || 0) + 1; });
+    ps.forEach(p => { const v = payPick(p, onDay[p.day] || []); if (v) votes[v.c] = (votes[v.c] || 0) + 1; });
     const top = Object.entries(votes).sort((a, b) => b[1] - a[1]); if (top.length && (top.length < 2 || top[0][1] > top[1][1])) guess[id] = top[0][0]; });
   const gs = (SQ.merges && SQ.merges.groups) || [], keyed = {};
   const keyOf = id => { const g = gs.find(x => x.ids.includes(id)); if (g && 'c' in g) return g.c && CL[g.c] ? g.c : '';
@@ -1948,10 +1951,16 @@ if (LIVEBOOK) {
   CARD_GROUPS = Object.entries(keyed).map(([k, ids]) => k.startsWith('g:') ? {ids, name:(gs.find(g => g.ids.includes(ids[0])) || {}).name || null} : {ids, c:k, name:CL[k].name});
   CARD_GROUPS.forEach(g => { if (!g.c) return; CARDS_OF[g.c] = new Set(g.ids); const c = CL[g.c]; if (c.sq === undefined) { c.sq = g.ids[0]; c.cardAuto = true; } });
   LEDGER.filter(x => x.gift && x.method === 'Card').forEach(x => { const p = pays.find(y => !used.has(y.id) && y.day === x.date && Math.abs(y.net - x.gift.amount) < 0.01); if (p) used.add(p.id); });
-  // a visit is paid when a card payment from that person, or for that price, came in that day
-  AP.filter(a => a.off <= 0 && !a.paid).sort((x, y) => (x.c.startsWith('sq:') ? 0 : 1) - (y.c.startsWith('sq:') ? 0 : 1)).forEach(a => {
-    const dk = isoDay(dateOf(a.off)), mine = CARDS_OF[a.c] || new Set(CL[a.c].sq ? [CL[a.c].sq] : []), p = pays.find(x => !used.has(x.id) && x.day === dk && mine.has(x.cust)) || pays.find(x => !used.has(x.id) && x.day === dk && x.net === prOf(a));
-    if (p) { used.add(p.id); a.paid = true; a.auto = true; a.tip = p.tip; a.method = 'Card'; } });
+  // a visit is paid when a card payment from that person came in that day; then a payment from a card nobody is known
+  // by goes to the visit still open that day at its price, the one that ended nearest it. Every visit's own card goes
+  // first: on Nov 6, 2026 an 11 am client booked at $115 took the $115 a later client paid with her own card.
+  const due = AP.filter(a => a.off <= 0 && !a.paid).sort((x, y) => (x.c.startsWith('sq:') ? 0 : 1) - (y.c.startsWith('sq:') ? 0 : 1) || x.off - y.off || x.start - y.start);
+  const cardsOf = a => CARDS_OF[a.c] || new Set(CL[a.c].sq ? [CL[a.c].sq] : []);
+  const known = new Set([...Object.values(CARDS_OF).flatMap(x => [...x]), ...Object.values(CL).map(c => c.sq).filter(Boolean)]);
+  const payIt = (a, p) => { used.add(p.id); a.paid = true; a.auto = true; a.tip = p.tip; a.method = 'Card'; };
+  due.forEach(a => { const dk = isoDay(dateOf(a.off)), mine = cardsOf(a), p = pays.find(x => !used.has(x.id) && x.day === dk && mine.has(x.cust)); if (p) payIt(a, p); });
+  [...pays].sort((x, y) => x.at - y.at).forEach(p => { if (used.has(p.id) || (p.cust && known.has(p.cust))) return;
+    const v = payPick(p, (onDay[p.day] || []).filter(v => v.a && !v.a.paid && v.a.off <= 0 && v.price === p.net)); if (v) payIt(v.a, p); });
 }
 // payments logged in SolePro mark that day's visit paid
 LEDGER.filter(x => x.kind === 'pay' || x.kind === 'giftuse').forEach(x => { x.matched = false; if (!x.c) return; const off = offOf(x.date), a = AP.find(y => y.c === x.c && y.off === off && !y.paid);

@@ -269,6 +269,35 @@ console.log('ok private Square views');
   await q.close();
   console.log('ok gift cards');
 }
+// card payments go to the visit whose client owns the card before any visit is matched by price: an earlier client
+// booked at $115 must not take the $115 a later client paid with her own card (Nov 6, 2026)
+{
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const y = new Date(); y.setDate(y.getDate() - 1); const at = new Date(y); at.setHours(14, 4, 0, 0);
+  const cl = n => ({name:n, phone:'', since:2026, visits:3, last:1, intake:true, pressure:0, focus:'Not known yet', setup:'', note:'', mine:true});
+  const sole = {appts:[{uid:'aE', c:'nE', s:'dt60', date:iso(y), start:660, paid:false, tip:0, w:'Kelli'}, {uid:'aL', c:'nL', s:'sw60', date:iso(y), start:780, paid:false, tip:0, w:'Kelli'}], blocks:[],
+    clients:{nE:cl('Early Sample'), nL:cl('Later Sample')}, ledger:[]}, merges = {groups:[{ids:['TESTCARDLATER000'], c:'nL', name:'Later Sample'}]};   // her card, known
+  const live = {payments:[{id:'LL', created_at:at.toISOString(), updated_at:at.toISOString(), status:'COMPLETED', customer_id:'TESTCARDLATER000', amount_money:{amount:11500}, tip_money:{amount:2300}, total_money:{amount:13800}, processing_fee:[]}]};
+  const q = await open('index.html', `window.__SOLE_SQUARE = ${JSON.stringify({...JSON.parse(sq), sole, merges})}; window.__SOLE_SQUARE_LIVE = ${JSON.stringify(live)};`);
+  await q.click('.tab[data-v=schedule]'); await q.click('[data-act=snav][data-v="-1"]');
+  const row = async n => q.locator('[data-act=appt]', {hasText:n}).textContent();
+  check(/Paid/.test(await row('Later Sample')) && /Not paid/.test(await row('Early Sample')), 'card payments: the client whose card paid gets it, not an earlier visit at the same price');
+  await q.close();
+  // and with no answer from her: the card's own history says whose it is, by when it paid (as each visit ended), even
+  // though it always pays $115 for a $100 visit and someone else had a $115 visit those days
+  const day = n => { const d = new Date(); d.setDate(d.getDate() - n); return d; }, payAt = (d, id) => { const t = new Date(d); t.setHours(14, 4, 0, 0);
+    return {id, created_at:t.toISOString(), updated_at:t.toISOString(), status:'COMPLETED', customer_id:'TESTCARDLATER000', amount_money:{amount:11500}, tip_money:{amount:2300}, total_money:{amount:13800}, processing_fee:[]}; };
+  const visits = {};
+  [8, 15, 22].forEach(n => { visits['vL' + n] = {c:'nL', s:'sw60', date:iso(day(n)), from:'MassageBook', price:100, start:780}; visits['vO' + n] = {c:'nO', s:'dt60', date:iso(day(n)), from:'MassageBook', price:115, start:630}; });
+  const sole2 = {...sole, clients:{...sole.clients, nO:cl('Other Sample')}, visits};
+  const live2 = {payments:[payAt(day(22), 'H22'), payAt(day(15), 'H15'), payAt(day(8), 'H8'), live.payments[0]]};
+  const r = await open('index.html', `window.__SOLE_SQUARE = ${JSON.stringify({...JSON.parse(sq), sole:sole2})}; window.__SOLE_SQUARE_LIVE = ${JSON.stringify(live2)};`);
+  await r.click('.tab[data-v=schedule]'); await r.click('[data-act=snav][data-v="-1"]');
+  const row2 = async n => r.locator('[data-act=appt]', {hasText:n}).textContent();
+  check(/Paid/.test(await row2('Later Sample')) && /Not paid/.test(await row2('Early Sample')), 'card payments: a card is known by when it paid, not by a price that matches someone else');
+  await r.close();
+  console.log('ok card payments go to their own client');
+}
 // the weekly check and visit notes
 {
   const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1040,12 +1069,13 @@ check((await p.textContent('.biz-name')) === 'Shine On Detailing', 'setup opens 
 check(/Nothing booked today/.test(await p.textContent('.lede')), 'day one starts empty');
 check((await p.textContent('.getstarted .aside')).startsWith('0 of 6'), 'getting started shows 0 of 6');
 await p.click('.gs[data-act=addc]'); await p.fill('#ac-name', 'Jordan Ellis'); await p.fill('#ac-note', 'White Tacoma, ceramic coat in spring'); await p.click('[data-act=ac-save]');
-await p.click('.sheet [data-act=book]'); await p.click('[data-act=b-d] >> nth=1'); await p.click('[data-act=b-t] >> nth=0'); await p.click('#book-go');
+await p.click('.sheet [data-act=book]'); await p.locator('[data-act=b-d]:not(.dim)').nth(1).click(); await p.click('[data-act=b-t] >> nth=0'); await p.click('#book-go');   // the next open day (tomorrow can be closed)
 await p.click('.gs[data-act=connect][data-v=square]'); await p.click('[data-act=connect-go][data-v=square]');
 check((await p.textContent('.getstarted .aside')).startsWith('3 of 6'), 'three steps done after customer, booking and Square');
 await p.click('.tab[data-v=money]');
 check(/Jordan Ellis/.test(await p.textContent('#s-clients')), 'new customer shows in Snapshot');
-const findDay = async (re) => { await p.click('.tab[data-v=schedule]'); for (let i = 0; i < 7; i++) { await p.click(`[data-act=day] >> nth=${i}`); if (re.test(await p.textContent('main'))) return true; } return false; };
+const findDay = async (re) => { await p.click('.tab[data-v=schedule]');   // this week, then next (on a weekend the next open day is next week)
+  for (let w = 0; w < 2; w++) { if (w) await p.click('[data-act=snav][data-v="1"]'); for (let i = 0; i < 7; i++) { await p.click(`[data-act=day] >> nth=${i}`); if (re.test(await p.textContent('main'))) return true; } } return false; };
 check(await findDay(/Jordan Ellis/), 'booking shows on the schedule');
 check(/Full detail/.test(await p.textContent('main')), 'renamed service is used');
 await p.reload({waitUntil:'networkidle'});
